@@ -1,0 +1,4 @@
+spec:
+  template:
+    spec:
+      hostNetwork: true

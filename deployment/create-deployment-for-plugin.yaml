@@ -1,0 +1,101 @@
+---
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: example-vsphere
+  namespace: velero
+spec:
+  provider: velero.io/vsphere
+  config: {}
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: velero
+  namespace: velero
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      deploy: velero
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8085"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
+      labels:
+        component: velero
+        deploy: velero
+    spec:
+      containers:
+      - args:
+        - server
+        - --default-volume-snapshot-locations
+        - velero.io/vsphere:example-vsphere
+        command:
+        - /velero
+        env:
+        - name: VELERO_SCRATCH_DIR
+          value: /scratch
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /credentials/cloud
+        - name: AWS_SHARED_CREDENTIALS_FILE
+          value: /credentials/cloud
+        - name: AZURE_CREDENTIALS_FILE
+          value: /credentials/cloud
+        - name: LD_LIBRARY_PATH
+          value: /plugins
+        image: gcr.io/heptio-images/velero:v1.1.0
+        imagePullPolicy: IfNotPresent
+        name: velero
+        ports:
+        - containerPort: 8085
+          name: metrics
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /plugins
+          name: plugins
+        - mountPath: /scratch
+          name: scratch
+        - mountPath: /credentials
+          name: cloud-credentials
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      initContainers:
+      - image: lintongj/velero-plugin-for-vsphere
+        imagePullPolicy: IfNotPresent
+        name: velero-plugin-for-vsphere
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /target
+          name: plugins
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: velero
+      serviceAccountName: velero
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: plugins
+      - emptyDir: {}
+        name: scratch
+      - name: cloud-credentials
+        secret:
+          defaultMode: 420
+          secretName: cloud-credentials
