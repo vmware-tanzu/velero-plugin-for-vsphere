@@ -20,7 +20,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/vmware/arachne/pkg/arachne"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -84,9 +84,9 @@ func (p *NewVolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, 
 	p.Infof("CreateVolumeFromSnapshot called", snapshotID, volumeType)
 	var returnVolumeID, returnVolumeType string
 
-	var peId,returnPeId arachne.ProtectedEntityID
+	var peId,returnPeId astrolabe.ProtectedEntityID
 	var err error
-	peId, err = arachne.NewProtectedEntityIDFromString(snapshotID)
+	peId, err = astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
 		p.Errorf("Fail to construct new PE ID from string")
 		return returnVolumeID, err
@@ -137,7 +137,7 @@ func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags ma
 	var snapshotID string
 
 	// call SnapshotMgr CreateSnapshot API
-	peID := arachne.NewProtectedEntityID("ivd", volumeID)
+	peID := astrolabe.NewProtectedEntityID("ivd", volumeID)
 	peID, err := p.snapMgr.CreateSnapshot(peID, tags)
 	if err != nil {
 		p.Errorf("Fail at calling SnapshotManager CreateSnapshot")
@@ -156,7 +156,7 @@ func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags ma
 
 	// Construct the snapshotID for cns volume
 	snapshotID = peID.String()
-	p.Debugf("The snapshotID depends on the Arachne PE ID in the format, <peType>:<id>:<snapshotID>, %s", snapshotID)
+	p.Debugf("The snapshotID depends on the Astrolabe PE ID in the format, <peType>:<id>:<snapshotID>, %s", snapshotID)
 	// Remember the snapshot
 	p.snapshots[snapshotID] = Snapshot{volID: volumeID,
 		az:   volumeAZ,
@@ -169,7 +169,7 @@ func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags ma
 // DeleteSnapshot deletes the specified volume snapshot.
 func (p *NewVolumeSnapshotter) DeleteSnapshot(snapshotID string) error {
 	p.Infof("DeleteSnapshot called", snapshotID)
-	peID, err := arachne.NewProtectedEntityIDFromString(snapshotID)
+	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
 		p.Errorf("Fail to construct new PE ID from string")
 		return err

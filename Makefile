@@ -19,7 +19,7 @@ BIN ?= $(wildcard velero-*)
 
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
-ARACHNE:= github.com/vmware/arachne
+ASTROLABE:= github.com/vmware-tanzu/astrolabe
 GVDDK:= github.com/vmware/gvddk
 
 BUILD_IMAGE ?= golang:1.12-stretch
@@ -63,7 +63,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs arachne
+shell: build-dirs astrolabe
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
@@ -86,18 +86,18 @@ build-dirs:
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
 copy-pkgs:
-	@echo "copy arachne for vendor directory to .go"
-	@rm -rf $$(pwd)/.go/src/$(ARACHNE)
-	@mkdir -p $$(pwd)/.go/src/$(ARACHNE)
-	@cp -R $(GOPATH)/src/$(ARACHNE)/* $$(pwd)/.go/src/$(ARACHNE)
+	@echo "copy astrolabe for vendor directory to .go"
+	@rm -rf $$(pwd)/.go/src/$(ASTROLABE)
+	@mkdir -p $$(pwd)/.go/src/$(ASTROLABE)
+	@cp -R $(GOPATH)/src/$(ASTROLABE)/* $$(pwd)/.go/src/$(ASTROLABE)
 
 	@echo "copy gvddk for vendor directory to .go"
 	@rm -rf $$(pwd)/.go/src/$(GVDDK)
 	mkdir -p $$(pwd)/.go/src/$(GVDDK)
 	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
 
-arachne: build-dirs copy-pkgs
-	@echo "building arachne"
+astrolabe: build-dirs copy-pkgs
+	@echo "building astrolabe"
 	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
@@ -110,7 +110,7 @@ arachne: build-dirs copy-pkgs
 		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
-		-w /go/src/$(ARACHNE) \
+		-w /go/src/$(ASTROLABE) \
 		$(BUILD_IMAGE) \
 		make
 
