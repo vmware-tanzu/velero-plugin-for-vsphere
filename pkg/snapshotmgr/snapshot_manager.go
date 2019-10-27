@@ -24,9 +24,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/vmware/arachne/pkg/arachne"
-	"github.com/vmware/arachne/pkg/ivd"
-	"github.com/vmware/arachne/pkg/s3repository"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"io/ioutil"
 	"k8s.io/client-go/kubernetes"
@@ -224,38 +224,38 @@ func NewSnapshotManagerFromParamsMap(params map[string]interface{}, logger logru
 	return &snapMgr, nil
 }
 
-func (this *SnapshotManager) CreateSnapshot(peID arachne.ProtectedEntityID, tags map[string]string) (arachne.ProtectedEntityID, error) {
+func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called")
 	this.Infof("Step 1: Creating a snapshot in local repository")
-	var updatedPeID arachne.ProtectedEntityID
+	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
 	pe, err := this.ivdPETM.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.Errorf("Failed to GetProtectedEntity for, %s, with error message, %v", peID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 	this.Debugf("Ready to call PE snapshot API")
 	peSnapID, err := pe.Snapshot(ctx)
 	this.Debugf("Return from the call of PE snapshot API")
 	if err != nil {
 		this.Errorf("Failed to Snapshot PE for, %s, with error message, %v", peID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 
 	this.Debugf("constructing the returned PE snapshot id, ", peSnapID.GetID())
-	updatedPeID = arachne.NewProtectedEntityIDWithSnapshotID(peID.GetPeType(), peID.GetID(), *peSnapID)
+	updatedPeID = astrolabe.NewProtectedEntityIDWithSnapshotID(peID.GetPeType(), peID.GetID(), peSnapID)
 
 	this.Infof("Step 2: Copying the snapshot from local repository to remote(durable) s3 repository")
 	updatedPE, err := this.ivdPETM.GetProtectedEntity(ctx, updatedPeID)
 	if err != nil {
 		this.Errorf("Failed to GetProtectedEntity for, %s, with error message, %v", updatedPeID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
-	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, arachne.AllocateNewObject)
+	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, astrolabe.AllocateNewObject)
 	if err != nil {
 		this.Errorf("Failed at copying snapshot to remote s3 repository for, %s, with error message, %v",
 			updatedPeID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 	this.Debugf("s3PE ID: ", s3PE.GetID().String())
 
@@ -264,14 +264,14 @@ func (this *SnapshotManager) CreateSnapshot(peID arachne.ProtectedEntityID, tags
 	if err != nil {
 		this.Errorf("Failed at deleting local snapshot for, %s, with error message, %v",
 			updatedPeID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 
 	this.Infof("IVD snapshot is created, %s", updatedPeID.String())
 	return updatedPeID, nil
 }
 
-func (this *SnapshotManager) DeleteSnapshot(peID arachne.ProtectedEntityID) error {
+func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.Infof("Step 1: Deleting the local snapshot, %s", peID.String())
 	err := this.deleteProtectedEntitySnapshot(peID, this.ivdPETM)
 	if err != nil {
@@ -289,7 +289,7 @@ func (this *SnapshotManager) DeleteSnapshot(peID arachne.ProtectedEntityID) erro
 	return nil
 }
 
-func (this *SnapshotManager) deleteProtectedEntitySnapshot(peID arachne.ProtectedEntityID, petm arachne.ProtectedEntityTypeManager) error {
+func (this *SnapshotManager) deleteProtectedEntitySnapshot(peID astrolabe.ProtectedEntityID, petm astrolabe.ProtectedEntityTypeManager) error {
 	this.Infof("SnapshotManager.deleteProtectedEntitySnapshot Called")
 
 	_, isDurableRepo := petm.(*s3repository.ProtectedEntityTypeManager)
@@ -333,7 +333,7 @@ func (this *SnapshotManager) deleteProtectedEntitySnapshot(peID arachne.Protecte
 	return nil
 }
 
-func (this *SnapshotManager) CreateVolumeFromSnapshot(peID arachne.ProtectedEntityID) (arachne.ProtectedEntityID, error) {
+func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateVolumeFromSnapshot Called")
 
 	ctx := context.Background()
@@ -341,16 +341,16 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID arachne.ProtectedEnti
 	pe, err := this.s3PETM.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.Errorf("Failed to GetProtectedEntity for, %s, with error message, %v", peID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 
 	this.Debugf("Ready to call PETM copy API")
-	var updatedPE arachne.ProtectedEntity
-	updatedPE, err = this.ivdPETM.Copy(ctx, pe, arachne.AllocateNewObject)
+	var updatedPE astrolabe.ProtectedEntity
+	updatedPE, err = this.ivdPETM.Copy(ctx, pe, astrolabe.AllocateNewObject)
 	this.Debugf("Return from the call of PETM copy API")
 	if err != nil {
 		this.Errorf("Failed to copy for, %s, with error message, %v", peID.String(), err)
-		return arachne.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 
 	this.Infof("New PE %s was created from the snapshot %s", updatedPE.GetID().String(), peID.String())
