@@ -17,18 +17,18 @@
 package snapshotmgr
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+"github.com/aws/aws-sdk-go/aws"
+"github.com/aws/aws-sdk-go/aws/session"
+"github.com/aws/aws-sdk-go/service/s3"
+"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 
-	//"encoding/base64"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"strings"
-	"testing"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+//"encoding/base64"
+"k8s.io/client-go/kubernetes"
+"k8s.io/client-go/tools/clientcmd"
+"os"
+"strings"
+"testing"
+metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 
@@ -140,4 +140,51 @@ func TestUseVeleroV1API(t *testing.T) {
 	backupStorageLocation ,err := veleroClient.VeleroV1().BackupStorageLocations("velero").Get("default", metav1.GetOptions{})
 	t.Logf("Get spec.config.region: %v", backupStorageLocation.Spec.Config["region"])
 	t.Logf("Get spec.objectstorage: %s", backupStorageLocation.Spec.ObjectStorage.Bucket)
+
+	volumeSnapshotList, err := veleroClient.VeleroV1().VolumeSnapshotLocations("velero").List(metav1.ListOptions{})
+
+	for _, item := range volumeSnapshotList.Items {
+		if item.Spec.Provider != "velero.io/vsphere" {
+			continue
+		}
+		t.Logf("Got config: %v", item.Spec.Config)
+		t.Logf("Got empty map: %v", len(item.Spec.Config) == 0)
+	}
 }
+
+func TestGetContainerArgsFromDeployment(t *testing.T) {
+	path := os.Getenv("HOME") + "/.kube/config-csi-restic-1012"
+	config, err := clientcmd.BuildConfigFromFlags("", path)
+	if err != nil {
+		t.Fatal("Got error " + err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		t.Fatal("Got error " + err.Error())
+	}
+
+	deployment, err := clientset.AppsV1().Deployments("velero").Get("velero", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Got error " + err.Error())
+	}
+
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name != "velero" {
+			continue
+		}
+		t.Logf("container name: %v", container.Name)
+		t.Logf("container cmd: %v", container.Command)
+		for _, arg := range container.Args {
+			if strings.Contains(arg, "velero.io/vsphere:") {
+				parts := strings.Split(arg, ":")
+				provider := strings.TrimSpace(parts[0])
+				snapshotLocation := strings.TrimSpace(parts[1])
+				t.Logf("provider: %v", provider)
+				t.Logf("snapshotLocation: %v", snapshotLocation)
+			} else {
+				t.Logf("container args: %v", arg)
+			}
+		}
+	}
+}
+
