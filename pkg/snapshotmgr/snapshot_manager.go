@@ -39,6 +39,7 @@ import (
 
 type SnapshotManager struct {
 	logrus.FieldLogger
+	localMode bool
 	ivdPETM *ivd.IVDProtectedEntityTypeManager
 	s3PETM *s3repository.ProtectedEntityTypeManager
 }
@@ -57,7 +58,6 @@ func NewSnapshotManagerFromCluster(logger logrus.FieldLogger) (*SnapshotManager,
 		return nil, err
 	}
 
-	logger.Infof("Params: %v", params)
 	snapMgr, err := NewSnapshotManagerFromParamsMap(params, logger)
 	if err != nil {
 		logger.Errorf("Failed to new a snapshot manager from params map")
@@ -84,6 +84,74 @@ func retrieveBackupStorageLocation(params map[string]interface{}, logger logrus.
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
 
 	return nil
+}
+
+func verifyLocalMode(params map[string]interface{}, logger logrus.FieldLogger) (bool, error) {
+	isLocalMode := false
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logger.Errorf("Failed to get k8s inClusterConfig")
+		return isLocalMode, err
+	}
+
+	// retrieve default volume snapshot location from k8s deployment api
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Errorf("Failed to get k8s clientset with the given config")
+		return isLocalMode, err
+	}
+
+	deployment, err := clientset.AppsV1().Deployments("velero").Get("velero", metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("Failed to get velero deployment using k8s client")
+		return isLocalMode, err
+	}
+
+	var snapshotLocation string
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name != "velero" {
+			continue
+		}
+		for _, arg := range container.Args {
+			if strings.Contains(arg, "velero.io/vsphere:") {
+				parts := strings.Split(arg, ":")
+				snapshotLocation = strings.TrimSpace(parts[1])
+				break
+			}
+		}
+	}
+
+	if snapshotLocation == "" {
+		logger.Infof("No snapshot location for vSphere plugin can be found")
+		return isLocalMode, nil
+	}
+
+	logger.Infof("Default snapshot location from velero deployment: %v", snapshotLocation)
+
+	// retrieve specific config in snapshot location from velero api
+	veleroClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		logger.Errorf("Failed to get velero clientset with the given config")
+		return isLocalMode, err
+	}
+
+	volumeSnapshot, err := veleroClient.VeleroV1().VolumeSnapshotLocations("velero").Get(snapshotLocation, metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("Failed to get velero snapshot location using velero api client")
+		return isLocalMode, err
+	}
+
+	configStringMap := volumeSnapshot.Spec.Config
+	if len(configStringMap) != 0 {
+		flag := configStringMap["region"] != params["region"] || configStringMap["bucket"] != params["bucket"]
+		if flag {
+			logger.Infof("External object store has been specifed. Hence, vSphere plugin falls back to the local mode.")
+			isLocalMode = true
+		}
+	}
+
+	return isLocalMode, nil
 }
 
 
@@ -214,13 +282,20 @@ func NewSnapshotManagerFromParamsMap(params map[string]interface{}, logger logru
 		return nil, err
 	}
 
+	isLocalMode, err := verifyLocalMode(params, logger)
+	if err != nil {
+		logger.Errorf("Error at verifying whether the plugin is in vSphere local mode")
+		return nil, err
+	}
+
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
+		localMode: isLocalMode,
 		ivdPETM: ivdPETM,
 		s3PETM: s3PETM,
 	}
 
-	logger.Debugf("Snapshot Manager is initialized")
+	logger.Infof("Snapshot Manager is initialized in vSphere local mode: %v", snapMgr.localMode)
 	return &snapMgr, nil
 }
 
@@ -245,6 +320,13 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Debugf("constructing the returned PE snapshot id, ", peSnapID.GetID())
 	updatedPeID = astrolabe.NewProtectedEntityIDWithSnapshotID(peID.GetPeType(), peID.GetID(), peSnapID)
 
+	this.Infof("Local IVD snapshot is created, %s", updatedPeID.String())
+
+	if this.localMode == true {
+		this.Infof("Skipping the remote copy in the vSphere local mode")
+		return updatedPeID, nil
+	}
+
 	this.Infof("Step 2: Copying the snapshot from local repository to remote(durable) s3 repository")
 	updatedPE, err := this.ivdPETM.GetProtectedEntity(ctx, updatedPeID)
 	if err != nil {
@@ -267,7 +349,6 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
-	this.Infof("IVD snapshot is created, %s", updatedPeID.String())
 	return updatedPeID, nil
 }
 
@@ -278,6 +359,10 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 		this.Errorf("Failed to delete the local snapshot")
 	}
 	this.Infof("Deleted the local snapshot, %s", peID.String())
+
+	if this.localMode == true {
+		return nil
+	}
 
 	this.Infof("Step 2: Deleting the durable snapshot, %s, from s3", peID.String())
 	err = this.deleteProtectedEntitySnapshot(peID, this.s3PETM)
