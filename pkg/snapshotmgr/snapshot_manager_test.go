@@ -17,20 +17,19 @@
 package snapshotmgr
 
 import (
-"github.com/aws/aws-sdk-go/aws"
-"github.com/aws/aws-sdk-go/aws/session"
-"github.com/aws/aws-sdk-go/service/s3"
-"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 
-//"encoding/base64"
-"k8s.io/client-go/kubernetes"
-"k8s.io/client-go/tools/clientcmd"
-"os"
-"strings"
-"testing"
-metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//"encoding/base64"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"strings"
+	"testing"
 )
-
 
 func TestGetVcConfigSecret(t *testing.T) {
 	path := os.Getenv("HOME") + "/.kube/config"
@@ -64,7 +63,7 @@ func TestGetVcConfigSecret(t *testing.T) {
 			parts := strings.Split(line, "=")
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			vcMap[key] = value[1: len(value) - 1]
+			vcMap[key] = value[1 : len(value)-1]
 		}
 	}
 	//t.Logf("vcMap: %v", vcMap)
@@ -117,7 +116,6 @@ func TestS3OperationsUnderEnvVars(t *testing.T) {
 	}
 }
 
-
 func TestUseVeleroV1API(t *testing.T) {
 	path := os.Getenv("HOME") + "/.kube/config"
 	config, err := clientcmd.BuildConfigFromFlags("", path)
@@ -137,7 +135,7 @@ func TestUseVeleroV1API(t *testing.T) {
 		t.Logf("List spec.objectstorage: %s", item.Spec.ObjectStorage.Bucket)
 	}
 
-	backupStorageLocation ,err := veleroClient.VeleroV1().BackupStorageLocations("velero").Get("default", metav1.GetOptions{})
+	backupStorageLocation, err := veleroClient.VeleroV1().BackupStorageLocations("velero").Get("default", metav1.GetOptions{})
 	t.Logf("Get spec.config.region: %v", backupStorageLocation.Spec.Config["region"])
 	t.Logf("Get spec.objectstorage: %s", backupStorageLocation.Spec.ObjectStorage.Bucket)
 
@@ -187,4 +185,3 @@ func TestGetContainerArgsFromDeployment(t *testing.T) {
 		}
 	}
 }
-
