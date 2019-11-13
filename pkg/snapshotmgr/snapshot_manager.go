@@ -29,19 +29,19 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"net/url"
 	"os"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 )
 
 type SnapshotManager struct {
 	logrus.FieldLogger
 	localMode bool
-	ivdPETM *ivd.IVDProtectedEntityTypeManager
-	s3PETM *s3repository.ProtectedEntityTypeManager
+	ivdPETM   *ivd.IVDProtectedEntityTypeManager
+	s3PETM    *s3repository.ProtectedEntityTypeManager
 }
 
 func NewSnapshotManagerFromCluster(logger logrus.FieldLogger) (*SnapshotManager, error) {
@@ -66,7 +66,6 @@ func NewSnapshotManagerFromCluster(logger logrus.FieldLogger) (*SnapshotManager,
 	return snapMgr, nil
 }
 
-
 func retrieveBackupStorageLocation(params map[string]interface{}, logger logrus.FieldLogger) error {
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -78,7 +77,7 @@ func retrieveBackupStorageLocation(params map[string]interface{}, logger logrus.
 		return err
 	}
 	defaultBackupLocation := "default"
-	backupStorageLocation ,err := veleroClient.VeleroV1().BackupStorageLocations("velero").
+	backupStorageLocation, err := veleroClient.VeleroV1().BackupStorageLocations("velero").
 		Get(defaultBackupLocation, metav1.GetOptions{})
 	params["region"] = backupStorageLocation.Spec.Config["region"]
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
@@ -154,7 +153,6 @@ func verifyLocalMode(params map[string]interface{}, logger logrus.FieldLogger) (
 	return isLocalMode, nil
 }
 
-
 /*
  * In the CSI setup, VC credential is stored as a secret
  * under the kube-system namespace.
@@ -190,7 +188,7 @@ func retrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 			parts := strings.Split(line, "=")
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			params[key] = value[1: len(value) - 1]
+			params[key] = value[1 : len(value)-1]
 		}
 	}
 	return nil
@@ -290,9 +288,9 @@ func NewSnapshotManagerFromParamsMap(params map[string]interface{}, logger logru
 
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
-		localMode: isLocalMode,
-		ivdPETM: ivdPETM,
-		s3PETM: s3PETM,
+		localMode:   isLocalMode,
+		ivdPETM:     ivdPETM,
+		s3PETM:      s3PETM,
 	}
 
 	logger.Infof("Snapshot Manager is initialized in vSphere local mode: %v", snapMgr.localMode)
