@@ -32,11 +32,48 @@ IMAGE ?= velero/velero-plugin-for-vsphere
 local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
+VERSION ?= master
+
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
+DATAMGR_BUILDER_IMAGE := velero-builder
+
 all: $(addprefix build-, $(BIN))
+
+datamgr:
+	$(MAKE) build-datamgr BIN=datamgr
+
+build-datamgr: build-dirs
+	@echo "building: $@"
+	$(MAKE) datamgr-shell CMD="-c '\
+		GOOS=$(GOOS) \
+		GOARCH=$(GOARCH) \
+		VERSION=$(VERSION) \
+		PKG=$(PKG) \
+		BIN=$(BIN) \
+		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
+		./hack/build-datamgr.sh'"
+
+datamgr-shell: build-dirs build-image
+	@# the volume bind-mount of $PWD/vendor/k8s.io/api is needed for code-gen to
+	@# function correctly (ref. https://github.com/kubernetes/kubernetes/pull/64567)
+	@docker run \
+		-e GOFLAGS \
+		-i $(TTY) \
+		--rm \
+		-u $$(id -u):$$(id -g) \
+		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
+		-v "$$(pwd)/.go/pkg:/go/pkg:delegated" \
+		-v "$$(pwd)/.go/std:/go/std:delegated" \
+		-v "$$(pwd):/go/src/$(PKG):delegated" \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
+		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
+		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
+		-w /go/src/$(PKG) \
+		$(DATAMGR_BUILDER_IMAGE) \
+		/bin/sh $(CMD)
 
 build-%:
 	$(MAKE) --no-print-directory BIN=$* build
@@ -53,13 +90,7 @@ build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
 
 _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	@echo "building: $@"
-	$(MAKE) shell CMD="-c '\
-		GOOS=$(GOOS) \
-		GOARCH=$(GOARCH) \
-		PKG=$(PKG) \
-		BIN=$(BIN) \
-		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
-		./hack/build.sh'"
+	$(MAKE) shell
 
 TTY := $(shell tty -s && echo "-t")
 
@@ -84,6 +115,9 @@ shell: build-dirs astrolabe
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
+
+build-image:
+	cd hack/build-image && docker build --pull -t $(DATAMGR_BUILDER_IMAGE) .
 
 copy-pkgs:
 	@echo "copy astrolabe for vendor directory to .go"
@@ -131,4 +165,6 @@ ci:
 
 clean:
 	@echo "cleaning"
+	rm -rf .container-* _output/.dockerfile-*
 	rm -rf .go _output
+	docker rmi $(DATAMGR_BUILDER_IMAGE)

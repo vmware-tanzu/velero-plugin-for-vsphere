@@ -1,4 +1,4 @@
-package upload
+package download
 
 import (
 	"github.com/sirupsen/logrus"
@@ -10,18 +10,18 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/client"
 )
 
-func NewDescribeCommand(f client.Factory, use string) *cobra.Command {
+func NewGetCommand(f client.Factory, use string) *cobra.Command {
 	var listOptions metav1.ListOptions
 	logLevelFlag := logging.LogLevelFlag(logrus.InfoLevel)
 	formatFlag := logging.NewFormatFlag()
 
 	c := &cobra.Command{
-		Use:   use + " [NAME1] [NAME2] [NAME...]",
-		Short: "Describe uploads",
+		Use:   use,
+		Short: "Get downloads",
 		Run: func(c *cobra.Command, args []string) {
 			logLevel := logLevelFlag.Parse()
 			logger := logging.DefaultLogger(logLevel, formatFlag.Parse())
-			logger.Infof("The command, datamgr upload describe, is called")
+			logger.Infof("The command, datamgr download get, is called")
 		},
 	}
 
