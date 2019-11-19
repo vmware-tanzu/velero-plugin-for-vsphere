@@ -1,4 +1,4 @@
-package upload
+package download
 
 import (
 	"github.com/spf13/cobra"
@@ -7,9 +7,9 @@ import (
 
 func NewCommand(f client.Factory) *cobra.Command {
 	c := &cobra.Command{
-		Use:   "upload",
-		Short: "Work with data manager upload",
-		Long:  "Work with data manager upload",
+		Use:   "download",
+		Short: "Work with data manager download",
+		Long:  "Work with data manager download",
 	}
 
 	c.AddCommand(

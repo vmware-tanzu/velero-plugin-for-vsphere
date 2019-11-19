@@ -3,6 +3,10 @@ package datamgr
 import (
 	"flag"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/abort"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/download"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/install"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/upload"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/server"
 	"os"
 
@@ -27,14 +31,11 @@ func NewCommand(name string) *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   name,
-		Short: "Back up and restore Kubernetes cluster resources.",
-		Long: `Velero is a tool for managing disaster recovery, specifically for Kubernetes
-cluster resources. It provides a simple, configurable, and operationally robust
-way to back up your application state and associated data.
-
-If you're familiar with kubectl, Velero supports a similar model, allowing you to
-execute commands such as 'velero get backup' and 'velero create schedule'. The same
-operations can also be performed as 'velero backup get' and 'velero schedule create'.`,
+		Short: "Upload and download snapshots of persistent volume on vSphere kubernetes cluster",
+		Long: `Data manager is a component in Velero vSphere plugin for
+			moving local snapshotted data from/to remote durable persistent storage. 
+			Specifically, the data manager component is supposed to be running
+			in separate container from the velero server`,
 		// PersistentPreRun will run before all subcommands EXCEPT in the following conditions:
 		//  - a subcommand defines its own PersistentPreRun function
 		//  - the command is run without arguments or with --help and only prints the usage info
@@ -52,6 +53,10 @@ operations can also be performed as 'velero backup get' and 'velero schedule cre
 
 	c.AddCommand(
 		server.NewCommand(f),
+		install.NewCommand(f),
+		upload.NewCommand(f),
+		download.NewCommand(f),
+		abort.NewCommand(f),
 	)
 
 	// init and add the klog flags

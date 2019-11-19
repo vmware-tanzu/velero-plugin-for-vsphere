@@ -1,4 +1,4 @@
-package upload
+package download
 
 import (
 	"github.com/sirupsen/logrus"
@@ -17,11 +17,11 @@ func NewDescribeCommand(f client.Factory, use string) *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   use + " [NAME1] [NAME2] [NAME...]",
-		Short: "Describe uploads",
+		Short: "Describe downloads",
 		Run: func(c *cobra.Command, args []string) {
 			logLevel := logLevelFlag.Parse()
 			logger := logging.DefaultLogger(logLevel, formatFlag.Parse())
-			logger.Infof("The command, datamgr upload describe, is called")
+			logger.Infof("The command, datamgr download describe, is called")
 		},
 	}
 
