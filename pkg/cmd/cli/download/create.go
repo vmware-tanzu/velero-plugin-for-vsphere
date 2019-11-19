@@ -1,4 +1,4 @@
-package upload
+package download
 
 import (
 	"github.com/sirupsen/logrus"
@@ -18,7 +18,7 @@ func NewCreateCommand(f client.Factory, use string) *cobra.Command {
 
 	c := &cobra.Command{
 		Use:   use + " NAME",
-		Short: "Create a backup",
+		Short: "Create an upload",
 		Args:  cobra.ExactArgs(1),
 		Example: `	# upload a snapshot to durable storage
 	datamgr upload create upload1 --snapshot-id fcd:<fcd-id>:<snapshot-id>`,
