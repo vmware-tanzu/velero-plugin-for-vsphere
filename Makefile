@@ -38,12 +38,19 @@ platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
+# datamgr only begin
 DATAMGR_BUILDER_IMAGE := velero-builder
+DATAMGR_BIN := datamgr
+DATAMGR_DOCKERFILE ?= Dockerfile-$(DATAMGR_BIN)
+REGISTRY ?= lintongj
+DATAMGR_IMAGE = $(REGISTRY)/$(DATAMGR_BIN)
+DOTFILE_IMAGE = $(subst :,_,$(subst /,_,$(DATAMGR_IMAGE))-$(VERSION))
+# datamgr only end
 
 all: $(addprefix build-, $(BIN))
 
 datamgr:
-	$(MAKE) build-datamgr BIN=datamgr
+	$(MAKE) build-datamgr
 
 build-datamgr: build-dirs
 	@echo "building: $@"
@@ -52,9 +59,28 @@ build-datamgr: build-dirs
 		GOARCH=$(GOARCH) \
 		VERSION=$(VERSION) \
 		PKG=$(PKG) \
-		BIN=$(BIN) \
+		BIN=$(DATAMGR_BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		./hack/build-datamgr.sh'"
+
+datamgr-shell-debug: build-dirs
+	@# the volume bind-mount of $PWD/vendor/k8s.io/api is needed for code-gen to
+	@# function correctly (ref. https://github.com/kubernetes/kubernetes/pull/64567)
+	@docker run \
+		-e GOFLAGS \
+		-i $(TTY) \
+		--rm \
+		-u $$(id -u):$$(id -g) \
+		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
+		-v "$$(pwd)/.go/pkg:/go/pkg:delegated" \
+		-v "$$(pwd)/.go/std:/go/std:delegated" \
+		-v "$$(pwd):/go/src/$(PKG):delegated" \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
+		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
+		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
+		-w /go/src/$(PKG) \
+		$(DATAMGR_BUILDER_IMAGE) \
+		/bin/sh
 
 datamgr-shell: build-dirs build-image
 	@# the volume bind-mount of $PWD/vendor/k8s.io/api is needed for code-gen to
@@ -74,6 +100,15 @@ datamgr-shell: build-dirs build-image
 		-w /go/src/$(PKG) \
 		$(DATAMGR_BUILDER_IMAGE) \
 		/bin/sh $(CMD)
+
+datamgr-container: .container-$(DOTFILE_IMAGE) container-name
+.container-$(DOTFILE_IMAGE): build-datamgr $(DATAMGR_DOCKERFILE)
+	@cp $(DATAMGR_DOCKERFILE) _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH)
+	@docker build --pull -t $(DATAMGR_IMAGE):$(VERSION) -f _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH) _output
+	@docker images -q $(DATAMGR_IMAGE):$(VERSION) > $@
+
+container-name:
+	@echo "container: $(DATAMGR_IMAGE):$(VERSION)"
 
 build-%:
 	$(MAKE) --no-print-directory BIN=$* build

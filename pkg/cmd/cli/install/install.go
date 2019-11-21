@@ -5,18 +5,18 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/client"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/util/flag"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/util/output"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
+	"github.com/vmware-tanzu/velero/pkg/client"
+	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
+	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	"github.com/vmware-tanzu/velero/pkg/install"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-	kubeutil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/util/kube"
+	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 )
 
 type InstallOptions struct {
