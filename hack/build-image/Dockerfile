@@ -18,7 +18,7 @@ RUN mkdir -p /go/src/k8s.io
 WORKDIR /go/src/k8s.io
 RUN git config --global advice.detachedHead false
 RUN git clone -b kubernetes-1.15.3 https://github.com/kubernetes/code-generator
-RUN git clone -b kubernetes-1.15.3 https://github.com/kubernetes/apimachinery 
+RUN git clone -b kubernetes-1.15.3 https://github.com/kubernetes/apimachinery
 # Use a proxy for go modules to reduce the likelihood of various hosts being down and breaking the build
 ENV GOPROXY=https://proxy.golang.org
 # vendor code-generator go modules to be compatible with pre-1.15
@@ -50,3 +50,6 @@ RUN wget --quiet https://github.com/goreleaser/goreleaser/releases/download/v0.1
     tar xvf goreleaser_Linux_x86_64.tar.gz && \
     mv goreleaser /usr/bin/goreleaser && \
     chmod +x /usr/bin/goreleaser
+RUN go get github.com/sirupsen/logrus
+
+

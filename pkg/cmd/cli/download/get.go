@@ -3,11 +3,10 @@ package download
 import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/util/output"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/util/logging"
+	"github.com/vmware-tanzu/velero/pkg/client"
+	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/client"
 )
 
 func NewGetCommand(f client.Factory, use string) *cobra.Command {
