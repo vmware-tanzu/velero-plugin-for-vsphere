@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/buildinfo"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/client"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/util/flag"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/util/logging"
+	"github.com/vmware-tanzu/velero/pkg/buildinfo"
+	"github.com/vmware-tanzu/velero/pkg/client"
+	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
+	velerodiscovery "github.com/vmware-tanzu/velero/pkg/discovery"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
+	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -22,8 +23,7 @@ import (
 	"time"
 	//TODO: change the following imports accordingly
 	clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-	velerodiscovery "github.com/vmware-tanzu/velero/pkg/discovery"
-	informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
+	//informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
 )
 
 type serverConfig struct {
@@ -106,7 +106,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().DurationVar(&config.backupSyncPeriod, "backup-sync-period", config.backupSyncPeriod, "how often to ensure all Velero backups in object storage exist as Backup API objects in the cluster. This is the default sync period if none is explicitly specified for a backup storage location.")
 	command.Flags().DurationVar(&config.podVolumeOperationTimeout, "restic-timeout", config.podVolumeOperationTimeout, "how long backups/restores of pod volumes should be allowed to run before timing out")
 	command.Flags().BoolVar(&config.restoreOnly, "restore-only", config.restoreOnly, "run in a mode where only restores are allowed; backups, schedules, and garbage-collection are all disabled. DEPRECATED: this flag will be removed in v2.0. Use read-only backup storage locations instead.")
-	command.Flags().StringSliceVar(&config.disabledControllers, "disable-controllers", config.disabledControllers, fmt.Sprintf("list of controllers to disable on startup. Valid values are %s", strings.Join(disableControllerList, ",")))
+	//command.Flags().StringSliceVar(&config.disabledControllers, "disable-controllers", config.disabledControllers, fmt.Sprintf("list of controllers to disable on startup. Valid values are %s", strings.Join(disableControllerList, ",")))
 	command.Flags().StringSliceVar(&config.restoreResourcePriorities, "restore-resource-priorities", config.restoreResourcePriorities, "desired order of resource restores; any resource not in the list will be restored alphabetically after the prioritized resources")
 	command.Flags().StringVar(&config.defaultBackupLocation, "default-backup-storage-location", config.defaultBackupLocation, "name of the default backup storage location")
 	command.Flags().Var(&volumeSnapshotLocations, "default-volume-snapshot-locations", "list of unique volume providers and default volume snapshot location (provider1:location-01,provider2:location-02,...)")
@@ -128,12 +128,12 @@ type server struct {
 	discoveryClient       discovery.DiscoveryInterface
 	discoveryHelper       velerodiscovery.Helper
 	dynamicClient         dynamic.Interface
-	sharedInformerFactory informers.SharedInformerFactory
+	//sharedInformerFactory informers.SharedInformerFactory
 	ctx                   context.Context
 	cancelFunc            context.CancelFunc
 	logger                logrus.FieldLogger
 	logLevel              logrus.Level
-	metrics               *metrics.ServerMetrics //TODO: change the import packages accordingly
+	metrics               *metrics.ServerMetrics
 	config                serverConfig
 }
 
