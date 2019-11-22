@@ -189,6 +189,9 @@ container: all
 	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
 
+update:
+	@$(MAKE) datamgr-shell CMD="-c 'hack/update-generated-crd-code.sh'"
+
 all-ci: $(addprefix ci-, $(BIN))
 
 ci-%:
