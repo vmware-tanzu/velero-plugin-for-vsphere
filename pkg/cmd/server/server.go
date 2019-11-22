@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/controller"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
@@ -135,6 +136,14 @@ func (s *server) run() error {
 		return err
 	}
 
+	result, err := s.kubeClient.AppsV1().Deployments(s.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for index, item := range result.Items {
+		s.logger.Infof("deployment %v: %v", index, item)
+	}
+
 	if err := s.runControllers(); err != nil {
 		return err
 	}
@@ -218,29 +227,22 @@ func (s *server) runControllers() error {
 	ctx := s.ctx
 	var wg sync.WaitGroup
 	// Register controllers
-	//backupControllerRunInfo := func() controllerRunInfo {
-	//	backupController := controller.NewBackupController(
-	//		s.sharedInformerFactory.Velero().V1().Backups(),
-	//		s.veleroClient.VeleroV1(),
-	//		backupper,
-	//		s.logger,
-	//		s.logLevel,
-	//		newPluginManager,
-	//		backupTracker,
-	//		s.sharedInformerFactory.Velero().V1().BackupStorageLocations(),
-	//		s.config.defaultBackupLocation,
-	//		s.config.defaultBackupTTL,
-	//		s.sharedInformerFactory.Velero().V1().VolumeSnapshotLocations(),
-	//		defaultVolumeSnapshotLocations,
-	//		s.metrics,
-	//		s.config.formatFlag.Parse(),
-	//	)
-	//
-	//	return controllerRunInfo{
-	//		controller: backupController,
-	//		numWorkers: defaultControllerWorkers,
-	//	}
-	//}
+	s.logger.Info("Registering upload controllers")
+
+	uploadController := controller.NewUploadController(
+		s.logger,
+		s.pluginInformerFactory.Veleroplugin().V1().Uploads(),
+		s.pluginClient.VeleropluginV1(),
+		s.kubeInformerFactory.Core().V1().PersistentVolumeClaims(),
+		s.kubeInformerFactory.Core().V1().PersistentVolumes(),
+		os.Getenv("NODE_NAME"),
+		)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		uploadController.Run(s.ctx, 1)
+	}()
 
 	// SHARED INFORMERS HAVE TO BE STARTED AFTER ALL CONTROLLERS
 	go s.pluginInformerFactory.Start(ctx.Done())

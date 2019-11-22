@@ -6,19 +6,18 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"time"
-	"k8s.io/apimachinery/pkg/types"
-	corev1informers "k8s.io/client-go/informers/core/v1"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	corev1informers "k8s.io/client-go/informers/core/v1"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
+	"time"
 )
 
 type uploadController struct {
@@ -106,9 +105,11 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 	req := obj.(*pluginv1api.Upload)
 
 	// only enqueue items for this node
-	if req.Spec.Node != c.nodeName {
-		return
-	}
+	// Todo: Enabled in the production code
+	// disable the check for local debug purpose
+	//if req.Spec.Node != c.nodeName {
+	//	return
+	//}
 
 	log := loggerForUpload(c.logger, req)
 
