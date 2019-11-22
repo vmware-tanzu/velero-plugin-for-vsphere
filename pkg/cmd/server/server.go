@@ -2,17 +2,20 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
+	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
 	velerodiscovery "github.com/vmware-tanzu/velero/pkg/discovery"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -21,9 +24,11 @@ import (
 	"os"
 	"strings"
 	"time"
-	//TODO: change the following imports accordingly
 	clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-	//informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
+	informers "github.com/vmware-tanzu/velero/pkg/generated/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	kubeerrs "k8s.io/apimachinery/pkg/util/errors"
 )
 
 type serverConfig struct {
@@ -128,19 +133,55 @@ type server struct {
 	discoveryClient       discovery.DiscoveryInterface
 	discoveryHelper       velerodiscovery.Helper
 	dynamicClient         dynamic.Interface
-	//sharedInformerFactory informers.SharedInformerFactory
+	sharedInformerFactory informers.SharedInformerFactory
 	ctx                   context.Context
 	cancelFunc            context.CancelFunc
 	logger                logrus.FieldLogger
 	logLevel              logrus.Level
+	//pluginRegistry        clientmgmt.Registry
 	metrics               *metrics.ServerMetrics
 	config                serverConfig
 }
 
 func (s *server) run() error {
 	s.logger.Infof("data manager server is up and running")
+	signals.CancelOnShutdown(s.cancelFunc, s.logger)
+
+	//if s.config.profilerAddress != "" {
+	//	go s.runProfiler()
+	//}
+
+	// Since s.namespace, which specifies where backups/restores/schedules/etc. should live,
+	// *could* be different from the namespace where the Velero server pod runs, check to make
+	// sure it exists, and fail fast if it doesn't.
+	if err := s.namespaceExists(s.namespace); err != nil {
+		return err
+	}
+
+	if err := s.initDiscoveryHelper(); err != nil {
+		return err
+	}
+
+	if err := s.veleroResourcesExist(); err != nil {
+		return err
+	}
+
+	if err := s.validateBackupStorageLocations(); err != nil {
+		return err
+	}
+
+	if _, err := s.veleroClient.VeleroV1().BackupStorageLocations(s.namespace).Get(s.config.defaultBackupLocation, metav1.GetOptions{}); err != nil {
+		s.logger.WithError(errors.WithStack(err)).
+			Warnf("A backup storage location named %s has been specified for the server to use by default, but no corresponding backup storage location exists. Backups with a location not matching the default will need to explicitly specify an existing location", s.config.defaultBackupLocation)
+	}
+
+	if err := s.runControllers(s.config.defaultVolumeSnapshotLocations); err != nil {
+		return err
+	}
+
 	return nil
 }
+
 
 func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*server, error) {
 	logger.Infof("data manager server is started")
@@ -189,7 +230,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		veleroClient:          veleroClient,
 		discoveryClient:       veleroClient.Discovery(),
 		dynamicClient:         dynamicClient,
-		//sharedInformerFactory: informers.NewSharedInformerFactoryWithOptions(veleroClient, 0, informers.WithNamespace(f.Namespace())),
+		sharedInformerFactory: informers.NewSharedInformerFactoryWithOptions(veleroClient, 0, informers.WithNamespace(f.Namespace())),
 		ctx:                   ctx,
 		cancelFunc:            cancelFunc,
 		logger:                logger,
@@ -198,4 +239,118 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 
 	return s, nil
+}
+
+// namespaceExists returns nil if namespace can be successfully
+// gotten from the kubernetes API, or an error otherwise.
+func (s *server) namespaceExists(namespace string) error {
+	s.logger.WithField("namespace", namespace).Info("Checking existence of namespace")
+
+	if _, err := s.kubeClient.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{}); err != nil {
+		return errors.WithStack(err)
+	}
+
+	s.logger.WithField("namespace", namespace).Info("Namespace exists")
+	return nil
+}
+
+// veleroResourcesExist checks for the existence of each Velero CRD via discovery
+// and returns an error if any of them don't exist.
+func (s *server) veleroResourcesExist() error {
+	s.logger.Info("Checking existence of Velero custom resource definitions")
+
+	var veleroGroupVersion *metav1.APIResourceList
+	for _, gv := range s.discoveryHelper.Resources() {
+		if gv.GroupVersion == api.SchemeGroupVersion.String() {
+			veleroGroupVersion = gv
+			break
+		}
+	}
+
+	if veleroGroupVersion == nil {
+		return errors.Errorf("Velero API group %s not found. Apply examples/common/00-prereqs.yaml to create it.", api.SchemeGroupVersion)
+	}
+
+	foundResources := sets.NewString()
+	for _, resource := range veleroGroupVersion.APIResources {
+		foundResources.Insert(resource.Kind)
+	}
+
+	var errs []error
+	for kind := range api.CustomResources() {
+		if foundResources.Has(kind) {
+			s.logger.WithField("kind", kind).Debug("Found custom resource")
+			continue
+		}
+
+		errs = append(errs, errors.Errorf("custom resource %s not found in Velero API group %s", kind, api.SchemeGroupVersion))
+	}
+
+	if len(errs) > 0 {
+		errs = append(errs, errors.New("Velero custom resources not found - apply examples/common/00-prereqs.yaml to update the custom resource definitions"))
+		return kubeerrs.NewAggregate(errs)
+	}
+
+	s.logger.Info("All Velero custom resource definitions exist")
+	return nil
+}
+
+// validateBackupStorageLocations checks to ensure all backup storage locations exist
+// and have a compatible layout, and returns an error if not.
+func (s *server) validateBackupStorageLocations() error {
+	s.logger.Info("Checking that all backup storage locations are valid")
+
+	//pluginManager := clientmgmt.NewManager(s.logger, s.logLevel, s.pluginRegistry)
+	//defer pluginManager.CleanupClients()
+
+	_, err := s.veleroClient.VeleroV1().BackupStorageLocations(s.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	//var invalid []string
+	//for _, location := range locations.Items {
+	//	backupStore, err := persistence.NewObjectBackupStore(&location, pluginManager, s.logger)
+	//	if err != nil {
+	//		invalid = append(invalid, errors.Wrapf(err, "error getting backup store for location %q", location.Name).Error())
+	//		continue
+	//	}
+	//
+	//	if err := backupStore.IsValid(); err != nil {
+	//		invalid = append(invalid, errors.Wrapf(err, "backup store for location %q is invalid", location.Name).Error())
+	//	}
+	//}
+	//
+	//if len(invalid) > 0 {
+	//	return errors.Errorf("some backup storage locations are invalid: %s", strings.Join(invalid, "; "))
+	//}
+
+	return nil
+}
+
+// initDiscoveryHelper instantiates the server's discovery helper and spawns a
+// goroutine to call Refresh() every 5 minutes.
+func (s *server) initDiscoveryHelper() error {
+	discoveryHelper, err := velerodiscovery.NewHelper(s.discoveryClient, s.logger)
+	if err != nil {
+		return err
+	}
+	s.discoveryHelper = discoveryHelper
+
+	go wait.Until(
+		func() {
+			if err := discoveryHelper.Refresh(); err != nil {
+				s.logger.WithError(err).Error("Error refreshing discovery")
+			}
+		},
+		5*time.Minute,
+		s.ctx.Done(),
+	)
+
+	return nil
+}
+
+func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string) error {
+	s.logger.Info("Starting controllers")
+	return nil
 }
