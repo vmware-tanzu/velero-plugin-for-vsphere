@@ -12,8 +12,14 @@ type UploadSpec struct {
 	// SnapshotID is the identifier for the snapshot of the pod volume.
 	SnapshotID string `json:"snapshotID,omitempty"`
 
-	// Volume is the name of the volume within the Pod to be restored.
-	Volume string `json:"volume"`
+	// BackupStorageLocation is the name of the backup storage location
+	// where the restic repository is stored.
+	BackupStorageLocation string `json:"backupStorageLocation"`
+
+	// VolumeSnapshotLocation is provided for user when they want different
+	// locations to store the volume sanpshot and meta data.
+	// +optional
+	VolumeSnapshotLocation string `json:"volumeSnapshotLocation"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
