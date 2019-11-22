@@ -1,0 +1,111 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: (unknown)
+  creationTimestamp: null
+  name: uploads.veleroplugin.io
+spec:
+  group: veleroplugin.io
+  names:
+    kind: Upload
+    listKind: UploadList
+    plural: uploads
+    singular: upload
+  scope: ""
+  validation:
+    openAPIV3Schema:
+      description: Upload describe a velero-plugin backup
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: Spec is the custom resource spec
+          properties:
+            backupStorageLocation:
+              description: BackupStorageLocation is the name of the backup storage
+                location where the restic repository is stored.
+              type: string
+            node:
+              description: Node is the name of the node that the Pod is running on.
+              type: string
+            snapshotID:
+              description: SnapshotID is the identifier for the snapshot of the pod
+                volume.
+              type: string
+            volumeSnapshotLocation:
+              description: VolumeSnapshotLocation is provided for user when they want
+                different locations to store the volume sanpshot and meta data.
+              type: string
+          required:
+          - backupStorageLocation
+          - node
+          type: object
+        status:
+          description: UploadStatus is the current status of a Upload.
+          properties:
+            completionTimestamp:
+              description: CompletionTimestamp records the time a backup was completed.
+                Completion time is recorded even on failed backups. Completion time
+                is recorded before uploading the backup object. The server's time
+                is used for CompletionTimestamps
+              format: date-time
+              nullable: true
+              type: string
+            message:
+              description: Message is a message about the upload's status.
+              type: string
+            phase:
+              description: Phase is the current state of the Upload.
+              enum:
+              - New
+              - InProgress
+              - Completed
+              - Failed
+              type: string
+            progress:
+              description: Progress holds the total number of bytes of the volume
+                and the current number of backed up bytes. This can be used to display
+                progress information about the backup operation.
+              properties:
+                bytesDone:
+                  format: int64
+                  type: integer
+                totalBytes:
+                  format: int64
+                  type: integer
+              type: object
+            startTimestamp:
+              description: StartTimestamp records the time a backup was started. Separate
+                from CreationTimestamp, since that value changes on restores. The
+                server's time is used for StartTimestamps
+              format: date-time
+              nullable: true
+              type: string
+          type: object
+      required:
+      - spec
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
