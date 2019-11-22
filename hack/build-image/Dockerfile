@@ -50,6 +50,7 @@ RUN wget --quiet https://github.com/goreleaser/goreleaser/releases/download/v0.1
     tar xvf goreleaser_Linux_x86_64.tar.gz && \
     mv goreleaser /usr/bin/goreleaser && \
     chmod +x /usr/bin/goreleaser
-RUN go get github.com/sirupsen/logrus
+RUN go get github.com/sirupsen/logrus \
+           github.com/aws/aws-sdk-go/aws
 
 
