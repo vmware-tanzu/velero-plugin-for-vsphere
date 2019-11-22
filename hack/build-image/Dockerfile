@@ -51,6 +51,7 @@ RUN wget --quiet https://github.com/goreleaser/goreleaser/releases/download/v0.1
     mv goreleaser /usr/bin/goreleaser && \
     chmod +x /usr/bin/goreleaser
 RUN go get github.com/sirupsen/logrus \
-           github.com/aws/aws-sdk-go/aws
+           github.com/aws/aws-sdk-go/aws \
+           k8s.io/utils/clock
 
 
