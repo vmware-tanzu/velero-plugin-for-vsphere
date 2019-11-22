@@ -22,7 +22,7 @@ PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
 ASTROLABE:= github.com/vmware-tanzu/astrolabe
 GVDDK:= github.com/vmware/gvddk
 
-BUILD_IMAGE ?= golang:1.12-stretch
+#BUILD_IMAGE ?= golang:1.12-stretch
 
 IMAGE ?= velero/velero-plugin-for-vsphere
 
@@ -39,7 +39,7 @@ GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
 # datamgr only begin
-DATAMGR_BUILDER_IMAGE := velero-builder
+BUILDER_IMAGE := vsphere-plugin-builder
 DATAMGR_BIN := datamgr
 DATAMGR_DOCKERFILE ?= Dockerfile-$(DATAMGR_BIN)
 REGISTRY ?= lintongj
@@ -79,7 +79,7 @@ datamgr-shell-debug: build-dirs
 		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-w /go/src/$(PKG) \
-		$(DATAMGR_BUILDER_IMAGE) \
+		$(BUILDER_IMAGE) \
 		/bin/sh
 
 datamgr-shell: build-dirs build-image
@@ -98,7 +98,7 @@ datamgr-shell: build-dirs build-image
 		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-w /go/src/$(PKG) \
-		$(DATAMGR_BUILDER_IMAGE) \
+		$(BUILDER_IMAGE) \
 		/bin/sh $(CMD)
 
 datamgr-container: .container-$(DOTFILE_IMAGE) container-name
@@ -129,22 +129,22 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs astrolabe
+shell: build-dirs astrolabe build-image
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/$(PKG) \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
+		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
+		-v $$(pwd)/.go/src:/go/src:delegated \
+		-v $$(pwd)/.go/std:/go/std:delegated \
+		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-w /go/src/$(PKG) \
-		$(BUILD_IMAGE) \
+		$(BUILDER_IMAGE) \
 		go build -installsuffix "static" -i -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
 
 build-dirs:
@@ -152,7 +152,7 @@ build-dirs:
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
 build-image:
-	cd hack/build-image && docker build --pull -t $(DATAMGR_BUILDER_IMAGE) .
+	cd hack/build-image && docker build --pull -t $(BUILDER_IMAGE) .
 
 copy-pkgs:
 	@echo "copy astrolabe for vendor directory to .go"
@@ -165,22 +165,22 @@ copy-pkgs:
 	mkdir -p $$(pwd)/.go/src/$(GVDDK)
 	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
 
-astrolabe: build-dirs copy-pkgs
+astrolabe: build-dirs copy-pkgs build-image
 	@echo "building astrolabe"
 	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/$(PKG) \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
+		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
+		-v $$(pwd)/.go/src:/go/src:delegated \
+		-v $$(pwd)/.go/std:/go/std:delegated \
+		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-w /go/src/$(ASTROLABE) \
-		$(BUILD_IMAGE) \
+		$(BUILDER_IMAGE) \
 		make
 
 container: all
@@ -205,4 +205,4 @@ clean:
 	@echo "cleaning"
 	rm -rf .container-* _output/.dockerfile-*
 	rm -rf .go _output
-	docker rmi $(DATAMGR_BUILDER_IMAGE)
+	docker rmi $(BUILDER_IMAGE)
