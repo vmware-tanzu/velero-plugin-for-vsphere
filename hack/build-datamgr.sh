@@ -39,6 +39,11 @@ if [ -z "${VERSION}" ]; then
     exit 1
 fi
 
+if [ -z "${FOLDER}" ]; then
+    echo "Use BIN as FOLDER if FOLDER is unset"
+    FOLDER=${BIN}
+fi
+
 export CGO_ENABLED=1
 
 GIT_SHA=$(git rev-parse HEAD)
@@ -65,4 +70,4 @@ go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
     -ldflags "${LDFLAGS}" \
-    ${PKG}/component/${BIN}
+    ${PKG}/${FOLDER}

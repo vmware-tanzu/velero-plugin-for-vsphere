@@ -16,6 +16,8 @@
 
 # The binary to build (just the basename).
 BIN ?= $(wildcard velero-*)
+DATAMGR_FOLDER ?= $(wildcard data-manager-*)
+DATAMGR_BIN := datamgr
 
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
@@ -40,7 +42,7 @@ GOARCH = $(word 2, $(platform_temp))
 
 # datamgr only begin
 BUILDER_IMAGE := vsphere-plugin-builder
-DATAMGR_BIN := datamgr
+#DATAMGR_BIN := datamgr
 DATAMGR_DOCKERFILE ?= Dockerfile-$(DATAMGR_BIN)
 REGISTRY ?= lintongj
 DATAMGR_IMAGE = $(REGISTRY)/$(DATAMGR_BIN)
@@ -59,39 +61,21 @@ build-datamgr: build-dirs
 		GOARCH=$(GOARCH) \
 		VERSION=$(VERSION) \
 		PKG=$(PKG) \
+		FOLDER=$(DATAMGR_FOLDER) \
 		BIN=$(DATAMGR_BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		./hack/build-datamgr.sh'"
 
-datamgr-shell-debug: build-dirs
-	@# the volume bind-mount of $PWD/vendor/k8s.io/api is needed for code-gen to
-	@# function correctly (ref. https://github.com/kubernetes/kubernetes/pull/64567)
-	@docker run \
+datamgr-shell: build-dirs astrolabe build-image
+	@echo "building: $@"
+	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
 		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
 		-v "$$(pwd)/.go/pkg:/go/pkg:delegated" \
-		-v "$$(pwd)/.go/std:/go/std:delegated" \
-		-v "$$(pwd):/go/src/$(PKG):delegated" \
-		-v "$$(pwd)/_output/bin:/output:delegated" \
-		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
-		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-w /go/src/$(PKG) \
-		$(BUILDER_IMAGE) \
-		/bin/sh
-
-datamgr-shell: build-dirs build-image
-	@# the volume bind-mount of $PWD/vendor/k8s.io/api is needed for code-gen to
-	@# function correctly (ref. https://github.com/kubernetes/kubernetes/pull/64567)
-	@docker run \
-		-e GOFLAGS \
-		-i $(TTY) \
-		--rm \
-		-u $$(id -u):$$(id -g) \
-		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
-		-v "$$(pwd)/.go/pkg:/go/pkg:delegated" \
+		-v "$$(pwd)/.go/src:/go/src:delegated" \
 		-v "$$(pwd)/.go/std:/go/std:delegated" \
 		-v "$$(pwd):/go/src/$(PKG):delegated" \
 		-v "$$(pwd)/_output/bin:/output:delegated" \
