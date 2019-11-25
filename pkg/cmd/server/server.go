@@ -140,14 +140,6 @@ func (s *server) run() error {
 		return err
 	}
 
-	result, err := s.kubeClient.AppsV1().Deployments(s.namespace).List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-	for index, item := range result.Items {
-		s.logger.Infof("deployment %v: %v", index, item)
-	}
-
 	if err := s.runControllers(); err != nil {
 		return err
 	}
