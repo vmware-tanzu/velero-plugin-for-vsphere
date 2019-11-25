@@ -6,10 +6,13 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -17,17 +20,18 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
-	"time"
 )
 
 type uploadController struct {
 	*genericController
 
-	uploadClient          pluginv1client.UploadsGetter
-	uploadLister 		  listers.UploadLister
-	pvcLister             corev1listers.PersistentVolumeClaimLister
-	pvLister              corev1listers.PersistentVolumeLister
-	nodeName              string
+	uploadClient pluginv1client.UploadsGetter
+	uploadLister listers.UploadLister
+	pvcLister    corev1listers.PersistentVolumeClaimLister
+	pvLister     corev1listers.PersistentVolumeLister
+	nodeName     string
+	dataMover    *dataMover.DataMover
+	snapMgr      *snapshotmgr.SnapshotManager
 
 	processBackupFunc func(*pluginv1api.Upload) error
 	clock             clock.Clock
@@ -39,16 +43,20 @@ func NewUploadController(
 	uploadClient pluginv1client.UploadsGetter,
 	pvcInformer corev1informers.PersistentVolumeClaimInformer,
 	pvInformer corev1informers.PersistentVolumeInformer,
+	dataMover *dataMover.DataMover,
+	snapMgr *snapshotmgr.SnapshotManager,
 	nodeName string,
 ) Interface {
 	c := &uploadController{
-		genericController:     newGenericController("upload", logger),
-		uploadClient: 		   uploadClient,
-		uploadLister:      	   uploadInformer.Lister(),
-		pvcLister: 			   pvcInformer.Lister(),
-		pvLister:              pvInformer.Lister(),
-		nodeName:              nodeName,
-		clock:      		   &clock.RealClock{},
+		genericController: newGenericController("upload", logger),
+		uploadClient:      uploadClient,
+		uploadLister:      uploadInformer.Lister(),
+		pvcLister:         pvcInformer.Lister(),
+		pvLister:          pvInformer.Lister(),
+		nodeName:          nodeName,
+		dataMover:         dataMover,
+		snapMgr:           snapMgr,
+		clock:             &clock.RealClock{},
 	}
 
 	c.syncHandler = c.processQueueItem
@@ -168,14 +176,12 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 		return errors.WithStack(err)
 	}
 
-	// call astrolabe API to do the remote copy
-	time.Sleep(5 * time.Second)
-	//peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
-	//if err != nil {
-	//	log.WithError(err).Error("Error getting PE ID from Spec.SnapshotID")
-	//	return err
-	//}
+	// Call data mover API to do the remote copy
+	peID := astrolabe.NewProtectedEntityID("ivd", req.Spec.SnapshotID)
+	c.dataMover.CopyToRepo(peID)
 
+	// Call snapshot manager API to cleanup the local snapshot
+	c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {

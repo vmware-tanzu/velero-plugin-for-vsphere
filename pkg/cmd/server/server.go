@@ -8,11 +8,18 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/controller"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
+	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
+	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"log"
@@ -20,11 +27,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"strings"
-	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
-	kubeinformers "k8s.io/client-go/informers"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 )
 
@@ -119,6 +121,8 @@ type server struct {
 	logLevel              logrus.Level
 	metrics               *metrics.ServerMetrics
 	config                serverConfig
+	dataMover             *dataMover.DataMover
+	snapManager               *snapshotmgr.SnapshotManager
 }
 
 func (s *server) run() error {
@@ -176,6 +180,17 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
+	dataMover, err := dataMover.NewDataMoverFromCluster(logger)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(logger)
+	if err != nil {
+		return nil, err
+	}
+
+
 	s := &server{
 		namespace:             f.Namespace(),
 		metricsAddress:        config.metricsAddress,
@@ -189,6 +204,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		logger:                logger,
 		logLevel:              logger.Level,
 		config:                config,
+		dataMover:             dataMover,
+		snapManager:           snapshotmgr,
 	}
 
 	return s, nil
@@ -235,8 +252,10 @@ func (s *server) runControllers() error {
 		s.pluginClient.VeleropluginV1(),
 		s.kubeInformerFactory.Core().V1().PersistentVolumeClaims(),
 		s.kubeInformerFactory.Core().V1().PersistentVolumes(),
+		s.dataMover,
+		s.snapManager,
 		os.Getenv("NODE_NAME"),
-		)
+	)
 
 	wg.Add(1)
 	go func() {

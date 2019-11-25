@@ -363,7 +363,7 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Debugf("s3PE ID: ", s3PE.GetID().String())
 
 	this.Infof("Step 3: Removing the snapshot, %s, from local repository", updatedPeID.String())
-	err = this.deleteProtectedEntitySnapshot(updatedPeID, this.ivdPETM)
+	err = this.DeleteProtectedEntitySnapshot(updatedPeID, false)
 	if err != nil {
 		this.Errorf("Failed at deleting local snapshot for, %s, with error message, %v",
 			updatedPeID.String(), err)
@@ -375,7 +375,7 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.Infof("Step 1: Deleting the local snapshot, %s", peID.String())
-	err := this.deleteProtectedEntitySnapshot(peID, this.ivdPETM)
+	err := this.DeleteProtectedEntitySnapshot(peID, false)
 	if err != nil {
 		this.Errorf("Failed to delete the local snapshot")
 	}
@@ -386,7 +386,7 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 	}
 
 	this.Infof("Step 2: Deleting the durable snapshot, %s, from s3", peID.String())
-	err = this.deleteProtectedEntitySnapshot(peID, this.s3PETM)
+	err = this.DeleteProtectedEntitySnapshot(peID, true)
 	if err != nil {
 		this.Errorf("Failed to delete the durable snapshot")
 		return err
@@ -395,17 +395,9 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 	return nil
 }
 
-func (this *SnapshotManager) deleteProtectedEntitySnapshot(peID astrolabe.ProtectedEntityID, petm astrolabe.ProtectedEntityTypeManager) error {
+func (this *SnapshotManager) DeleteProtectedEntitySnapshot(peID astrolabe.ProtectedEntityID, toRemote bool) error {
 	this.Infof("SnapshotManager.deleteProtectedEntitySnapshot Called")
-
-	_, isDurableRepo := petm.(*s3repository.ProtectedEntityTypeManager)
-	var petmType string
-	if isDurableRepo {
-		petmType = "s3"
-	} else {
-		petmType = petm.GetTypeName()
-	}
-	this.Infof("Input arguemnts: peID = %s, petmType = %s", peID.String(), petmType)
+	this.Infof("Input arguemnts: peID = %s, toRemote = %v", peID.String(), toRemote)
 
 	if !peID.HasSnapshot() {
 		this.Errorf("No snapshot is associated with this Protected Entity")
@@ -413,6 +405,13 @@ func (this *SnapshotManager) deleteProtectedEntitySnapshot(peID astrolabe.Protec
 	}
 
 	ctx := context.Background()
+	var petm astrolabe.ProtectedEntityTypeManager
+	if toRemote {
+		petm = this.s3PETM
+	} else {
+		petm = this.ivdPETM
+	}
+
 	pe, err := petm.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.Errorf("Failed to get the ProtectedEntity")
