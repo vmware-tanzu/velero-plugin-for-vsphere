@@ -59,7 +59,7 @@ func (in *DownloadList) DeepCopyInto(out *DownloadList) {
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]Upload, len(*in))
+		*out = make([]Download, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
