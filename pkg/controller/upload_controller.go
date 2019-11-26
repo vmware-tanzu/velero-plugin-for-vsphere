@@ -170,6 +170,7 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 		r.Status.Phase = pluginv1api.UploadPhaseInProgress
 		r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.ProcessingNode = c.nodeName
 	})
 	if err != nil {
 		log.WithError(err).Error("Error setting Upload StartTimestamp and phase to InProgress")
