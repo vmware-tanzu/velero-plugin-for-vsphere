@@ -75,6 +75,12 @@ spec:
               - Completed
               - Failed
               type: string
+            processingNode:
+              description: The DataManager node that has picked up the Upload for
+                processing. This will be updated as soon as the Upload is picked up
+                for processing. If the DataManager couldn't process Upload for some
+                reason it will be picked up by another node.
+              type: string
             progress:
               description: Progress holds the total number of bytes of the volume
                 and the current number of backed up bytes. This can be used to display

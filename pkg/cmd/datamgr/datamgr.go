@@ -3,10 +3,7 @@ package datamgr
 import (
 	"flag"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/abort"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/download"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/install"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/cli/upload"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/server"
 	"os"
 
@@ -53,9 +50,9 @@ func NewCommand(name string) *cobra.Command {
 	c.AddCommand(
 		server.NewCommand(f),
 		install.NewCommand(f),
-		upload.NewCommand(f),
-		download.NewCommand(f),
-		abort.NewCommand(f),
+//		upload.NewCommand(f),
+//		download.NewCommand(f),
+//		abort.NewCommand(f),
 	)
 
 	// init and add the klog flags

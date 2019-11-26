@@ -57,10 +57,9 @@ spec:
           description: DownloadStatus is the current status of a Download.
           properties:
             completionTimestamp:
-              description: CompletionTimestamp records the time a backup was completed.
-                Completion time is recorded even on failed backups. Completion time
-                is recorded before uploading the backup object. The server's time
-                is used for CompletionTimestamps
+              description: CompletionTimestamp records the time a restore was completed.
+                Completion time is recorded even on failed restores. The server's
+                time is used for CompletionTimestamps
               format: date-time
               nullable: true
               type: string
@@ -74,6 +73,12 @@ spec:
               - InProgress
               - Completed
               - Failed
+              type: string
+            processingNode:
+              description: The DataManager node that has picked up the Download for
+                processing. This will be updated as soon as the Download is picked
+                up for processing. If the DataManager couldn't process Download for
+                some reason it will be picked up by another node.
               type: string
             progress:
               description: Progress holds the total number of bytes of the volume
