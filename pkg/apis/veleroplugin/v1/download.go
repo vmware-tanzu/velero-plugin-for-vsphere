@@ -51,9 +51,8 @@ type DownloadStatus struct {
 	// +nullable
 	StartTimestamp *meta_v1.Time `json:"startTimestamp,omitempty"`
 
-	// CompletionTimestamp records the time a backup was completed.
-	// Completion time is recorded even on failed backups.
-	// Completion time is recorded before uploading the backup object.
+	// CompletionTimestamp records the time a restore was completed.
+	// Completion time is recorded even on failed restores.
 	// The server's time is used for CompletionTimestamps
 	// +optional
 	// +nullable
@@ -64,6 +63,12 @@ type DownloadStatus struct {
 	// about the restore operation.
 	// +optional
 	Progress DownloadOperationProgress `json:"progress,omitempty"`
+
+	// The DataManager node that has picked up the Download for processing.
+	// This will be updated as soon as the Download is picked up for processing.
+	// If the DataManager couldn't process Download for some reason it will be picked up by another
+	// node.
+	ProcessingNode string `json:"processingNode,omitempty"`
 }
 
 // DownloadOperationProgress represents the progress of a
@@ -96,12 +101,12 @@ type Download struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// UploadList is a list of Upload resources
+// DownloadList is a list of Download resources
 type DownloadList struct {
 	meta_v1.TypeMeta `json:",inline"`
 
 	// +optional
 	meta_v1.ListMeta `json:"metadata,omitempty"`
 
-	Items []Upload `json:"items"`
+	Items []Download `json:"items"`
 }
