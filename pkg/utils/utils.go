@@ -73,7 +73,8 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 func RetrieveVcConfigSecretByHardCoding(params map[string]interface{}, logger logrus.FieldLogger) error {
 	params["VirtualCenter"] = "10.193.45.3"
 	params["port"] = "443"
-	params["user"] = "administrator@vsphere.local"
+	params["user"] = "Administrator@vsphere.local"
 	params["password"] = "Admin!23"
+	params["insecure-flag"] = "true"
 	return nil
 }
