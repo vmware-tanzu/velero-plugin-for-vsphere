@@ -34,7 +34,7 @@ IMAGE ?= velero/velero-plugin-for-vsphere
 local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
-VERSION ?= master
+VERSION ?= latest
 
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
@@ -86,7 +86,7 @@ datamgr-shell: build-dirs astrolabe build-image
 		/bin/sh $(CMD)
 
 datamgr-container: .container-$(DOTFILE_IMAGE) container-name
-.container-$(DOTFILE_IMAGE): build-datamgr $(DATAMGR_DOCKERFILE)
+.container-$(DOTFILE_IMAGE): build-datamgr copy-vix-libs $(DATAMGR_DOCKERFILE)
 	@cp $(DATAMGR_DOCKERFILE) _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH)
 	@docker build --pull -t $(DATAMGR_IMAGE):$(VERSION) -f _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH) _output
 	@docker images -q $(DATAMGR_IMAGE):$(VERSION) > $@
@@ -167,9 +167,11 @@ astrolabe: build-dirs copy-pkgs build-image
 		$(BUILDER_IMAGE) \
 		make
 
-container: all
+copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
-	cp $(GOPATH)/src/$(GVDDK)/lib/vmware-vix-disklib/lib64/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
+	cp $$(pwd)/.go/src/$(GVDDK)/lib/vmware-vix-disklib/lib64/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
+
+container: all copy-vix-libs
 	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
 

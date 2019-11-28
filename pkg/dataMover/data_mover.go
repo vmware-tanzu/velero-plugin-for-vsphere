@@ -12,6 +12,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"net/url"
+	"os"
 )
 
 type DataMover struct {
@@ -23,9 +24,14 @@ type DataMover struct {
 func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
 	params := make(map[string]interface{})
 	var err error
-	// hardcode VC credential for debug purpose
-	err = utils.RetrieveVcConfigSecretByHardCoding(params, logger)
-	//err = utils.RetrieveVcConfigSecret(params, logger)
+	debugMode := os.Getenv("DEBUGMODE") != ""
+	logger.Infof("Data mover is running in the debug mode: %v", debugMode)
+	if debugMode {
+		err = utils.RetrieveVcConfigSecretByHardCoding(params, logger)
+	} else {
+		err = utils.RetrieveVcConfigSecret(params, logger)
+	}
+
 	if err != nil {
 		logger.Errorf("Could not retrieve vsphere credential from k8s secret with error message: %v", err)
 		return nil, err
