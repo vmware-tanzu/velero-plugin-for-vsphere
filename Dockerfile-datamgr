@@ -28,6 +28,10 @@ RUN apt-get update && \
 
 ADD /bin/linux/amd64/datamgr /datamgr
 
+RUN mkdir /plugins
+
+ADD /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
+
 USER nobody:nobody
 
 ENTRYPOINT ["/datamgr"]
