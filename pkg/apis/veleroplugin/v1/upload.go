@@ -64,6 +64,12 @@ type UploadStatus struct {
 	// about the backup operation.
 	// +optional
 	Progress UploadOperationProgress `json:"progress,omitempty"`
+
+	// The DataManager node that has picked up the Upload for processing.
+	// This will be updated as soon as the Upload is picked up for processing.
+	// If the DataManager couldn't process Upload for some reason it will be picked up by another
+	// node.
+	ProcessingNode string `json:"processingNode,omitempty"`
 }
 
 // UploadOperationProgress represents the progress of a

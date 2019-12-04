@@ -278,7 +278,7 @@ func (s *server) runControllers() error {
 	ctx := s.ctx
 	var wg sync.WaitGroup
 	// Register controllers
-	s.logger.Info("Registering upload controllers")
+	s.logger.Info("Registering controllers")
 
 	uploadController := controller.NewUploadController(
 		s.logger,
@@ -291,10 +291,23 @@ func (s *server) runControllers() error {
 		os.Getenv("NODE_NAME"),
 	)
 
+	downloadController := controller.NewDownloadController(
+		s.logger,
+		s.pluginInformerFactory.Veleroplugin().V1().Downloads(),
+		s.pluginClient.VeleropluginV1(),
+		os.Getenv("NODE_NAME"),
+	)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		uploadController.Run(s.ctx, 1)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		downloadController.Run(s.ctx, 1)
 	}()
 
 	// SHARED INFORMERS HAVE TO BE STARTED AFTER ALL CONTROLLERS
