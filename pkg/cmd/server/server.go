@@ -30,6 +30,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -84,6 +85,11 @@ func NewCommand(f client.Factory) *cobra.Command {
 
 			// Velero's DefaultLogger logs to stdout, so all is good there.
 			logger := logging.DefaultLogger(logLevel, format)
+
+			formatter := new(logrus.TextFormatter)
+			formatter.TimestampFormat = time.RFC3339
+			formatter.FullTimestamp = true
+			logger.SetFormatter(formatter)
 
 			logger.Infof("setting log-level to %s", strings.ToUpper(logLevel.String()))
 
