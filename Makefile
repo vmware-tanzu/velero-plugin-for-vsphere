@@ -14,19 +14,19 @@
 # limitations under the License.
 #
 
-# The binary to build (just the basename).
-BIN ?= $(wildcard velero-*)
-DATAMGR_FOLDER ?= $(wildcard data-manager-*)
-DATAMGR_BIN := datamgr
-
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
 ASTROLABE:= github.com/vmware-tanzu/astrolabe
 GVDDK:= github.com/vmware/gvddk
 
-#BUILD_IMAGE ?= golang:1.12-stretch
 
-IMAGE ?= velero/velero-plugin-for-vsphere
+# The binary to build (just the basename).
+PLUGIN_BIN ?= $(wildcard velero-*)
+DATAMGR_BIN ?= $(wildcard data-manager-*)
+
+REGISTRY ?= lintongj
+PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
+DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
@@ -40,62 +40,19 @@ platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
-# datamgr only begin
 BUILDER_IMAGE := vsphere-plugin-builder
-#DATAMGR_BIN := datamgr
-DATAMGR_DOCKERFILE ?= Dockerfile-$(DATAMGR_BIN)
-REGISTRY ?= lintongj
-DATAMGR_IMAGE = $(REGISTRY)/$(DATAMGR_BIN)
-DOTFILE_IMAGE = $(subst :,_,$(subst /,_,$(DATAMGR_IMAGE))-$(VERSION))
-# datamgr only end
+PLUGIN_DOCKERFILE ?= Dockerfile-plugin
+DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
-all: $(addprefix build-, $(BIN))
+all: plugin datamgr
+
+plugin:
+	@echo "making: $@"
+	$(MAKE) build BIN=$(PLUGIN_BIN)
 
 datamgr:
-	$(MAKE) build-datamgr
-
-build-datamgr: build-dirs
-	@echo "building: $@"
-	$(MAKE) datamgr-shell CMD="-c '\
-		GOOS=$(GOOS) \
-		GOARCH=$(GOARCH) \
-		VERSION=$(VERSION) \
-		PKG=$(PKG) \
-		FOLDER=$(DATAMGR_FOLDER) \
-		BIN=$(DATAMGR_BIN) \
-		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
-		./hack/build-datamgr.sh'"
-
-datamgr-shell: build-dirs astrolabe build-image
-	@echo "building: $@"
-	docker run \
-		-e GOFLAGS \
-		-i $(TTY) \
-		--rm \
-		-u $$(id -u):$$(id -g) \
-		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
-		-v "$$(pwd)/.go/pkg:/go/pkg:delegated" \
-		-v "$$(pwd)/.go/src:/go/src:delegated" \
-		-v "$$(pwd)/.go/std:/go/std:delegated" \
-		-v "$$(pwd):/go/src/$(PKG):delegated" \
-		-v "$$(pwd)/_output/bin:/output:delegated" \
-		-v "$$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated" \
-		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-w /go/src/$(PKG) \
-		$(BUILDER_IMAGE) \
-		/bin/sh $(CMD)
-
-datamgr-container: .container-$(DOTFILE_IMAGE) container-name
-.container-$(DOTFILE_IMAGE): build-datamgr copy-vix-libs $(DATAMGR_DOCKERFILE)
-	@cp $(DATAMGR_DOCKERFILE) _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH)
-	@docker build --pull -t $(DATAMGR_IMAGE):$(VERSION) -f _output/.dockerfile-$(DATAMGR_BIN)-$(GOOS)-$(GOARCH) _output
-	@docker images -q $(DATAMGR_IMAGE):$(VERSION) > $@
-
-container-name:
-	@echo "container: $(DATAMGR_IMAGE):$(VERSION)"
-
-build-%:
-	$(MAKE) --no-print-directory BIN=$* build
+	@echo "making: $@"
+	$(MAKE) build BIN=$(DATAMGR_BIN)
 
 local: build-dirs
 	GOOS=$(GOOS) \
@@ -109,7 +66,14 @@ build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
 
 _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	@echo "building: $@"
-	$(MAKE) shell
+	$(MAKE) shell CMD="-c '\
+		GOOS=$(GOOS) \
+		GOARCH=$(GOARCH) \
+		VERSION=$(VERSION) \
+		PKG=$(PKG) \
+		BIN=$(BIN) \
+		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
+		./hack/build.sh'"
 
 TTY := $(shell tty -s && echo "-t")
 
@@ -120,16 +84,18 @@ shell: build-dirs astrolabe build-image
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
+		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
 		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
 		-v $$(pwd)/.go/src:/go/src:delegated \
 		-v $$(pwd)/.go/std:/go/std:delegated \
 		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
 		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-w /go/src/$(PKG) \
 		$(BUILDER_IMAGE) \
-		go build -installsuffix "static" -i -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+		/bin/sh $(CMD)
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
@@ -167,16 +133,28 @@ astrolabe: build-dirs copy-pkgs build-image
 		$(BUILDER_IMAGE) \
 		make
 
+container-name:
+	@echo "container: $(IMAGE):$(VERSION)"
+
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	cp $$(pwd)/.go/src/$(GVDDK)/lib/vmware-vix-disklib/lib64/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 
-container: all copy-vix-libs
-	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
-	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
+build-container: build copy-vix-libs container-name
+	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
+	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+
+plugin-container:
+	$(MAKE) build-container BIN=$(PLUGIN_BIN) IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
+datamgr-container:
+	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE)
+
+container:
+	$(MAKE) plugin-container
+	$(MAKE) datamgr-container
 
 update:
-	@$(MAKE) datamgr-shell CMD="-c 'hack/update-generated-crd-code.sh'"
+	@$(MAKE) shell CMD="-c 'hack/update-generated-crd-code.sh'"
 
 all-ci: $(addprefix ci-, $(BIN))
 
