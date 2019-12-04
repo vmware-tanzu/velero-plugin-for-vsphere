@@ -26,7 +26,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-ADD /bin/linux/amd64/datamgr /datamgr
+ADD /bin/linux/amd64/data-manager-for-plugin /datamgr
 
 RUN mkdir /plugins
 
