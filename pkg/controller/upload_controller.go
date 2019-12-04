@@ -177,9 +177,12 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	}
 
 	// Call data mover API to do the remote copy
-	peID := astrolabe.NewProtectedEntityID("ivd", req.Spec.SnapshotID)
+	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+	if err != nil {
+		log.WithError(err).Error("Error getting PEID from SnapshotID string in upload CR")
+		return errors.WithStack(err)
+	}
 	c.dataMover.CopyToRepo(peID)
-
 	// Call snapshot manager API to cleanup the local snapshot
 	c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
 
