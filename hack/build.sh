@@ -39,10 +39,6 @@ if [ -z "${VERSION}" ]; then
     exit 1
 fi
 
-if [ -z "${FOLDER}" ]; then
-    echo "Use BIN as FOLDER if FOLDER is unset"
-    FOLDER=${BIN}
-fi
 
 export CGO_ENABLED=1
 
@@ -70,4 +66,4 @@ go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
     -ldflags "${LDFLAGS}" \
-    ${PKG}/${FOLDER}
+    ${PKG}/${BIN}
