@@ -14,7 +14,7 @@
 
 FROM debian:stretch-slim
 RUN mkdir /plugins
-ADD velero-* /plugins/
-COPY lib/vmware-vix-disklib/lib64/* /plugins/
+ADD /bin/linux/amd64/velero-* /plugins/
+COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
 USER nobody:nobody
 ENTRYPOINT ["/bin/bash", "-c", "cp /plugins/* /target/."]
