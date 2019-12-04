@@ -36,7 +36,7 @@ RUN git checkout 40a48ad93fbe707101afb2099b738471f70594ec
 RUN go install ./cmd/goimports
 RUN echo chmod -R a+w /go
 WORKDIR /root
-RUN apt-get update && apt-get install -y unzip
+RUN apt-get update && apt-get install -y unzip curl iputils-ping wget
 RUN wget --quiet https://github.com/protocolbuffers/protobuf/releases/download/v3.9.1/protoc-3.9.1-linux-x86_64.zip && \
     unzip protoc-3.9.1-linux-x86_64.zip && \
     mv bin/protoc /usr/bin/protoc && \
