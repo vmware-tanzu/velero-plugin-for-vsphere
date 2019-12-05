@@ -11,6 +11,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
@@ -19,6 +20,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/metrics"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -28,6 +30,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -82,6 +85,11 @@ func NewCommand(f client.Factory) *cobra.Command {
 
 			// Velero's DefaultLogger logs to stdout, so all is good there.
 			logger := logging.DefaultLogger(logLevel, format)
+
+			formatter := new(logrus.TextFormatter)
+			formatter.TimestampFormat = time.RFC3339
+			formatter.FullTimestamp = true
+			logger.SetFormatter(formatter)
 
 			logger.Infof("setting log-level to %s", strings.ToUpper(logLevel.String()))
 
@@ -147,6 +155,16 @@ func (s *server) run() error {
 	return nil
 }
 
+func checkPluginCRDsAreReady(factory client.DynamicFactory) error {
+	_, err := install.CrdsAreReady(factory, []string{"uploads.veleroplugin.io", "downloads.veleroplugin.io"})
+	if err == wait.ErrWaitTimeout {
+		return errors.Errorf("timeout reached, CRDs not ready")
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
 
 func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*server, error) {
 	logger.Infof("data manager server is started")
@@ -170,7 +188,30 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	// Check the readiness of plugin CRDs before initiating data manager server.
+	// Install CRDs if not ready with three retries at most.
+	dynamicClient, err := f.DynamicClient()
+	if err != nil {
+		return nil, err
+	}
+	factory := client.NewDynamicFactory(dynamicClient)
+
+	err = checkPluginCRDsAreReady(factory)
+	numRetries := 0
+	for err != nil {
+		if numRetries >= 3 {
+			break
+		}
+		CRDResources := install.AllCRDs()
+		install.Install(factory, CRDResources, os.Stdout)
+		err = checkPluginCRDsAreReady(factory)
+		numRetries += 1
+	}
+
+
+
+	// check the readiness of CRDs and install CRDs if necessary
+
 
 	dataMover, err := dataMover.NewDataMoverFromCluster(logger)
 	if err != nil {
@@ -182,6 +223,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	s := &server{
 		namespace:             f.Namespace(),
