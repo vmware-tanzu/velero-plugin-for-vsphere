@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	jsonpatch "github.com/evanphx/json-patch"
@@ -18,13 +19,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
+	"time"
 )
 
 type uploadController struct {
 	*genericController
 
+	kubeClient			kubernetes.Interface
 	uploadClient pluginv1client.UploadsGetter
 	uploadLister listers.UploadLister
 	pvcLister    corev1listers.PersistentVolumeClaimLister
@@ -41,6 +47,7 @@ func NewUploadController(
 	logger logrus.FieldLogger,
 	uploadInformer informers.UploadInformer,
 	uploadClient pluginv1client.UploadsGetter,
+	kubeClient kubernetes.Interface,
 	pvcInformer corev1informers.PersistentVolumeClaimInformer,
 	pvInformer corev1informers.PersistentVolumeInformer,
 	dataMover *dataMover.DataMover,
@@ -49,6 +56,7 @@ func NewUploadController(
 ) Interface {
 	c := &uploadController{
 		genericController: newGenericController("upload", logger),
+		kubeClient:		   kubeClient,
 		uploadClient:      uploadClient,
 		uploadLister:      uploadInformer.Lister(),
 		pvcLister:         pvcInformer.Lister(),
@@ -80,7 +88,7 @@ func NewUploadController(
 
 func (c *uploadController) processQueueItem(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Debug("Running processQueueItem")
+	log.Info("Running processQueueItem")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -104,9 +112,55 @@ func (c *uploadController) processQueueItem(key string) error {
 		return nil
 	}
 
-	// Don't mutate the shared cache
-	reqCopy := req.DeepCopy()
-	return c.processBackupFunc(reqCopy)
+	leaseLockName := "upload-lease." + name
+	// Acquire lease for processing Upload.
+	lock := &resourcelock.LeaseLock{
+		LeaseMeta: metav1.ObjectMeta{
+			Name:      leaseLockName,
+			Namespace: ns,
+		},
+		Client: c.kubeClient.CoordinationV1(),
+		LockConfig: resourcelock.ResourceLockConfig{
+			Identity: c.nodeName,
+		},
+	}
+
+	// use a Go context so we can tell the leaderelection code when we
+	// want to step down
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var processErr error
+
+	// start the leader election code loop
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock: lock,
+		ReleaseOnCancel: false,
+		LeaseDuration:   60 * time.Second,
+		RenewDeadline:   15 * time.Second,
+		RetryPeriod:     5 * time.Second,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				// Current node got the lease process request.
+				// Don't mutate the shared cache
+				reqCopy := req.DeepCopy()
+				processErr = c.processBackupFunc(reqCopy)
+				cancel()
+			},
+			OnStoppedLeading: func() {
+				log.Debug("Processed Upload.")
+			},
+			OnNewLeader: func(identity string) {
+				if identity == c.nodeName {
+					// Same node is trying to acquire or renew the lease, ignore.
+					return
+				}
+				log.Debug("Lock is acquired by another node " + identity + ". Current node - " + c.nodeName + " need not process the Upload.")
+				cancel()
+			},
+		},
+	})
+
+	return processErr
 }
 
 func (c *uploadController) pvbHandler(obj interface{}) {
