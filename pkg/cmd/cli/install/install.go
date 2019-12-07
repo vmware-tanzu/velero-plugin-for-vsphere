@@ -11,14 +11,13 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 
+	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	//"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	//"github.com/vmware-tanzu/velero/pkg/install"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"os"
 	"path/filepath"
-	"strings"
-	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 )
 
 type InstallOptions struct {
@@ -101,7 +100,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 		Short: "Install data manager",
 		Long: "Install data manager",
 		Run: func(c *cobra.Command, args []string) {
-			cmd.CheckError(o.Validate(c, args, f))
 			cmd.CheckError(o.Complete(args, f))
 			cmd.CheckError(o.Run(c, f))
 		},
@@ -122,7 +120,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return err
 	}
 
-	resources, err = install.AllResources(vo, false)
+	resources, err = install.AllResources(vo, true)
 	if err != nil {
 		return err
 	}
@@ -140,61 +138,24 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 	factory := client.NewDynamicFactory(dynamicClient)
 
-	errorMsg := fmt.Sprintf("\n\nError installing data manager. Use `kubectl logs deploy/velero -n %s` to check the deploy logs", o.Namespace)
+	errorMsg := fmt.Sprintf("\n\nError installing data manager. Use `kubectl logs daemonset/datamgr-for-vsphere-plugin -n %s` to check the deploy logs", o.Namespace)
 
 	err = install.Install(factory, resources, os.Stdout)
 	if err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
-
 	fmt.Println("Waiting for data manager daemonset to be ready.")
 	if _, err = install.DaemonSetIsReady(factory, o.Namespace); err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
-
-	if o.SecretFile == "" {
-		fmt.Printf("\nNo secret file was specified, no Secret created.\n\n")
-	}
-
-	fmt.Printf("Data manager is installed! ⛵ Use 'kubectl logs daemonset/datamgr -n %s' to view the status.\n", o.Namespace)
+	fmt.Printf("Data manager is installed! ⛵ Use 'kubectl logs daemonset/datamgr-for-vsphere-plugin -n %s' to view the status.\n", o.Namespace)
 	return nil
 }
 
 //Complete completes options for a command.
 func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	o.Namespace = f.Namespace()
-	return nil
-}
-
-// Validate validates options provided to a command.
-func (o *InstallOptions) Validate(c *cobra.Command, args []string, f client.Factory) error {
-	if err := output.ValidateFlags(c); err != nil {
-		return err
-	}
-
-	// Our main 3 providers don't support bucket names starting with a dash, and a bucket name starting with one
-	// can indicate that an environment variable was left blank.
-	// This case will help catch that error
-	if strings.HasPrefix(o.BucketName, "-") {
-		return errors.Errorf("Bucket names cannot begin with a dash. Bucket name was: %s", o.BucketName)
-	}
-
-	if o.ProviderName == "" {
-		return errors.New("--provider is required")
-	}
-
-	if o.BucketName == "" {
-		return errors.New("--bucket is required")
-	}
-
-	switch {
-	case o.SecretFile == "" && !o.NoSecret:
-		return errors.New("One of --secret-file or --no-secret is required")
-	case o.SecretFile != "" && o.NoSecret:
-		return errors.New("Cannot use both --secret-file and --no-secret")
-	}
-
 	return nil
 }
