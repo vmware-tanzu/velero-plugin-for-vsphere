@@ -6,20 +6,14 @@ import (
 
 // DownloadSpec is the specification for Download resource
 type DownloadSpec struct {
-	// Node is the name of the node that the Pod is running on.
-	Node string `json:"node"`
-
-	// SnapshotID is the identifier for the snapshot of the pod volume.
+	// SnapshotID is the identifier for the snapshot of the volume.
 	SnapshotID string `json:"snapshotID,omitempty"`
 
-	// BackupStorageLocation is the name of the backup storage location
-	// where the restic repository is stored.
-	BackupStorageLocation string `json:"backupStorageLocation"`
 
-	// VolumeSnapshotLocation is provided for user when they want different
-	// locations to store the volume sanpshot and meta data.
+	// RestoreTimestamp records the time the restore was called.
+	// The server's time is used for SnapshotTimestamp
 	// +optional
-	VolumeSnapshotLocation string `json:"volumeSnapshotLocation"`
+	RestoreTimestamp *meta_v1.Time `json:"restoreTimestamp,omitempty"`
 }
 
 // DownloadPhase represents the lifecycle phase of a Download.
@@ -35,6 +29,9 @@ const (
 
 // DownloadStatus is the current status of a Download.
 type DownloadStatus struct {
+	// VolumeID is the identifier for the restored volume.
+	VolumeID string `json:"volumeID,omitempty"`
+
 	// Phase is the current state of the Download.
 	// +optional
 	Phase DownloadPhase `json:"phase,omitempty"`
@@ -43,16 +40,14 @@ type DownloadStatus struct {
 	// +optional
 	Message string `json:"message,omitempty"`
 
-	// StartTimestamp records the time a backup was started.
-	// Separate from CreationTimestamp, since that value changes
-	// on restores.
+	// StartTimestamp records the time an download was started.
 	// The server's time is used for StartTimestamps
 	// +optional
 	// +nullable
 	StartTimestamp *meta_v1.Time `json:"startTimestamp,omitempty"`
 
-	// CompletionTimestamp records the time a restore was completed.
-	// Completion time is recorded even on failed restores.
+	// CompletionTimestamp records the time an download was completed.
+	// Completion time is recorded even on failed downloads.
 	// The server's time is used for CompletionTimestamps
 	// +optional
 	// +nullable
