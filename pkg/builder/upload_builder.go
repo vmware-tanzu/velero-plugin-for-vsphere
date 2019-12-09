@@ -1,0 +1,79 @@
+package builder
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"time"
+)
+
+// UploadBuilder builds Upload objects
+type UploadBuilder struct {
+	object *velerov1api.Upload
+}
+
+// ForUpload is the constructor for a UploadBuilder.
+func ForUpload(ns, name string) *UploadBuilder {
+	return &UploadBuilder{
+		object: &velerov1api.Upload{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: velerov1api.SchemeGroupVersion.String(),
+				Kind:       "Upload",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		},
+	}
+}
+
+// Result returns the built Upload.
+func (b *UploadBuilder) Result() *velerov1api.Upload {
+	return b.object
+}
+
+// ObjectMeta applies functional options to the Upload's ObjectMeta.
+func (b *UploadBuilder) ObjectMeta(opts ...ObjectMetaOpt) *UploadBuilder {
+	for _, opt := range opts {
+		opt(b.object)
+	}
+
+	return b
+}
+
+// BackupTimestamp sets the start time of upload creation.
+func (b *UploadBuilder) BackupTimestamp(val time.Time) *UploadBuilder {
+	b.object.Spec.BackupTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// Phase sets the Upload's phase.
+func (b *UploadBuilder) Phase(phase velerov1api.UploadPhase) *UploadBuilder {
+	b.object.Status.Phase = phase
+	return b
+}
+
+// SnapshotID sets the Upload's snapshot ID.
+func (b *UploadBuilder) SnapshotID(snapshotID string) *UploadBuilder {
+	b.object.Spec.SnapshotID = snapshotID
+	return b
+}
+
+// StartTimestamp sets the Upload's start timestamp.
+func (b *UploadBuilder) StartTimestamp(val time.Time) *UploadBuilder {
+	b.object.Status.StartTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// CompletionTimestamp sets the Upload's end timestamp.
+func (b *UploadBuilder) CompletionTimestamp(val time.Time) *UploadBuilder {
+	b.object.Status.CompletionTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// ProcessingNode sets the DataManager node that has
+// picked up the Upload for processing.
+func (b *UploadBuilder) ProcessingNode(node string) *UploadBuilder {
+	b.object.Status.ProcessingNode = node
+	return b
+}
