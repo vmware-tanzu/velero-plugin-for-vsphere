@@ -6,20 +6,12 @@ import (
 
 // UploadSpec is the specification for Upload resource
 type UploadSpec struct {
-	// Node is the name of the node that the Pod is running on.
-	Node string `json:"node"`
-
-	// SnapshotID is the identifier for the snapshot of the pod volume.
+	// SnapshotID is the identifier for the snapshot of the volume.
 	SnapshotID string `json:"snapshotID,omitempty"`
 
-	// BackupStorageLocation is the name of the backup storage location
-	// where the restic repository is stored.
-	BackupStorageLocation string `json:"backupStorageLocation"`
-
-	// VolumeSnapshotLocation is provided for user when they want different
-	// locations to store the volume sanpshot and meta data.
-	// +optional
-	VolumeSnapshotLocation string `json:"volumeSnapshotLocation"`
+	// BackupTimestamp records the time the backup was called.
+	// The server's time is used for SnapshotTimestamp
+	BackupTimestamp *meta_v1.Time `json:"backupTimestamp,omitempty"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
@@ -43,17 +35,14 @@ type UploadStatus struct {
 	// +optional
 	Message string `json:"message,omitempty"`
 
-	// StartTimestamp records the time a backup was started.
-	// Separate from CreationTimestamp, since that value changes
-	// on restores.
+	// StartTimestamp records the time an upload was started.
 	// The server's time is used for StartTimestamps
 	// +optional
 	// +nullable
 	StartTimestamp *meta_v1.Time `json:"startTimestamp,omitempty"`
 
-	// CompletionTimestamp records the time a backup was completed.
-	// Completion time is recorded even on failed backups.
-	// Completion time is recorded before uploading the backup object.
+	// CompletionTimestamp records the time an upload was completed.
+	// Completion time is recorded even on failed uploads.
 	// The server's time is used for CompletionTimestamps
 	// +optional
 	// +nullable

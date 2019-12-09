@@ -46,11 +46,11 @@ DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
 all: plugin datamgr
 
-plugin:
+plugin: astrolabe
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN)
 
-datamgr:
+datamgr: astrolabe
 	@echo "making: $@"
 	$(MAKE) build BIN=$(DATAMGR_BIN)
 
@@ -77,7 +77,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs astrolabe build-image
+shell: build-dirs build-image
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
@@ -154,7 +154,8 @@ container:
 	$(MAKE) datamgr-container
 
 update:
-	@$(MAKE) shell CMD="-c 'hack/update-generated-crd-code.sh'"
+	@echo "updating CRDs"
+	./hack/update-generated-crd-code.sh
 
 all-ci: $(addprefix ci-, $(BIN))
 

@@ -14,7 +14,7 @@ spec:
     listKind: DownloadList
     plural: downloads
     singular: download
-  scope: ""
+  scope: Namespaced
   validation:
     openAPIV3Schema:
       description: Download describe a velero-plugin restore
@@ -34,31 +34,21 @@ spec:
         spec:
           description: Spec is the custom resource spec
           properties:
-            backupStorageLocation:
-              description: BackupStorageLocation is the name of the backup storage
-                location where the restic repository is stored.
-              type: string
-            node:
-              description: Node is the name of the node that the Pod is running on.
+            restoreTimestamp:
+              description: RestoreTimestamp records the time the restore was called.
+                The server's time is used for SnapshotTimestamp
+              format: date-time
               type: string
             snapshotID:
-              description: SnapshotID is the identifier for the snapshot of the pod
-                volume.
+              description: SnapshotID is the identifier for the snapshot of the volume.
               type: string
-            volumeSnapshotLocation:
-              description: VolumeSnapshotLocation is provided for user when they want
-                different locations to store the volume sanpshot and meta data.
-              type: string
-          required:
-          - backupStorageLocation
-          - node
           type: object
         status:
           description: DownloadStatus is the current status of a Download.
           properties:
             completionTimestamp:
-              description: CompletionTimestamp records the time a restore was completed.
-                Completion time is recorded even on failed restores. The server's
+              description: CompletionTimestamp records the time an download was completed.
+                Completion time is recorded even on failed downloads. The server's
                 time is used for CompletionTimestamps
               format: date-time
               nullable: true
@@ -93,11 +83,13 @@ spec:
                   type: integer
               type: object
             startTimestamp:
-              description: StartTimestamp records the time a backup was started. Separate
-                from CreationTimestamp, since that value changes on restores. The
-                server's time is used for StartTimestamps
+              description: StartTimestamp records the time an download was started.
+                The server's time is used for StartTimestamps
               format: date-time
               nullable: true
+              type: string
+            volumeID:
+              description: VolumeID is the identifier for the restored volume.
               type: string
           type: object
       required:
