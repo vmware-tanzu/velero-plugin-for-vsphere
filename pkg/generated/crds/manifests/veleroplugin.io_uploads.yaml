@@ -14,7 +14,7 @@ spec:
     listKind: UploadList
     plural: uploads
     singular: upload
-  scope: ""
+  scope: Namespaced
   validation:
     openAPIV3Schema:
       description: Upload describe a velero-plugin backup
@@ -34,32 +34,21 @@ spec:
         spec:
           description: Spec is the custom resource spec
           properties:
-            backupStorageLocation:
-              description: BackupStorageLocation is the name of the backup storage
-                location where the restic repository is stored.
-              type: string
-            node:
-              description: Node is the name of the node that the Pod is running on.
+            backupTimestamp:
+              description: BackupTimestamp records the time the backup was called.
+                The server's time is used for SnapshotTimestamp
+              format: date-time
               type: string
             snapshotID:
-              description: SnapshotID is the identifier for the snapshot of the pod
-                volume.
+              description: SnapshotID is the identifier for the snapshot of the volume.
               type: string
-            volumeSnapshotLocation:
-              description: VolumeSnapshotLocation is provided for user when they want
-                different locations to store the volume sanpshot and meta data.
-              type: string
-          required:
-          - backupStorageLocation
-          - node
           type: object
         status:
           description: UploadStatus is the current status of a Upload.
           properties:
             completionTimestamp:
-              description: CompletionTimestamp records the time a backup was completed.
-                Completion time is recorded even on failed backups. Completion time
-                is recorded before uploading the backup object. The server's time
+              description: CompletionTimestamp records the time an upload was completed.
+                Completion time is recorded even on failed uploads. The server's time
                 is used for CompletionTimestamps
               format: date-time
               nullable: true
@@ -94,9 +83,8 @@ spec:
                   type: integer
               type: object
             startTimestamp:
-              description: StartTimestamp records the time a backup was started. Separate
-                from CreationTimestamp, since that value changes on restores. The
-                server's time is used for StartTimestamps
+              description: StartTimestamp records the time an upload was started.
+                The server's time is used for StartTimestamps
               format: date-time
               nullable: true
               type: string
