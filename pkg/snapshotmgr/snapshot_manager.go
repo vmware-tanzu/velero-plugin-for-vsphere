@@ -143,9 +143,8 @@ func verifyLocalMode(params map[string]interface{}, logger logrus.FieldLogger) (
 
 	configStringMap := volumeSnapshot.Spec.Config
 	if len(configStringMap) != 0 {
-		flag := configStringMap["region"] != params["region"] || configStringMap["bucket"] != params["bucket"]
-		if flag {
-			logger.Infof("External object store has been specifed. Hence, vSphere plugin falls back to the local mode.")
+		if configStringMap["LocalMode"] == "TRUE" || configStringMap["LocalMode"] == "true" {
+			logger.Infof("The local mode of Velero plugin for vSphere is turned on")
 			isLocalMode = true
 		}
 	}
@@ -321,7 +320,7 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Infof("Local IVD snapshot is created, %s", updatedPeID.String())
 
 	if this.localMode == true {
-		this.Infof("Skipping the remote copy in the vSphere local mode")
+		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
 		return updatedPeID, nil
 	}
 
