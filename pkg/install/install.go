@@ -35,6 +35,17 @@ var kindToResource = map[string]string{
 	"VolumeSnapshotLocation":   "volumesnapshotlocations",
 }
 
+// ResourceGroup represents a collection of kubernetes objects with a common ready conditon
+type ResourceGroup struct {
+	CRDResources   []*unstructured.Unstructured
+	OtherResources []*unstructured.Unstructured
+}
+
+var CRDsList = []string{
+	"backupstoragelocations.velero.io",
+	"volumesnapshotlocations.velero.io",
+}
+
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
 	DefaultImage               = "lintongj/datamgr:" + imageVersion()
@@ -128,7 +139,7 @@ func crdIsReady(crd *apiextv1beta1.CustomResourceDefinition) bool {
 }
 
 // crdsAreReady polls the API server to see if the BackupStorageLocation and VolumeSnapshotLocation CRDs are ready to create objects.
-func CrdsAreReady(factory client.DynamicFactory, crdKinds []string) (bool, error) {
+func crdsAreReady(factory client.DynamicFactory, crdKinds []string) (bool, error) {
 	gvk := schema.FromAPIVersionAndKind(apiextv1beta1.SchemeGroupVersion.String(), "CustomResourceDefinition")
 	apiResource := metav1.APIResource{
 		Name:       kindToResource["CustomResourceDefinition"],
@@ -207,8 +218,8 @@ func DaemonSetIsReady(factory client.DynamicFactory, namespace string) (bool, er
 	var isReady bool
 	var readyObservations int32
 
-	err = wait.PollImmediate(time.Second, time.Minute, func() (bool, error) {
-		unstructuredDaemonSet, err := c.Get("restic", metav1.GetOptions{})
+	err = wait.PollImmediate(time.Second, 3 * time.Minute, func() (bool, error) {
+		unstructuredDaemonSet, err := c.Get("datamgr-for-vsphere-plugin", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		} else if err != nil {
@@ -271,8 +282,23 @@ func AllResources(o *DatamgrOptions, withCRDs bool) (*unstructured.UnstructuredL
 	)
 	appendUnstructured(resources, ds)
 
-
 	return resources, nil
+}
+
+// GroupResources groups resources based on whether the resources are CustomResourceDefinitions or other types of kubernetes objects
+// This is useful to wait for readiness before creating CRD objects
+func GroupResources(resources *unstructured.UnstructuredList) *ResourceGroup {
+	rg := new(ResourceGroup)
+
+	for i, r := range resources.Items {
+		if r.GetKind() == "CustomResourceDefinition" {
+			rg.CRDResources = append(rg.CRDResources, &resources.Items[i])
+			continue
+		}
+		rg.OtherResources = append(rg.OtherResources, &resources.Items[i])
+	}
+
+	return rg
 }
 
 // Install creates resources on the Kubernetes cluster.
@@ -281,9 +307,27 @@ func AllResources(o *DatamgrOptions, withCRDs bool) (*unstructured.UnstructuredL
 // for CRDs to be ready before proceeding.
 // An io.Writer can be used to output to a log or the console.
 func Install(factory client.DynamicFactory, resources *unstructured.UnstructuredList, w io.Writer) error {
-	// Install all specified resources
-	for _, r := range resources.Items {
-		if err := createResource(&r, factory, w); err != nil {
+	rg := GroupResources(resources)
+
+	//Install CRDs first
+	for _, r := range rg.CRDResources {
+		if err := createResource(r, factory, w); err != nil {
+			return err
+		}
+	}
+
+	// Wait for CRDs to be ready before proceeding
+	fmt.Fprint(w, "Waiting for resources to be ready in cluster...\n")
+	_, err := crdsAreReady(factory, CRDsList)
+	if err == wait.ErrWaitTimeout {
+		return errors.Errorf("timeout reached, CRDs not ready")
+	} else if err != nil {
+		return err
+	}
+
+	// Install all other resources
+	for _, r := range rg.OtherResources {
+		if err = createResource(r, factory, w); err != nil {
 			return err
 		}
 	}
