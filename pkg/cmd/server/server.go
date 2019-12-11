@@ -246,6 +246,7 @@ func (s *server) runControllers() error {
 		s.logger,
 		s.pluginInformerFactory.Veleroplugin().V1().Uploads(),
 		s.pluginClient.VeleropluginV1(),
+		s.kubeClient,
 		s.kubeInformerFactory.Core().V1().PersistentVolumeClaims(),
 		s.kubeInformerFactory.Core().V1().PersistentVolumes(),
 		s.dataMover,
@@ -257,6 +258,7 @@ func (s *server) runControllers() error {
 		s.logger,
 		s.pluginInformerFactory.Veleroplugin().V1().Downloads(),
 		s.pluginClient.VeleropluginV1(),
+		s.kubeClient,
 		os.Getenv("NODE_NAME"),
 	)
 
