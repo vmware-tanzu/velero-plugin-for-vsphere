@@ -17,6 +17,7 @@ limitations under the License.
 package install
 
 import (
+	"github.com/vmware-tanzu/velero/pkg/builder"
 	"strings"
 	"time"
 
@@ -72,6 +73,12 @@ func WithResources(resources corev1.ResourceRequirements) podTemplateOption {
 func WithDefaultResticMaintenanceFrequency(val time.Duration) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.defaultResticMaintenanceFrequency = val
+	}
+}
+
+func WithPlugins(plugins []string) podTemplateOption {
+	return func(c *podTemplateConfig) {
+		c.plugins = plugins
 	}
 }
 
@@ -226,6 +233,11 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 	}
 
 	daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, c.envVars...)
+
+	// TODO: change the image name to be a formal name
+	image := "lintongj/velero-plugin-for-vsphere"
+	container := *builder.ForPluginContainer(image, pullPolicy).Result()
+	daemonSet.Spec.Template.Spec.InitContainers = append(daemonSet.Spec.Template.Spec.InitContainers, container)
 
 	return daemonSet
 }
