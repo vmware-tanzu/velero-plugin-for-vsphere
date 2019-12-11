@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	jsonpatch "github.com/evanphx/json-patch"
@@ -13,7 +14,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
 	"time"
 )
@@ -21,6 +25,7 @@ import (
 type downloadController struct {
 	*genericController
 
+	kubeClient			kubernetes.Interface
 	downloadClient		pluginv1client.DownloadsGetter
 	downloadLister		listers.DownloadLister
 	nodeName			string
@@ -31,10 +36,12 @@ func NewDownloadController(
 	logger 				logrus.FieldLogger,
 	downloadInformer	informers.DownloadInformer,
 	downloadClient		pluginv1client.DownloadsGetter,
+	kubeClient			kubernetes.Interface,
 	nodeName			string,
 ) Interface {
 	c := &downloadController{
 		genericController:	newGenericController("download", logger),
+		kubeClient:			kubeClient,
 		downloadClient:		downloadClient,
 		downloadLister:		downloadInformer.Lister(),
 		nodeName:			nodeName,
@@ -49,15 +56,15 @@ func NewDownloadController(
 
 	downloadInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.enqueueRestore,
-			UpdateFunc: func(_, obj interface{}) { c.enqueueRestore(obj) },
+			AddFunc:    c.enqueueDownload,
+			UpdateFunc: func(_, obj interface{}) { c.enqueueDownload(obj) },
 		},
 	)
 
 	return c
 }
 
-func (c *downloadController) enqueueRestore(obj interface{}) {
+func (c *downloadController) enqueueDownload(obj interface{}) {
 	req := obj.(*pluginv1api.Download)
 
 	log := loggerForDownload(c.logger, req)
@@ -76,7 +83,7 @@ func (c *downloadController) enqueueRestore(obj interface{}) {
 
 func (c *downloadController) processDownload(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Debug("Running processDownload")
+	log.Info("Running processDownload")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -96,16 +103,62 @@ func (c *downloadController) processDownload(key string) error {
 	switch req.Status.Phase {
 	case "", pluginv1api.DownloadPhaseNew:
 		// only process new items
+		// TODO process DownloadPhaseInProgress status as well to handle node crash scenarios.
+		// For DownloadPhaseInProgress, the resource lease will take care of not processing the Download if the lease is owned by another running node.
 	default:
 		return nil
 	}
 
-	// Don't mutate the shared cache
-	reqCopy := req.DeepCopy()
-	return c.runRestore(reqCopy)
+	leaseLockName := "download-lease." + name
+	// Acquire lease for processing Download.
+	lock := &resourcelock.LeaseLock{
+		LeaseMeta: metav1.ObjectMeta{
+			Name:      leaseLockName,
+			Namespace: ns,
+		},
+		Client: c.kubeClient.CoordinationV1(),
+		LockConfig: resourcelock.ResourceLockConfig{
+			Identity: c.nodeName,
+		},
+	}
+
+	// use a Go context so we can tell the leaderelection code when we
+	// want to step down
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var processErr error
+
+	// start the leader election code loop
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock: lock,
+		ReleaseOnCancel: false,
+		LeaseDuration:   60 * time.Second,
+		RenewDeadline:   15 * time.Second,
+		RetryPeriod:     5 * time.Second,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				// Current node got the lease process request.
+				processErr = c.runDownload(req)
+				cancel()
+			},
+			OnStoppedLeading: func() {
+				log.Debug("Processed Download.")
+			},
+			OnNewLeader: func(identity string) {
+				if identity == c.nodeName {
+					// Same node is trying to acquire or renew the lease, ignore.
+					return
+				}
+				log.Debug("Lock is acquired by another node " + identity + ". Current node - " + c.nodeName + " need not process the Download.")
+				cancel()
+			},
+		},
+	})
+
+	return processErr
 }
 
-func (c *downloadController) runRestore(req *pluginv1api.Download) error {
+func (c *downloadController) runDownload(req *pluginv1api.Download) error {
 	log := loggerForDownload(c.logger, req)
 
 	log.Info("Running Download")
