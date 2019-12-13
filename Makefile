@@ -44,9 +44,9 @@ BUILDER_IMAGE := vsphere-plugin-builder
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
-all: plugin datamgr
+all: plugin
 
-plugin: astrolabe
+plugin: datamgr
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN)
 
@@ -140,13 +140,17 @@ copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	cp $$(pwd)/.go/src/$(GVDDK)/lib/vmware-vix-disklib/lib64/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 
-build-container: build copy-vix-libs container-name
-	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
-	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+copy-install-script:
+	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
 
-plugin-container:
-	$(MAKE) build-container BIN=$(PLUGIN_BIN) IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
-datamgr-container:
+build-container: copy-vix-libs copy-install-script container-name
+	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
+	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+
+plugin-container: all
+	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
+
+datamgr-container: datamgr
 	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE)
 
 container:
@@ -156,6 +160,11 @@ container:
 update:
 	@echo "updating CRDs"
 	./hack/update-generated-crd-code.sh
+
+push:
+	@echo "pushing images"
+	docker push $(PLUGIN_IMAGE):$(VERSION)
+	docker push $(DATAMGR_IMAGE):$(VERSION)
 
 all-ci: $(addprefix ci-, $(BIN))
 
