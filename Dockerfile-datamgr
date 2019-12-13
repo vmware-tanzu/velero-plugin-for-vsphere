@@ -13,9 +13,6 @@
 # limitations under the License.
 
 FROM ubuntu:bionic
-
-LABEL maintainer="Lintong Jiang <lintongj@vmware.com>"
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates wget bzip2 && \
     wget --quiet https://github.com/restic/restic/releases/download/v0.9.5/restic_0.9.5_linux_amd64.bz2 && \
@@ -24,14 +21,8 @@ RUN apt-get update && \
     chmod +x /usr/bin/restic && \
     apt-get remove -y wget bzip2 && \
     rm -rf /var/lib/apt/lists/*
-
-
-ADD /bin/linux/amd64/data-manager-for-plugin /datamgr
-
-RUN mkdir /plugins
-
-ADD /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
-
+ADD /bin/linux/amd64/data-* /datamgr
+RUN mkdir /vddkLibs
+COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
 USER nobody:nobody
-
 ENTRYPOINT ["/datamgr"]
