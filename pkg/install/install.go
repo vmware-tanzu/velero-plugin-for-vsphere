@@ -48,7 +48,7 @@ var CRDsList = []string{
 
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
-	DefaultImage               = "lintongj/datamgr:" + imageVersion()
+	DefaultImage               = "lintongj/data-manager-for-plugin:" + imageVersion()
 	DefaultDatamgrPodCPURequest = "0"
 	DefaultDatamgrPodMemRequest = "0"
 	DefaultDatamgrPodCPULimit   = "0"
@@ -202,7 +202,7 @@ func appendUnstructured(list *unstructured.UnstructuredList, obj runtime.Object)
 
 // DaemonSetIsReady will poll the kubernetes API server to ensure the restic daemonset is ready, i.e. that
 // pods are scheduled and available on all of the the desired nodes.
-func DaemonSetIsReady(factory client.DynamicFactory, namespace string) (bool, error) {
+func DaemonSetIsReady(factory client.DynamicFactory, namespace string, nNodes int) (bool, error) {
 	gvk := schema.FromAPIVersionAndKind(appsv1.SchemeGroupVersion.String(), "DaemonSet")
 	apiResource := metav1.APIResource{
 		Name:       "daemonsets",
@@ -217,8 +217,9 @@ func DaemonSetIsReady(factory client.DynamicFactory, namespace string) (bool, er
 	// declare this variable out of scope so we can return it
 	var isReady bool
 	var readyObservations int32
+	timeout := time.Duration(nNodes) * time.Minute
 
-	err = wait.PollImmediate(time.Second, 3 * time.Minute, func() (bool, error) {
+	err = wait.PollImmediate(time.Second, timeout, func() (bool, error) {
 		unstructuredDaemonSet, err := c.Get("datamgr-for-vsphere-plugin", metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
