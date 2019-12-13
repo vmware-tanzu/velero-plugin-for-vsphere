@@ -82,6 +82,7 @@ func retrieveBackupStorageLocation(params map[string]interface{}, logger logrus.
 	params["region"] = backupStorageLocation.Spec.Config["region"]
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
 
+	logger.Infof("Velero Backup Storage Location is retrieved, region=%v, bucket=%v", params["region"], params["bucket"])
 	return nil
 }
 
@@ -190,6 +191,8 @@ func retrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 			params[key] = value[1 : len(value)-1]
 		}
 	}
+
+	logger.Infof("vSphere VC credential is retrieved")
 	return nil
 }
 

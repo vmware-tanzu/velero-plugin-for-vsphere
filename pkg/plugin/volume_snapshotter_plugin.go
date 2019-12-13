@@ -74,6 +74,8 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 		return err
 	}
 
+	p.Infof("vSphere VolumeSnapshotter is initialized")
+
 	return nil
 }
 
