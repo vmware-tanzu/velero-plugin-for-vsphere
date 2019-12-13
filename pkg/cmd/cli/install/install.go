@@ -12,8 +12,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
-	//"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
-	//"github.com/vmware-tanzu/velero/pkg/install"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"os"
@@ -41,7 +40,7 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&o.BucketName, "bucket", o.BucketName, "name of the object storage bucket where backups should be stored")
 	flags.StringVar(&o.SecretFile, "secret-file", o.SecretFile, "file containing credentials for backup and volume provider. If not specified, --no-secret must be used for confirmation. Optional.")
 	flags.BoolVar(&o.NoSecret, "no-secret", o.NoSecret, "flag indicating if a secret should be created. Must be used as confirmation if --secret-file is not provided. Optional.")
-	flags.StringVar(&o.Image, "image", o.Image, "image to use for the Velero and restic server pods. Optional.")
+	flags.StringVar(&o.Image, "image", o.Image, "image to use for the Velero and datamgr server pods. Optional.")
 	flags.StringVar(&o.Prefix, "prefix", o.Prefix, "prefix under which all Velero data should be stored within the bucket. Optional.")
 	flags.Var(&o.PodAnnotations, "pod-annotations", "annotations to add to the Velero and restic pods. Optional. Format is key1=value1,key2=value2")
 	flags.StringVar(&o.DatamgrPodCPURequest, "datamgr-pod-cpu-request", o.DatamgrPodCPURequest, `CPU request for Datamgr pod. A value of "0" is treated as unbounded. Optional.`)
@@ -138,6 +137,11 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 	factory := client.NewDynamicFactory(dynamicClient)
 
+	nNodes, err := o.getNumberOfNodes(f)
+	if err != nil {
+		return errors.Wrap(err, "Error while getting number of nodes in kubernetes cluster")
+	}
+
 	errorMsg := fmt.Sprintf("\n\nError installing data manager. Use `kubectl logs daemonset/datamgr-for-vsphere-plugin -n %s` to check the deploy logs", o.Namespace)
 
 	err = install.Install(factory, resources, os.Stdout)
@@ -146,7 +150,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	fmt.Println("Waiting for data manager daemonset to be ready.")
-	if _, err = install.DaemonSetIsReady(factory, o.Namespace); err != nil {
+	if _, err = install.DaemonSetIsReady(factory, o.Namespace, nNodes); err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
@@ -158,4 +162,18 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	o.Namespace = f.Namespace()
 	return nil
+}
+
+func (o *InstallOptions) getNumberOfNodes(f client.Factory) (int, error) {
+	clientset, err := f.KubeClient()
+	if err != nil {
+		return 0, err
+	}
+
+	nodeList, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		return 0, err
+	}
+
+	return len(nodeList.Items), nil
 }
