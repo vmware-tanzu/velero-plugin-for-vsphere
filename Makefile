@@ -143,28 +143,29 @@ copy-vix-libs:
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
 
-build-container: copy-vix-libs copy-install-script container-name
+build-container: copy-vix-libs container-name
 	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
 	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
-plugin-container: all
+plugin-container: all copy-install-script
 	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
 
 datamgr-container: datamgr
 	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE)
 
-container:
-	$(MAKE) plugin-container
-	$(MAKE) datamgr-container
+container: plugin-container datamgr-container
 
 update:
 	@echo "updating CRDs"
 	./hack/update-generated-crd-code.sh
 
-push:
-	@echo "pushing images"
+push-plugin: plugin-container
 	docker push $(PLUGIN_IMAGE):$(VERSION)
+
+push-datamgr: datamgr-container
 	docker push $(DATAMGR_IMAGE):$(VERSION)
+
+push: push-datamgr push-plugin
 
 all-ci: $(addprefix ci-, $(BIN))
 
