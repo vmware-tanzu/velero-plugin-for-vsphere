@@ -27,6 +27,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -77,16 +78,36 @@ func retrieveBackupStorageLocation(params map[string]interface{}, logger logrus.
 		return err
 	}
 	defaultBackupLocation := "default"
-	backupStorageLocation, err := veleroClient.VeleroV1().BackupStorageLocations("velero").
+	var backupStorageLocation *v1.BackupStorageLocation
+	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations("velero").
 		Get(defaultBackupLocation, metav1.GetOptions{})
-	params["region"] = backupStorageLocation.Spec.Config["region"]
+	if err != nil {
+		logger.Infof("Failed to get Velero default backup storage location with error message: %v", err)
+		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations("velero").List(metav1.ListOptions{})
+		if err != nil || len(backupStorageLocationList.Items) <= 0 {
+			logger.Errorf("Failed to list Velero default backup storage location with error message: %v", err)
+			return err
+		}
+		// Select the first BackupStorageLocation from the list as
+		// the placeholder if there is no default BackupStorageLocation.
+		logger.Infof("Picked up the first BackupStorageLocation from the BackupStorageLocationList")
+		backupStorageLocation = &backupStorageLocationList.Items[0]
+	}
+
+	region, ok := backupStorageLocation.Spec.Config["region"];
+	if !ok {
+		params["region"] = "VOID_REGION"
+	} else {
+		params["region"] = region
+	}
+
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
 
 	logger.Infof("Velero Backup Storage Location is retrieved, region=%v, bucket=%v", params["region"], params["bucket"])
 	return nil
 }
 
-func verifyLocalMode(params map[string]interface{}, logger logrus.FieldLogger) (bool, error) {
+func verifyLocalMode(logger logrus.FieldLogger) (bool, error) {
 	isLocalMode := false
 
 	config, err := rest.InClusterConfig()
@@ -282,7 +303,7 @@ func NewSnapshotManagerFromParamsMap(params map[string]interface{}, logger logru
 		return nil, err
 	}
 
-	isLocalMode, err := verifyLocalMode(params, logger)
+	isLocalMode, err := verifyLocalMode(logger)
 	if err != nil {
 		logger.Errorf("Error at verifying whether the plugin is in vSphere local mode")
 		return nil, err
