@@ -237,15 +237,37 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 		log.WithError(err).Error("Error getting PEID from SnapshotID string in upload CR")
 		return errors.WithStack(err)
 	}
-	c.dataMover.CopyToRepo(peID)
+
+	_, err = c.dataMover.CopyToRepo(peID)
+	if err != nil {
+		log.WithError(err).Error("Error uploading snapshot to durable object storage")
+		// update status to Failed
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = pluginv1api.UploadPhaseFailed
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		})
+		return errors.WithStack(err)
+	}
+
 	// Call snapshot manager API to cleanup the local snapshot
-	c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
+	err = c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
+	if err != nil {
+		log.WithError(err).Error("Error cleaning up local snapshot after uploading snapshot")
+		// update status to Failed
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
+			r.Status.Phase = pluginv1api.UploadPhaseFailed
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		})
+		return errors.WithStack(err)
+	}
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 		r.Status.Phase = pluginv1api.UploadPhaseCompleted
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 	})
+
 	if err != nil {
 		log.WithError(err).Error("Error setting Upload phase to Completed")
 		return err
