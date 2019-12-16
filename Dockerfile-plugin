@@ -14,7 +14,12 @@
 
 FROM debian:stretch-slim
 RUN mkdir /plugins
+RUN mkdir /scripts
 ADD /bin/linux/amd64/velero-* /plugins/
+ADD /bin/linux/amd64/data-* /
+COPY /bin/linux/amd64/install.sh /scripts/
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
+ENV LD_LIBRARY_PATH=/plugins
+RUN ["chmod", "+x", "/scripts/install.sh"]
 USER nobody:nobody
-ENTRYPOINT ["/bin/bash", "-c", "cp /plugins/* /target/."]
+ENTRYPOINT ["/scripts/install.sh"]
