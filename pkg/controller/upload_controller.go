@@ -154,7 +154,7 @@ func (c *uploadController) processQueueItem(key string) error {
 					// Same node is trying to acquire or renew the lease, ignore.
 					return
 				}
-				log.Debug("Lock is acquired by another node " + identity + ". Current node - " + c.nodeName + " need not process the Upload.")
+				log.Debugf("Lock is acquired by another node %s. Current node - %s need not process the Upload.", identity, c.nodeName)
 				cancel()
 			},
 		},
@@ -234,31 +234,27 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	// Call data mover API to do the remote copy
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		log.WithError(err).Error("Error getting PEID from SnapshotID string in upload CR")
+		msg := "Error getting PEID from SnapshotID string in upload CR"
+		log.WithError(err).Error(msg)
+		patchUploadFailure(c, req, msg)
 		return errors.WithStack(err)
 	}
 
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
-		log.WithError(err).Error("Error uploading snapshot to durable object storage")
-		// update status to Failed
-		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-			r.Status.Phase = pluginv1api.UploadPhaseFailed
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		})
+		msg := "Error uploading snapshot to durable object storage"
+		log.WithError(err).Error(msg)
+		patchUploadFailure(c, req, msg)
 		return errors.WithStack(err)
 	}
 
 	// Call snapshot manager API to cleanup the local snapshot
 	err = c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
 	if err != nil {
-		log.WithError(err).Error("Error cleaning up local snapshot after uploading snapshot")
-		// update status to Failed
-		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-			// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-			r.Status.Phase = pluginv1api.UploadPhaseFailed
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		})
+		msg := "Error cleaning up local snapshot after uploading snapshot"
+		log.WithError(err).Error(msg)
+		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
+		patchUploadFailure(c, req, msg)
 		return errors.WithStack(err)
 	}
 
@@ -289,4 +285,19 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	}
 
 	return log
+}
+
+func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string) (*pluginv1api.Upload, error) {
+	// update status to Failed
+	var err error
+	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+		r.Status.Phase = pluginv1api.UploadPhaseFailed
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.Message = msg
+	})
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to patch Upload failure")
+	}
+
+	return req, err
 }
