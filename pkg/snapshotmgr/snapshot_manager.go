@@ -424,11 +424,11 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 		this.Errorf("Failed to get k8s clientset with the given config")
 		return peID, err
 	}
-	// TODO: Get the node name by api instead of hardcoding
 	download := builder.ForDownload("velero", "download-"+peID.GetSnapshotID().GetID()).RestoreTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
 	pluginClient.VeleropluginV1().Downloads("velero").Create(download)
 	// TODO: Suitable length of timeout
-	err = wait.PollImmediate(time.Second, time.Minute, func() (bool, error) {
+	err = wait.PollImmediateInfinite(time.Second, func() (bool, error) {
+		download, _ = pluginClient.VeleropluginV1().Downloads("velero").Get("download-"+peID.GetSnapshotID().GetID(), metav1.GetOptions{})
 		if download.Status.Phase == v1api.DownloadPhaseCompleted {
 			return true, nil
 		} else if download.Status.Phase == v1api.DownloadPhaseFailed {
