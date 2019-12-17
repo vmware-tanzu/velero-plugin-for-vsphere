@@ -259,6 +259,7 @@ func (s *server) runControllers() error {
 		s.pluginInformerFactory.Veleroplugin().V1().Downloads(),
 		s.pluginClient.VeleropluginV1(),
 		s.kubeClient,
+		s.dataMover,
 		os.Getenv("NODE_NAME"),
 	)
 

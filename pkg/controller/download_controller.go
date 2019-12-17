@@ -7,7 +7,9 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
@@ -29,6 +31,7 @@ type downloadController struct {
 	downloadClient		pluginv1client.DownloadsGetter
 	downloadLister		listers.DownloadLister
 	nodeName			string
+	dataMover			*dataMover.DataMover
 	clock				clock.Clock
 }
 
@@ -37,6 +40,7 @@ func NewDownloadController(
 	downloadInformer	informers.DownloadInformer,
 	downloadClient		pluginv1client.DownloadsGetter,
 	kubeClient			kubernetes.Interface,
+	dataMover				*dataMover.DataMover,
 	nodeName			string,
 ) Interface {
 	c := &downloadController{
@@ -45,6 +49,7 @@ func NewDownloadController(
 		downloadClient:		downloadClient,
 		downloadLister:		downloadInformer.Lister(),
 		nodeName:			nodeName,
+		dataMover:			dataMover,
 		clock:				&clock.RealClock{},
 	}
 
@@ -149,7 +154,7 @@ func (c *downloadController) processDownload(key string) error {
 					// Same node is trying to acquire or renew the lease, ignore.
 					return
 				}
-				log.Debug("Lock is acquired by another node " + identity + ". Current node - " + c.nodeName + " need not process the Download.")
+				log.Debugf("Lock is acquired by another node %s. Current node - %s need not process the Download.", identity, c.nodeName)
 				cancel()
 			},
 		},
@@ -176,13 +181,32 @@ func (c *downloadController) runDownload(req *pluginv1api.Download) error {
 		return errors.WithStack(err)
 	}
 
-	// TODO call astrolabe API to do the remote download
-	time.Sleep(5 * time.Second)
+	var peId, returnPeId astrolabe.ProtectedEntityID
+	peId, err = astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+	if err != nil {
+		msg := "Fail to construct new PE ID from string"
+		log.WithError(err).Error(msg)
+		patchDownloadFailure(c, req, msg)
+		return err
+	}
+	returnPeId, err = c.dataMover.CopyFromRepo(peId)
+	if err != nil {
+		msg := "Error downloading snapshot from durable object storage"
+		log.WithError(err).Error(msg)
+		patchDownloadFailure(c, req, msg)
+		return errors.WithStack(err)
+	}
+
+	volumeID := returnPeId.GetID()
+	volumeType := returnPeId.GetPeType()
+
+	log.Debugf("A new volume %s with type being %s was just created from the call of SnapshotManager CreateVolumeFromSnapshot", volumeID, volumeType)
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 		r.Status.Phase = pluginv1api.DownloadPhaseCompleted
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.VolumeID = volumeID
 	})
 	if err != nil {
 		log.WithError(err).Error("Error setting Download phase to Completed")
@@ -234,4 +258,19 @@ func loggerForDownload(baseLogger logrus.FieldLogger, req *pluginv1api.Download)
 	}
 
 	return log
+}
+
+func patchDownloadFailure(c *downloadController, req *pluginv1api.Download, msg string) (*pluginv1api.Download, error) {
+	// update status to Failed
+	var err error
+	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
+		r.Status.Phase = pluginv1api.DownloadPhaseFailed
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.Message = msg
+	})
+	if err != nil {
+		c.logger.WithError(err).Error("Failed to patch Download failure")
+	}
+
+	return req, err
 }
