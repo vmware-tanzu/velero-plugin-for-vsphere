@@ -20,7 +20,14 @@ BIN ?= $(wildcard velero-*)
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
 ASTROLABE:= github.com/vmware-tanzu/astrolabe
-GVDDK:= github.com/vmware/gvddk
+#
+# The Virtual Disk Development Kit (VDDK) is required for interfacing with vSphere and VADP.
+# Please see the gvddk README.md file for instructions on downloading and
+# installing.  
+# <gopath>/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk/README.md
+#
+GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
+VDDK_LIBS:= $(GOPATH)/src/$(GVDDK)/vmware-vix-disklib-distrib/lib64
 
 BUILD_IMAGE ?= golang:1.12-stretch
 
@@ -91,10 +98,10 @@ copy-pkgs:
 	@mkdir -p $$(pwd)/.go/src/$(ASTROLABE)
 	@cp -R $(GOPATH)/src/$(ASTROLABE)/* $$(pwd)/.go/src/$(ASTROLABE)
 
-	@echo "copy gvddk for vendor directory to .go"
-	@rm -rf $$(pwd)/.go/src/$(GVDDK)
-	mkdir -p $$(pwd)/.go/src/$(GVDDK)
-	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
+#	@echo "copy gvddk for vendor directory to .go"
+#	@rm -rf $$(pwd)/.go/src/$(GVDDK)
+#	mkdir -p $$(pwd)/.go/src/$(GVDDK)
+#	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
 
 astrolabe: build-dirs copy-pkgs
 	@echo "building astrolabe"
@@ -113,10 +120,13 @@ astrolabe: build-dirs copy-pkgs
 		-w /go/src/$(ASTROLABE) \
 		$(BUILD_IMAGE) \
 		make
+VDDK_FILES_TO_COPY = libdiskLibPlugin.so libgvmomi.so libssoclient.so libvim-types.so libvixDiskLib.so libvixDiskLib.so.6 \
+libvixDiskLib.so.6.7.0 libvixDiskLibVim.so libvixDiskLibVim.so.6 libvixDiskLibVim.so.6.7.0 libvixMntapi.so libvixMntapi.so.1 \
+libvixMntapi.so.1.1.0 libvmacore.so libvmomi.so
 
 container: all
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
-	cp $(GOPATH)/src/$(GVDDK)/lib/vmware-vix-disklib/lib64/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
+	for lib in $(VDDK_FILES_TO_COPY); do cp -f $(VDDK_LIBS)/$$lib _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64; done
 	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
 
