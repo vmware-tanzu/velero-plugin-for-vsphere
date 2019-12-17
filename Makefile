@@ -24,7 +24,7 @@ GVDDK:= github.com/vmware/gvddk
 PLUGIN_BIN ?= $(wildcard velero-*)
 DATAMGR_BIN ?= $(wildcard data-manager-*)
 
-REGISTRY ?= lintongj
+REGISTRY ?= velero-vsphere-plugin
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 
@@ -69,6 +69,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	$(MAKE) shell CMD="-c '\
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
+		REGISTRY=$(REGISTRY) \
 		VERSION=$(VERSION) \
 		PKG=$(PKG) \
 		BIN=$(BIN) \

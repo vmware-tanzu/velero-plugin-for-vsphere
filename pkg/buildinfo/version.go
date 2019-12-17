@@ -22,8 +22,11 @@ package buildinfo
 import "fmt"
 
 var (
-	// Version is the current version of Velero, set by the go linker's -X flag at build time.
+	// Version is the current version of Velero plugins, set by the go linker's -X flag at build time.
 	Version string
+
+	// Registry is the current registry of image of Velero plugins, set by the go linker's -X flag at build time.
+	Registry string
 
 	// GitSHA is the actual commit that is being built, set by the go linker's -X flag at build time.
 	GitSHA string
