@@ -150,7 +150,6 @@ container-name:
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	for lib in $(VDDK_FILES_TO_COPY); do cp -f $(VDDK_LIBS)/$$lib _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64; done
-    	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
 
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
