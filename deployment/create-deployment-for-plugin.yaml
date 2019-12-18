@@ -75,7 +75,7 @@ spec:
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
-      - image: lintongj/velero-plugin-for-vsphere
+      - image: vsphereveleroplugin/velero-plugin-for-vsphere
         imagePullPolicy: IfNotPresent
         name: velero-plugin-for-vsphere
         resources: {}

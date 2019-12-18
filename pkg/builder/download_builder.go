@@ -1,0 +1,85 @@
+package builder
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"time"
+)
+
+// DownloadBuilder builds Download objects
+type DownloadBuilder struct {
+	object *velerov1api.Download
+}
+
+// ForDownload is the constructor for a DownloadBuilder.
+func ForDownload(ns, name string) *DownloadBuilder {
+	return &DownloadBuilder{
+		object: &velerov1api.Download{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: velerov1api.SchemeGroupVersion.String(),
+				Kind:       "Download",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns,
+				Name:      name,
+			},
+		},
+	}
+}
+
+// Result returns the built Download.
+func (b *DownloadBuilder) Result() *velerov1api.Download {
+	return b.object
+}
+
+// ObjectMeta applies functional options to the Download's ObjectMeta.
+func (b *DownloadBuilder) ObjectMeta(opts ...ObjectMetaOpt) *DownloadBuilder {
+	for _, opt := range opts {
+		opt(b.object)
+	}
+
+	return b
+}
+
+// RestoreTimestamp sets the start time of download creation.
+func (b *DownloadBuilder) RestoreTimestamp(val time.Time) *DownloadBuilder {
+	b.object.Spec.RestoreTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// Phase sets the Download's phase.
+func (b *DownloadBuilder) Phase(phase velerov1api.DownloadPhase) *DownloadBuilder {
+	b.object.Status.Phase = phase
+	return b
+}
+
+// VolumeID sets the identifier for the restored volume.
+func (b *DownloadBuilder) VolumeID(id string) *DownloadBuilder {
+	b.object.Status.VolumeID = id
+	return b
+}
+
+// SnapshotID sets the Download's snapshot ID.
+func (b *DownloadBuilder) SnapshotID(snapshotID string) *DownloadBuilder {
+	b.object.Spec.SnapshotID = snapshotID
+	return b
+}
+
+// StartTimestamp sets the Download's start timestamp.
+func (b *DownloadBuilder) StartTimestamp(val time.Time) *DownloadBuilder {
+	b.object.Status.StartTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// CompletionTimestamp sets the Download's end timestamp.
+func (b *DownloadBuilder) CompletionTimestamp(val time.Time) *DownloadBuilder {
+	b.object.Status.CompletionTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// ProcessingNode sets the DataManager node that has
+// picked up the Download for processing.
+func (b *DownloadBuilder) ProcessingNode(node string) *DownloadBuilder {
+	b.object.Status.ProcessingNode = node
+	return b
+}
