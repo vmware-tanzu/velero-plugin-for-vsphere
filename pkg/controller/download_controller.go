@@ -197,16 +197,13 @@ func (c *downloadController) runDownload(req *pluginv1api.Download) error {
 		return errors.WithStack(err)
 	}
 
-	volumeID := returnPeId.GetID()
-	volumeType := returnPeId.GetPeType()
-
-	log.Debugf("A new volume %s with type being %s was just created from the call of SnapshotManager CreateVolumeFromSnapshot", volumeID, volumeType)
+	log.Debugf("A new volume %s was just created from the call to CopyFromRepo", returnPeId.String())
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 		r.Status.Phase = pluginv1api.DownloadPhaseCompleted
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.VolumeID = volumeID
+		r.Status.VolumeID = returnPeId.String()
 	})
 	if err != nil {
 		log.WithError(err).Error("Error setting Download phase to Completed")
