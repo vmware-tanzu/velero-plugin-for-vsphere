@@ -14,9 +14,6 @@
 # limitations under the License.
 #
 
-# The binary to build (just the basename).
-BIN ?= $(wildcard velero-*)
-
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
 ASTROLABE:= github.com/vmware-tanzu/astrolabe
@@ -29,9 +26,14 @@ ASTROLABE:= github.com/vmware-tanzu/astrolabe
 GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
 VDDK_LIBS:= $(GOPATH)/src/$(GVDDK)/vmware-vix-disklib-distrib/lib64
 
-BUILD_IMAGE ?= golang:1.12-stretch
 
-IMAGE ?= velero/velero-plugin-for-vsphere
+# The binary to build (just the basename).
+PLUGIN_BIN ?= $(wildcard velero-*)
+DATAMGR_BIN ?= $(wildcard data-manager-*)
+
+REGISTRY ?= vsphereveleroplugin
+PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
+DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
@@ -39,14 +41,25 @@ IMAGE ?= velero/velero-plugin-for-vsphere
 local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
+VERSION ?= latest
+
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
-all: $(addprefix build-, $(BIN))
+BUILDER_IMAGE := vsphere-plugin-builder
+PLUGIN_DOCKERFILE ?= Dockerfile-plugin
+DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
-build-%:
-	$(MAKE) --no-print-directory BIN=$* build
+all: plugin
+
+plugin: datamgr
+	@echo "making: $@"
+	$(MAKE) build BIN=$(PLUGIN_BIN)
+
+datamgr: astrolabe
+	@echo "making: $@"
+	$(MAKE) build BIN=$(DATAMGR_BIN)
 
 local: build-dirs
 	GOOS=$(GOOS) \
@@ -63,6 +76,8 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 	$(MAKE) shell CMD="-c '\
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
+		REGISTRY=$(REGISTRY) \
+		VERSION=$(VERSION) \
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
@@ -70,27 +85,32 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs astrolabe
+shell: build-dirs build-image
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/$(PKG) \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
+		-v "$$(pwd)/vendor/k8s.io/api:/go/src/k8s.io/api:delegated" \
+		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
+		-v $$(pwd)/.go/src:/go/src:delegated \
+		-v $$(pwd)/.go/std:/go/std:delegated \
+		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
+		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-w /go/src/$(PKG) \
-		$(BUILD_IMAGE) \
-		go build -installsuffix "static" -i -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+		$(BUILDER_IMAGE) \
+		/bin/sh $(CMD)
 
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
+
+build-image:
+	cd hack/build-image && docker build --pull -t $(BUILDER_IMAGE) .
 
 copy-pkgs:
 	@echo "copy astrolabe for vendor directory to .go"
@@ -103,32 +123,60 @@ copy-pkgs:
 #	mkdir -p $$(pwd)/.go/src/$(GVDDK)
 #	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
 
-astrolabe: build-dirs copy-pkgs
+astrolabe: build-dirs copy-pkgs build-image
 	@echo "building astrolabe"
 	docker run \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
-		-v $$(pwd)/.go/pkg:/go/pkg \
-		-v $$(pwd)/.go/src:/go/src \
-		-v $$(pwd)/.go/std:/go/std \
-		-v $$(pwd):/go/src/$(PKG) \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static \
+		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
+		-v $$(pwd)/.go/src:/go/src:delegated \
+		-v $$(pwd)/.go/std:/go/std:delegated \
+		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-w /go/src/$(ASTROLABE) \
-		$(BUILD_IMAGE) \
+		$(BUILDER_IMAGE) \
 		make
 VDDK_FILES_TO_COPY = libdiskLibPlugin.so libgvmomi.so libssoclient.so libvim-types.so libvixDiskLib.so libvixDiskLib.so.6 \
 libvixDiskLib.so.6.7.0 libvixDiskLibVim.so libvixDiskLibVim.so.6 libvixDiskLibVim.so.6.7.0 libvixMntapi.so libvixMntapi.so.1 \
 libvixMntapi.so.1.1.0 libvmacore.so libvmomi.so
 
-container: all
+container-name:
+	@echo "container: $(IMAGE):$(VERSION)"
+
+copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	for lib in $(VDDK_FILES_TO_COPY); do cp -f $(VDDK_LIBS)/$$lib _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64; done
-	cp Dockerfile _output/bin/$(GOOS)/$(GOARCH)/Dockerfile
-	docker build -t $(IMAGE) -f _output/bin/$(GOOS)/$(GOARCH)/Dockerfile _output/bin/$(GOOS)/$(GOARCH)
+
+copy-install-script:
+	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
+
+build-container: copy-vix-libs container-name
+	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
+	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+
+plugin-container: all copy-install-script
+	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
+
+datamgr-container: datamgr
+	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE)
+
+container: plugin-container datamgr-container
+
+update:
+	@echo "updating CRDs"
+	./hack/update-generated-crd-code.sh
+
+push-plugin: plugin-container
+	docker push $(PLUGIN_IMAGE):$(VERSION)
+
+push-datamgr: datamgr-container
+	docker push $(DATAMGR_IMAGE):$(VERSION)
+
+push: push-datamgr push-plugin
 
 all-ci: $(addprefix ci-, $(BIN))
 
@@ -141,4 +189,6 @@ ci:
 
 clean:
 	@echo "cleaning"
+	rm -rf .container-* _output/.dockerfile-*
 	rm -rf .go _output
+	docker rmi $(BUILDER_IMAGE)
