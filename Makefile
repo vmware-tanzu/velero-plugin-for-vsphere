@@ -181,4 +181,4 @@ clean:
 	@echo "cleaning"
 	rm -rf .container-* _output/.dockerfile-*
 	rm -rf .go _output
-    docker rmi $(BUILDER_IMAGE)
+	docker rmi $(BUILDER_IMAGE)
