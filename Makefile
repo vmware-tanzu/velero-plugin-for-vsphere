@@ -20,7 +20,7 @@ ASTROLABE:= github.com/vmware-tanzu/astrolabe
 #
 # The Virtual Disk Development Kit (VDDK) is required for interfacing with vSphere and VADP.
 # Please see the gvddk README.md file for instructions on downloading and
-# installing.  
+# installing.
 # <gopath>/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk/README.md
 #
 GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
