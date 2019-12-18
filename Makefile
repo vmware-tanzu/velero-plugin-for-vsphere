@@ -24,7 +24,7 @@ GVDDK:= github.com/vmware/gvddk
 PLUGIN_BIN ?= $(wildcard velero-*)
 DATAMGR_BIN ?= $(wildcard data-manager-*)
 
-REGISTRY ?= velero-vsphere-plugin
+REGISTRY ?= vsphereveleroplugin
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 
