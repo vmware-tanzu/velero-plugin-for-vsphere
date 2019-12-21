@@ -13,6 +13,7 @@ import (
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,7 +22,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
-	"time"
 )
 
 type downloadController struct {
@@ -75,10 +75,10 @@ func (c *downloadController) enqueueDownload(obj interface{}) {
 	log := loggerForDownload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.DownloadPhaseNew:
-		// only process new backups
+	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress:
+		// Process New and InProgress Downloads
 	default:
-		log.Debug("Download is not new, skipping")
+		log.Debug("Download is not New or InProgress, skipping")
 		return
 	}
 
@@ -106,10 +106,11 @@ func (c *downloadController) processDownload(key string) error {
 	}
 
 	switch req.Status.Phase {
-	case "", pluginv1api.DownloadPhaseNew:
-		// only process new items
-		// TODO process DownloadPhaseInProgress status as well to handle node crash scenarios.
-		// For DownloadPhaseInProgress, the resource lease will take care of not processing the Download if the lease is owned by another running node.
+	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress:
+		// Process new items
+		// For DownloadPhaseInProgress, the resource lease logic will process the Download if the lease is not held by
+		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
+		// will pick such record in DownloadPhaseInProgress status for processing.
 	default:
 		return nil
 	}
@@ -137,9 +138,9 @@ func (c *downloadController) processDownload(key string) error {
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 		Lock: lock,
 		ReleaseOnCancel: false,
-		LeaseDuration:   60 * time.Second,
-		RenewDeadline:   15 * time.Second,
-		RetryPeriod:     5 * time.Second,
+		LeaseDuration:   utils.LeaseDuration,
+		RenewDeadline:   utils.RenewDeadline,
+		RetryPeriod:     utils.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
