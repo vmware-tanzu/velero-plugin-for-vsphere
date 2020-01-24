@@ -181,7 +181,9 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(logger)
+	snapshotMgrConfig := make(map[string]string)
+	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
+	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(snapshotMgrConfig, logger)
 	if err != nil {
 		return nil, err
 	}
