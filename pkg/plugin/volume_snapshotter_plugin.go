@@ -17,6 +17,7 @@
 package plugin
 
 import (
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -67,8 +68,12 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 
 	// Initializing snapshot manager
 	p.Infof("Initializing snapshot manager")
+	if config == nil {
+		config = make(map[string]string)
+	}
+	config[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterPlugin
 	var err error
-	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(p.FieldLogger)
+	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(config, p.FieldLogger)
 	if err != nil {
 		p.Errorf("Failed at calling snapshotmgr.NewSnapshotManagerFromConfigFile with error message: %v", err)
 		return err

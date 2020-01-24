@@ -2,17 +2,11 @@ package dataMover
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"net/url"
-	"os"
 )
 
 type DataMover struct {
@@ -23,87 +17,34 @@ type DataMover struct {
 
 func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
 	params := make(map[string]interface{})
-	var err error
-	debugMode := os.Getenv("DEBUGMODE") != ""
-	logger.Infof("Data mover is running in the debug mode: %v", debugMode)
-	if debugMode {
-		err = utils.RetrieveVcConfigSecretByHardCoding(params, logger)
-	} else {
-		err = utils.RetrieveVcConfigSecret(params, logger)
-	}
+	err := utils.RetrieveVcConfigSecret(params, logger)
 
 	if err != nil {
 		logger.Errorf("Could not retrieve vsphere credential from k8s secret with error message: %v", err)
 		return nil, err
 	}
+	logger.Infof("DataMover: vSphere VC credential is retrieved")
 
-	err = utils.RetrieveBackupStorageLocation(params, logger)
+	err = utils.RetrieveVSLFromVeleroBSLs(params, logger)
 	if err != nil {
 		logger.Errorf("Could not retrieve velero default backup location with error message: %v", err)
 		return nil, err
 	}
+	logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v", params["region"], params["bucket"])
 
-	dataMover, err := newDataMoverFromParamsMap(params, logger)
+	s3PETM, err := utils.GetS3PETMFromParamsMap(params, logger)
 	if err != nil {
-		logger.Errorf("Failed to new a snapshot manager from params map")
+		logger.Errorf("Failed to get s3PETM from params map")
 		return nil, err
 	}
-	return dataMover, nil
-}
+	logger.Infof("DataMover: Get s3PETM from the params map")
 
-func newDataMoverFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
-	var vcUrl url.URL
-	vcUrl.Scheme = "https"
-	vcHostStr, ok := params["VirtualCenter"].(string)
-	if !ok {
-		return nil, errors.New("Missing vcHost param, cannot initialize SnapshotManager")
-	}
-	vcHostPortStr, ok := params["port"].(string)
-	if !ok {
-		return nil, errors.New("Missing port param, cannot initialize SnapshotManager")
-	}
-
-	vcUrl.Host = fmt.Sprintf("%s:%s", vcHostStr, vcHostPortStr)
-
-	vcUser, ok := params["user"].(string)
-	if !ok {
-		return nil, errors.New("Missing vcUser param, cannot initialize SnapshotManager")
-	}
-	vcPassword, ok := params["password"].(string)
-	if !ok {
-		return nil, errors.New("Missing vcPassword param, cannot initialize SnapshotManager")
-	}
-	vcUrl.User = url.UserPassword(vcUser, vcPassword)
-	vcUrl.Path = "/sdk"
-
-	insecure := false
-	insecureStr, ok := params["insecure-flag"].(string)
-	if ok && (insecureStr == "TRUE" || insecureStr == "true") {
-		insecure = true
-	}
-
-	region := params["region"].(string)
-	bucket := params["bucket"].(string)
-
-	s3URLBase := fmt.Sprintf("https://s3-%s.amazonaws.com/%s/", region, bucket)
-	serviceType := "ivd"
-
-	// init ivd PETM
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromURL(&vcUrl, s3URLBase, insecure, logger)
+	ivdPETM, err := utils.GetIVDPETMFromParamsMap(params, logger)
 	if err != nil {
-		logger.Errorf("Error at calling ivd API, NewIVDProtectedEntityTypeManagerFromURL")
+		logger.Errorf("Failed to get ivdPETM from params map")
 		return nil, err
 	}
-
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	}))
-
-	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, bucket, logger)
-	if err != nil {
-		logger.Errorf("Error at creating new ProtectedEntityTypeManager for s3 repository")
-		return nil, err
-	}
+	logger.Infof("DataMover: Get ivdPETM from the params map")
 
 	dataMover := DataMover{
 		FieldLogger: logger,
@@ -111,7 +52,7 @@ func newDataMoverFromParamsMap(params map[string]interface{}, logger logrus.Fiel
 		s3PETM:  s3PETM,
 	}
 
-	logger.Infof("Data Moving Manager is initialized")
+	logger.Infof("DataMover is initialized")
 	return &dataMover, nil
 }
 
