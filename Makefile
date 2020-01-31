@@ -178,14 +178,15 @@ push-datamgr: datamgr-container
 
 push: push-datamgr push-plugin
 
-all-ci: $(addprefix ci-, $(BIN))
+verify:
+	@echo "verify: Started"
+	@echo "verify: Completed"
 
-ci-%:
-	$(MAKE) --no-print-directory BIN=$* ci
+test:
+	@echo "test: Started"
+	@echo "test: Completed"
 
-ci:
-	mkdir -p _output
-	CGO_ENABLED=1 go build -v -o _output/bin/$(GOOS)/$(GOARCH)/$(BIN) ./$(BIN)
+ci: all verify test
 
 clean:
 	@echo "cleaning"
