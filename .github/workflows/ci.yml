@@ -2,6 +2,7 @@ name: Velero Plugin For vSphere CI Check
 on:
   push:
     branches:
+      - master
       - cicd-*
 jobs:
   build:
