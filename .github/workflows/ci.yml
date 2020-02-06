@@ -1,12 +1,5 @@
 name: Velero Plugin For vSphere CI Check
-on:
-  push:
-    branches:
-      - master
-      - cicd-*
-  pull_request:
-    branches:
-      - master
+on: [push, pull_request]
 jobs:
   build:
     name: Run CI
@@ -19,7 +12,7 @@ jobs:
       - name: Check out the code of astrolabe
         uses: actions/checkout@v2
         with:
-          repository: lintongj/astrolabe
+          repository: vmware-tanzu/astrolabe
           path: src/github.com/vmware-tanzu/astrolabe
       - name: Download essential GVDDK libraries
         run: |
