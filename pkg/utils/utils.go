@@ -9,14 +9,14 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 /*
@@ -201,4 +201,60 @@ func GetBool(str string, defValue bool) bool {
 	}
 
 	return res
+}
+
+func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return "", err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", err
+	}
+
+	pvList, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	var claimRefName, claimRefNs string
+	for _, pv := range pvList.Items {
+		if pv.Spec.CSI.VolumeHandle == volumeId {
+			claimRefName = pv.Spec.ClaimRef.Name
+			claimRefNs = pv.Spec.ClaimRef.Namespace
+			break
+		}
+	}
+	if claimRefNs == "" || claimRefName == "" {
+		return "", errors.New("Failed to retrieve the PV with the expected volume ID")
+	}
+
+	podList, err := clientset.CoreV1().Pods(claimRefNs).List(metav1.ListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	// Assume the PV is specified with RWO (ReadWriteOnce)
+	var nodeName string
+	for _, pod := range podList.Items {
+		for _, volume := range pod.Spec.Volumes {
+			if volume.PersistentVolumeClaim == nil {
+				continue
+			}
+			if volume.PersistentVolumeClaim.ClaimName == claimRefName {
+				nodeName = pod.Spec.NodeName
+				break
+			}
+		}
+		if nodeName != "" {
+			break
+		}
+	}
+
+	if nodeName == "" {
+		return "", errors.New("Failed to retrieve pod that claim the PV")
+	}
+
+	return nodeName, nil
 }
