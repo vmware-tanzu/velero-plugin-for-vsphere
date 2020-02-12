@@ -12,6 +12,7 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
@@ -193,7 +194,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		kubeClient:            kubeClient,
 		veleroClient:          veleroClient,
 		pluginClient:          pluginClient,
-		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, 0, pluginInformers.WithNamespace(f.Namespace())),
+		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, utils.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
 		kubeInformerFactory:   kubeinformers.NewSharedInformerFactory(kubeClient, 0),
 		ctx:                   ctx,
 		cancelFunc:            cancelFunc,

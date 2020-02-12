@@ -1,0 +1,27 @@
+name: Velero Plugin For vSphere CI Check
+on: [push, pull_request]
+jobs:
+  build:
+    name: Run CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code of velero-plugin-for-vsphere
+        uses: actions/checkout@v2
+        with:
+          path: src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+      - name: Check out the code of astrolabe
+        uses: actions/checkout@v2
+        with:
+          repository: vmware-tanzu/astrolabe
+          path: src/github.com/vmware-tanzu/astrolabe
+      - name: Download essential GVDDK libraries
+        run: |
+          cd src/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
+          wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-6.7.3-14389676.x86_64.tar.gz
+          tar xzf VMware-vix-disklib-6.7.3-14389676.x86_64.tar.gz
+      - name: Set env
+        run: echo "::set-env name=GOPATH::$GITHUB_WORKSPACE"
+      - name: Make CI
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          make ci

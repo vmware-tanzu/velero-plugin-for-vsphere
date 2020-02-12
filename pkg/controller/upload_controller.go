@@ -14,17 +14,17 @@ import (
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1informers "k8s.io/client-go/informers/core/v1"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
-	"time"
 )
 
 type uploadController struct {
@@ -107,7 +107,11 @@ func (c *uploadController) processQueueItem(key string) error {
 
 	// only process new items
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
+		// Process new items
+		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
+		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
+		// will pick such record in UploadPhaseInProgress status for processing.
 	default:
 		return nil
 	}
@@ -135,9 +139,9 @@ func (c *uploadController) processQueueItem(key string) error {
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 		Lock: lock,
 		ReleaseOnCancel: false,
-		LeaseDuration:   60 * time.Second,
-		RenewDeadline:   15 * time.Second,
-		RetryPeriod:     5 * time.Second,
+		LeaseDuration:   utils.LeaseDuration,
+		RenewDeadline:   utils.RenewDeadline,
+		RetryPeriod:     utils.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
@@ -166,21 +170,17 @@ func (c *uploadController) processQueueItem(key string) error {
 func (c *uploadController) pvbHandler(obj interface{}) {
 	req := obj.(*pluginv1api.Upload)
 
-	// only enqueue items for this node
-	// Todo: Enabled in the production code
-	// disable the check for local debug purpose
-	//if req.Spec.Node != c.nodeName {
-	//	return
-	//}
-
 	log := loggerForUpload(c.logger, req)
 
-	if req.Status.Phase != "" && req.Status.Phase != pluginv1api.UploadPhaseNew {
-		log.Debug("Upload is not new, not enqueuing")
+	switch req.Status.Phase {
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
+		// Process New and InProgress Uploads
+	default:
+		log.Debug("Upload is not New or InProgress, skipping")
 		return
 	}
 
-	log.Debug("Enqueueing")
+	log.Debug("Enqueueing Upload")
 	c.enqueue(obj)
 }
 
