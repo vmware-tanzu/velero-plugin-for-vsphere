@@ -7,9 +7,12 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,6 +117,13 @@ func NewCommand(f client.Factory) *cobra.Command {
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	var resources *unstructured.UnstructuredList
 
+	isLocalMode := utils.GetBool(install.DefaultImageLocalMode, false)
+	fmt.Printf("The Image LocalMode: %v\n", isLocalMode)
+	if isLocalMode {
+		fmt.Println("Skip the data manager installation")
+		return nil
+	}
+
 	vo, err := o.AsDatamgrOptions()
 	if err != nil {
 		return err
@@ -160,7 +170,44 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 
 //Complete completes options for a command.
 func (o *InstallOptions) Complete(args []string, f client.Factory) error {
-	o.Namespace = f.Namespace()
+	fileName := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+	_, err := os.Stat(fileName)
+	if os.IsNotExist(err) {
+		// If the file isn't there, just return an empty map
+		fmt.Printf("No namespace specified in the namespace file, %v\n", fileName)
+		return nil
+	}
+	if err != nil {
+		// For any other Stat() error, return it
+		return errors.WithStack(err)
+	}
+
+	content, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	namespace := string(content)
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		fmt.Println("Failed to get k8s inClusterConfig")
+		return errors.WithStack(err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		fmt.Println("Failed to get k8s clientset with the given config")
+		return errors.WithStack(err)
+	}
+
+	_, err = clientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Failed to get the specified namespace, %v, for velero in the current k8s cluster\n", namespace)
+		return errors.WithStack(err)
+	}
+	o.Namespace = namespace
+	fmt.Printf("velero is running in the namespace, %v\n", namespace)
+
 	return nil
 }
 
