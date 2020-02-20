@@ -48,7 +48,8 @@ var CRDsList = []string{
 
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
-	DefaultImage               = imageRegistry() + "/data-manager-for-plugin:" + imageVersion()
+	DefaultImage                = imageRegistry() + "/data-manager-for-plugin:" + imageVersion()
+	DefaultImageLocalMode       = imageLocalMode()
 	DefaultDatamgrPodCPURequest = "0"
 	DefaultDatamgrPodMemRequest = "0"
 	DefaultDatamgrPodCPULimit   = "0"
@@ -76,10 +77,18 @@ func imageVersion() string {
 
 func imageRegistry() string {
 	if buildinfo.Registry == "" {
-		return "velero-vsphere-plugin"
+		return "vsphereveleroplugin"
 	}
 	return buildinfo.Registry
 }
+
+func imageLocalMode() string {
+	if buildinfo.LocalMode == "" {
+		return "false"
+	}
+	return buildinfo.LocalMode
+}
+
 
 func labels() map[string]string {
 	return map[string]string{
