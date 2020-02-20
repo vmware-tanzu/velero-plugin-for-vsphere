@@ -42,6 +42,7 @@ local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
 VERSION ?= latest
+LOCALMODE ?= false
 
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
@@ -78,6 +79,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		GOARCH=$(GOARCH) \
 		REGISTRY=$(REGISTRY) \
 		VERSION=$(VERSION) \
+		LOCALMODE=$(LOCALMODE) \
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
