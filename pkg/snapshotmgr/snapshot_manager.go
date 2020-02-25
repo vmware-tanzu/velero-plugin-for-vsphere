@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -113,9 +114,24 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 		this.Errorf("Failed to GetProtectedEntity for, %s, with error message, %v", peID.String(), err)
 		return astrolabe.ProtectedEntityID{}, err
 	}
-	this.Debugf("Ready to call PE snapshot API")
-	peSnapID, err := pe.Snapshot(ctx)
-	this.Debugf("Return from the call of PE snapshot API")
+
+	var peSnapID astrolabe.ProtectedEntitySnapshotID
+	this.Infof("Ready to call astrolabe Snapshot API. Will retry on InvalidState error once per second for an hour at maximum")
+	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
+		peSnapID, err = pe.Snapshot(ctx)
+
+		if err != nil {
+			if strings.Contains(err.Error(), "The operation is not allowed in the current state") {
+				this.Warnf("Keep retrying on InvalidState error")
+				return false, nil
+			} else {
+				return false, err
+			}
+		}
+		return true, nil
+	})
+	this.Infof("Return from the call of astrolabe Snapshot API")
+
 	if err != nil {
 		this.Errorf("Failed to Snapshot PE for, %s, with error message, %v", peID.String(), err)
 		return astrolabe.ProtectedEntityID{}, err
@@ -218,13 +234,26 @@ func (this *SnapshotManager) DeleteProtectedEntitySnapshot(peID astrolabe.Protec
 		return nil
 	}
 
-	this.Debugf("Calling PE.DeleteSnapshot API")
-	success, err := pe.DeleteSnapshot(ctx, peID.GetSnapshotID())
+	this.Infof("Ready to call astrolabe DeleteSnapshot API. Will retry on InvalidState error once per second for an hour at maximum")
+	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
+		_, err = pe.DeleteSnapshot(ctx, peID.GetSnapshotID())
+
+		if err != nil {
+			if strings.Contains(err.Error(), "The operation is not allowed in the current state") {
+				this.Warnf("Keep retrying on InvalidState error")
+				return false, nil
+			} else {
+				return false, err
+			}
+		}
+		return true, nil
+	})
+	this.Infof("Return from the call of astrolabe DeleteSnapshot API")
+
 	if err != nil {
-		this.Errorf("Failed to delete the snapshot: success=%t", success)
+		this.Errorf("Failed to delete the snapshot: %v", err)
 		return err
 	}
-	this.Infof("Return from the call of PE deleteSnapshot API")
 
 	return nil
 }
