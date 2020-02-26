@@ -140,16 +140,13 @@ astrolabe: build-dirs copy-pkgs build-image
 		-w /go/src/$(ASTROLABE) \
 		$(BUILDER_IMAGE) \
 		make
-VDDK_FILES_TO_COPY = libdiskLibPlugin.so libgvmomi.so libssoclient.so libvim-types.so libvixDiskLib.so libvixDiskLib.so.6 \
-libvixDiskLib.so.6.7.0 libvixDiskLibVim.so libvixDiskLibVim.so.6 libvixDiskLibVim.so.6.7.0 libvixMntapi.so libvixMntapi.so.1 \
-libvixMntapi.so.1.1.0 libvmacore.so libvmomi.so
 
 container-name:
 	@echo "container: $(IMAGE):$(VERSION)"
 
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
-	for lib in $(VDDK_FILES_TO_COPY); do cp -f $(VDDK_LIBS)/$$lib _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64; done
+	cp -R $(VDDK_LIBS)/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
