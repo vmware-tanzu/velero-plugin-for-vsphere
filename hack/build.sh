@@ -42,6 +42,10 @@ if [ -z "${REGISTRY}" ]; then
     echo "REGISTRY must be set"
     exit 1
 fi
+if [ -z "${LOCALMODE}" ]; then
+    echo "LOCALMODE must be set"
+    exit 1
+fi
 
 
 export CGO_ENABLED=1
@@ -56,6 +60,7 @@ fi
 
 LDFLAGS="-X ${PKG}/pkg/buildinfo.Version=${VERSION}"
 LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.Registry=${REGISTRY}"
+LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.LocalMode=${LOCALMODE}"
 LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.GitSHA=${GIT_SHA}"
 LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.GitTreeState=${GIT_TREE_STATE}"
 

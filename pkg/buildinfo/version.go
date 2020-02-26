@@ -28,6 +28,9 @@ var (
 	// Registry is the current registry of image of Velero plugins, set by the go linker's -X flag at build time.
 	Registry string
 
+	// LocalMode is the flag to control whether to enable the data manager feature or not, set by the go linker's -X flag at build time.
+	LocalMode string
+
 	// GitSHA is the actual commit that is being built, set by the go linker's -X flag at build time.
 	GitSHA string
 
