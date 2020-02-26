@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"os"
-	"strings"
 	"time"
 )
 
