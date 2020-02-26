@@ -1,12 +1,12 @@
-name: Velero Plugin For vSphere CI Check
+name: Velero Plugin For vSphere CICD Pipeline
 on:
   push:
   pull_request:
   schedule:
     - cron: '0 0 * * *'
 jobs:
-  build:
-    name: Run CI
+  cicd:
+    name: Run CICD
     runs-on: ubuntu-latest
     steps:
       - name: Check out the code of velero-plugin-for-vsphere
@@ -26,6 +26,15 @@ jobs:
       - name: Set env
         run: echo "::set-env name=GOPATH::$GITHUB_WORKSPACE"
       - name: Make CI
+        if: github.event_name == 'pull_request'
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           make ci
+      - name: Build the plugin and push images to docker hub
+        if: github.event_name != 'pull_request'
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password ${{ secrets.DOCKERHUB_PASSWORD }}
+          BRANCH=${GITHUB_REF##*/}
+          chmod +x ./scripts/push-image.sh
+          ./scripts/push-image.sh $BRANCH

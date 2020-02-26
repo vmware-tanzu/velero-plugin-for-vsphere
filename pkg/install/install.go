@@ -77,7 +77,7 @@ func imageVersion() string {
 
 func imageRegistry() string {
 	if buildinfo.Registry == "" {
-		return "vsphereveleroplugin"
+		return "dpcpinternal"
 	}
 	return buildinfo.Registry
 }
