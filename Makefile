@@ -41,7 +41,11 @@ DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 local : ARCH ?= $(shell go env GOOS)-$(shell go env GOARCH)
 ARCH ?= linux-amd64
 
-VERSION ?= latest
+# VERSION is <git branch>-<git commit>-<date
+# Uses ifndef instead of ?= so that date will only be evaluated once, not each time VERSION is used
+ifndef VERSION
+VERSION := $(shell echo `git rev-parse --abbrev-ref HEAD`-`git log -1 --pretty=format:%h`-`date "+%d.%b.%Y.%H.%M.%S"`)
+endif
 LOCALMODE ?= false
 
 platform_temp = $(subst -, ,$(ARCH))
@@ -158,10 +162,10 @@ build-container: copy-vix-libs container-name
 	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
 plugin-container: all copy-install-script
-	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE)
+	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE) VERSION=$(VERSION)
 
 datamgr-container: datamgr
-	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE)
+	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
 
 container: plugin-container datamgr-container
 
