@@ -6,7 +6,9 @@ then
   exit 1
 fi
 
-if [ $BRANCH = "0.9.0"  ]
+BRANCH=$1
+
+if [ "$BRANCH" == "0.9.0"  ]
 then
   make push LOCALMODE=true
 else
