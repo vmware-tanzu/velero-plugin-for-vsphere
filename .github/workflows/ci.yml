@@ -34,7 +34,6 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
-          docker login --username ${{ secrets.DOCKERHUB_USERNAME }} --password ${{ secrets.DOCKERHUB_PASSWORD }}
-          BRANCH=${GITHUB_REF##*/}
-          chmod +x ./scripts/push-image.sh
-          ./scripts/push-image.sh $BRANCH
+          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          make push
+          make push-pp
