@@ -60,11 +60,11 @@ all: plugin
 
 plugin: datamgr
 	@echo "making: $@"
-	$(MAKE) build BIN=$(PLUGIN_BIN)
+	$(MAKE) build BIN=$(PLUGIN_BIN) VERSION=$(VERSION)
 
 datamgr: astrolabe
 	@echo "making: $@"
-	$(MAKE) build BIN=$(DATAMGR_BIN)
+	$(MAKE) build BIN=$(DATAMGR_BIN) VERSION=$(VERSION)
 
 local: build-dirs
 	GOOS=$(GOOS) \
