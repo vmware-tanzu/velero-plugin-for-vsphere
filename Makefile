@@ -182,7 +182,7 @@ push-datamgr: datamgr-container
 push: push-datamgr push-plugin
 
 push-pp:
-    $(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
+	$(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
 
 verify:
 	@echo "verify: Started"
