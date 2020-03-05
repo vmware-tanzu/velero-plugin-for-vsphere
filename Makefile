@@ -56,7 +56,12 @@ BUILDER_IMAGE := vsphere-plugin-builder
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
-all: plugin
+all: dep plugin
+
+dep:
+ifeq (,$(wildcard $(VDDK_LIBS)))
+	$(error "$(VDDK_LIBS) cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency")
+endif
 
 plugin: datamgr
 	@echo "making: $@"
