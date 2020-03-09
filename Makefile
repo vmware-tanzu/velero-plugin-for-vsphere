@@ -52,7 +52,7 @@ platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
-BUILDER_IMAGE := vsphere-plugin-builder
+BUILDER_IMAGE := golang:1.14
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 
@@ -72,6 +72,7 @@ local: build-dirs
 	PKG=$(PKG) \
 	BIN=$(BIN) \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
+	GO111MODULE=on \
 	./hack/build.sh
 
 build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
@@ -87,11 +88,12 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
+		GO111MODULE=on \
 		./hack/build.sh'"
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs build-image
+shell: build-dirs 
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
@@ -115,9 +117,6 @@ build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
-build-image:
-	cd hack/build-image && docker build --pull -t $(BUILDER_IMAGE) .
-
 copy-pkgs:
 	@echo "copy astrolabe for vendor directory to .go"
 	@rm -rf $$(pwd)/.go/src/$(ASTROLABE)
@@ -129,7 +128,7 @@ copy-pkgs:
 #	mkdir -p $$(pwd)/.go/src/$(GVDDK)
 #	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
 
-astrolabe: build-dirs copy-pkgs build-image
+astrolabe: build-dirs copy-pkgs 
 	@echo "building astrolabe"
 	docker run \
 		-e GOFLAGS \
