@@ -180,6 +180,23 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 		return
 	}
 
+	log.Info("Filtering out the upload requests come from different node")
+	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+	if err != nil {
+		log.WithError(err).Error("error extract volume ID from snapshot ID")
+		return
+	}
+
+	uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
+	if err != nil {
+		log.WithError(err).Error("error retrieve pod nodes from volume ID")
+		return
+	}
+
+	if c.nodeName != uploadNodeName {
+		return
+	}
+
 	log.Debug("Enqueueing Upload")
 	c.enqueue(obj)
 }
