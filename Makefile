@@ -31,7 +31,7 @@ VDDK_LIBS:= $(GOPATH)/src/$(GVDDK)/vmware-vix-disklib-distrib/lib64
 PLUGIN_BIN ?= $(wildcard velero-*)
 DATAMGR_BIN ?= $(wildcard data-manager-*)
 
-REGISTRY ?= vsphereveleroplugin
+REGISTRY ?= dpcpinternal
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 
@@ -179,6 +179,9 @@ push-datamgr: datamgr-container
 	docker push $(DATAMGR_IMAGE):$(VERSION)
 
 push: push-datamgr push-plugin
+
+push-pp:
+	$(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
 
 verify:
 	@echo "verify: Started"
