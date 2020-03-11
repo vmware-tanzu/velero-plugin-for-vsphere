@@ -36,8 +36,21 @@ $ make container IMAGE=your-repo/your-name:here
 To deploy your plugin image to an Velero server:
 
 1. In the CSI setup, it is required to use the hostNetwork option for the deployment. Run `kubectl patch deploy/velero -n velero --patch "$(cat deployment/patch-deployment-hostNetwork.yaml)"`.
-2. Make sure your image is pushed to a registry that is accessible to your cluster's nodes.
-3. Run `velero plugin add <image>`, e.g. `velero plugin add velero/vsphere-plugin-for-velero`
+2. This plugin is dependent on shared library during plugin install. Starting from velero v1.2.0, the env `LD_LIBRARY_PATH` is set by default. If not already exist, manually edit `deployment/velero` to add `LD_LIBRARY_PATH` environment variable or use `deployment/create-deployment-for-plugin.yaml` to update the deployment.
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+      - args:
+        name: velero
+        env:
+        # Add LD_LIBRARY_PATH to environment variable
+        - name: LD_LIBRARY_PATH
+          value: /plugins
+```
+3. Make sure your image is pushed to a registry that is accessible to your cluster's nodes.
+4. Run `velero plugin add <image>`, e.g. `velero plugin add velero/vsphere-plugin-for-velero`
 
 ## Using the plugins
 
@@ -65,4 +78,4 @@ To run with the plugin, do the following:
     ```
 
     Note: users can also run `kubectl apply -f deployment/create-deployment-for-plugin.yaml` to configure the deployment for the plugin, which is equivalent to steps 1 - 3 mentioned above. 
-5. Run `kubectl apply -f examples/demo-app.yaml` to apply a sample nginx application that uses the example block store plugin. ***Note***: This example works best on a virtual machine, as it uses the host's `/tmp` directory for data storage.
+4. Run `kubectl apply -f examples/demo-app.yaml` to apply a sample nginx application that uses the example block store plugin. ***Note***: This example works best on a virtual machine, as it uses the host's `/tmp` directory for data storage.
