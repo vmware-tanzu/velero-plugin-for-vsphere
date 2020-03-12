@@ -227,7 +227,8 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 		}
 	}
 	if claimRefNs == "" || claimRefName == "" {
-		return "", errors.New("Failed to retrieve the PV with the expected volume ID")
+		errMsg := fmt.Sprintf("Failed to retrieve the PV with the expected volume ID, %v", volumeId)
+		return "", errors.New(errMsg)
 	}
 
 	podList, err := clientset.CoreV1().Pods(claimRefNs).List(metav1.ListOptions{})
@@ -253,7 +254,8 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 	}
 
 	if nodeName == "" {
-		return "", errors.New("Failed to retrieve pod that claim the PV")
+		errMsg := fmt.Sprintf("Failed to retrieve pod that claim the PV, %v", volumeId)
+		return "", errors.New(errMsg)
 	}
 
 	return nodeName, nil
