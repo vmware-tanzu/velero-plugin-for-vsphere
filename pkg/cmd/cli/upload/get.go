@@ -23,6 +23,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 )
 
 func NewGetCommand(f client.Factory, use string) *cobra.Command {
@@ -36,7 +37,8 @@ func NewGetCommand(f client.Factory, use string) *cobra.Command {
 		Run: func(c *cobra.Command, args []string) {
 			logLevel := logLevelFlag.Parse()
 			logger := logging.DefaultLogger(logLevel, formatFlag.Parse())
-			logger.Infof("The command, datamgr upload get, is called")
+			logger.Debugf("setting log-level to %s", strings.ToUpper(logLevel.String()))
+			logger.Infof("Datamgr upload get called")
 		},
 	}
 

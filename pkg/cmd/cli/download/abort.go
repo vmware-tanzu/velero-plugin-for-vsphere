@@ -37,7 +37,7 @@ func NewAbortCommand(f client.Factory, use string) *cobra.Command {
 		Run: func(c *cobra.Command, args []string) {
 			logLevel := logLevelFlag.Parse()
 			logger := logging.DefaultLogger(logLevel, formatFlag.Parse())
-			logger.Infof("The command, datamgr download abort, is called")
+			logger.Infof("Datamgr download abort called")
 		},
 	}
 

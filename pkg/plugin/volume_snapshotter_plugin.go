@@ -55,7 +55,7 @@ var _ velero.VolumeSnapshotter = (*NewVolumeSnapshotter)(nil)
 // configuration key-value pairs. It returns an error if the VolumeSnapshotter
 // cannot be initialized from the provided config. Note that after v0.10.0, this will happen multiple times.
 func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
-	p.Infof("Init called", config)
+	p.Infof("Init called with config: %v", config)
 	p.config = config
 
 	// Make sure we don't overwrite data, now that we can re-initialize the plugin
@@ -75,7 +75,7 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 	var err error
 	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(config, p.FieldLogger)
 	if err != nil {
-		p.Errorf("Failed at calling snapshotmgr.NewSnapshotManagerFromConfigFile with error message: %v", err)
+		p.WithError(err).Errorf("Failed at calling snapshotmgr.NewSnapshotManagerFromConfigFile with config: %v", config)
 		return err
 	}
 
@@ -88,19 +88,19 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 // availability zone, initialized from the provided snapshot,
 // and with the specified type and IOPS (if using provisioned IOPS).
 func (p *NewVolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, volumeAZ string, iops *int64) (string, error) {
-	p.Infof("CreateVolumeFromSnapshot called", snapshotID, volumeType)
+	p.Infof("CreateVolumeFromSnapshot called with snapshotID %s, volumeType %s", snapshotID, volumeType)
 	var returnVolumeID, returnVolumeType string
 
 	var peId,returnPeId astrolabe.ProtectedEntityID
 	var err error
 	peId, err = astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
-		p.Errorf("Fail to construct new PE ID from string")
+		p.WithError(err).Errorf("Fail to construct new PE ID from string %s", snapshotID)
 		return returnVolumeID, err
 	}
 	returnPeId, err = p.snapMgr.CreateVolumeFromSnapshot(peId)
 	if err != nil {
-		p.Errorf("Failed at calling SnapshotManager CreateVolumeFromSnapshot")
+		p.WithError(err).Errorf("Failed at calling SnapshotManager CreateVolumeFromSnapshot with peId %v", peId)
 		return returnVolumeID, err
 	}
 
@@ -122,32 +122,31 @@ const cnsBlockVolumeType = "ivd"
 // GetVolumeInfo returns the type and IOPS (if using provisioned IOPS) for
 // the specified volume in the given availability zone.
 func (p *NewVolumeSnapshotter) GetVolumeInfo(volumeID, volumeAZ string) (string, *int64, error) {
-	p.Infof("GetVolumeInfo called", volumeID, volumeAZ)
+	p.Infof("GetVolumeInfo called with volumeID %s, volumeAZ %s", volumeID, volumeAZ)
 	if val, ok := p.volumes[volumeID]; ok {
 		iops := val.iops
 		return val.volType, &iops, nil
 	}
-	p.Debugf("Hardcoded GetVolumeInfo for now: volumeType: %s; iops: nil", cnsBlockVolumeType)
 	return cnsBlockVolumeType, nil, nil
 }
 
 // IsVolumeReady Check if the volume is ready.
 func (p *NewVolumeSnapshotter) IsVolumeReady(volumeID, volumeAZ string) (ready bool, err error) {
-	p.Infof("IsVolumeReady called", volumeID, volumeAZ)
+	p.Infof("IsVolumeReady called with volumeID %s and volumeAZ %s", volumeID, volumeAZ)
 	return true, nil
 }
 
 // CreateSnapshot creates a snapshot of the specified volume, and applies any provided
 // set of tags to the snapshot.
 func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags map[string]string) (string, error) {
-	p.Infof("CreateSnapshot called", volumeID, volumeAZ, tags)
+	p.Infof("CreateSnapshot called with volumeID %s, volumeAZ %s, tags %v", volumeID, volumeAZ, tags)
 	var snapshotID string
 
 	// call SnapshotMgr CreateSnapshot API
 	peID := astrolabe.NewProtectedEntityID("ivd", volumeID)
 	peID, err := p.snapMgr.CreateSnapshot(peID, tags)
 	if err != nil {
-		p.Errorf("Fail at calling SnapshotManager CreateSnapshot")
+		p.WithError(err).Errorf("Fail at calling SnapshotManager CreateSnapshot from peID %v, tags %v", peID, tags)
 		return "", err
 	}
 
@@ -169,22 +168,22 @@ func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags ma
 		az:   volumeAZ,
 		tags: tags}
 
-	p.Debugf("CreateSnapshot returning: ", snapshotID)
+	p.Debugf("CreateSnapshot returning: %s", snapshotID)
 	return snapshotID, nil
 }
 
 // DeleteSnapshot deletes the specified volume snapshot.
 func (p *NewVolumeSnapshotter) DeleteSnapshot(snapshotID string) error {
-	p.Infof("DeleteSnapshot called", snapshotID)
+	p.Infof("DeleteSnapshot called with snapshotID %s", snapshotID)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
-		p.Errorf("Fail to construct new PE ID from string")
+		p.WithError(err).Errorf("Fail to construct new Protected Entity ID from string %s", snapshotID)
 		return err
 	}
 
 	err = p.snapMgr.DeleteSnapshot(peID)
 	if err != nil {
-		p.Errorf("Failed at calling SnapshotManager DeleteSnapshot")
+		p.WithError(err).Errorf("Failed at calling SnapshotManager DeleteSnapshot for peID %v", peID)
 		return err
 	}
 
@@ -193,7 +192,7 @@ func (p *NewVolumeSnapshotter) DeleteSnapshot(snapshotID string) error {
 
 // GetVolumeID returns the specific identifier for the PersistentVolume.
 func (p *NewVolumeSnapshotter) GetVolumeID(unstructuredPV runtime.Unstructured) (string, error) {
-	p.Infof("GetVolumeID called", unstructuredPV)
+	p.Infof("GetVolumeID called with unstructuredPV %v", unstructuredPV)
 
 	pv := new(v1.PersistentVolume)
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredPV.UnstructuredContent(), pv); err != nil {
@@ -209,14 +208,14 @@ func (p *NewVolumeSnapshotter) GetVolumeID(unstructuredPV runtime.Unstructured) 
 	}
 
 	volumeId := pv.Spec.CSI.VolumeHandle
-	p.Debugf("vSphere CSI VolumeID: ", volumeId)
+	p.Debugf("vSphere CSI VolumeID: %s", volumeId)
 
 	return volumeId, nil
 }
 
 // SetVolumeID sets the specific identifier for the PersistentVolume.
 func (p *NewVolumeSnapshotter) SetVolumeID(unstructuredPV runtime.Unstructured, volumeID string) (runtime.Unstructured, error) {
-	p.Infof("SetVolumeID called", unstructuredPV, volumeID)
+	p.Infof("SetVolumeID called with unstructuredPV %v, volumeID %s", unstructuredPV, volumeID)
 
 	pv := new(v1.PersistentVolume)
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredPV.UnstructuredContent(), pv); err != nil {
@@ -239,7 +238,7 @@ func (p *NewVolumeSnapshotter) SetVolumeID(unstructuredPV runtime.Unstructured, 
 
 	unstructuredPV = &unstructured.Unstructured{Object: res}
 
-	p.Debugf("Updated unstructured PV: ", unstructuredPV)
+	p.Debugf("Updated unstructured PV: %v", unstructuredPV)
 
 	return unstructuredPV, nil
 }
