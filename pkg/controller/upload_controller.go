@@ -199,13 +199,13 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 	log.Infof("Filtering out the upload request from nodes other than %v", c.nodeName)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		log.WithError(err).Error("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
+		log.WithError(err).Errorf("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
 		return
 	}
 
 	uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
 	if err != nil {
-		log.WithError(err).Error("Failed to retrieve pod nodes from volume ID, %v", peID.String())
+		log.WithError(err).Errorf("Failed to retrieve pod nodes from volume ID, %v", peID.String())
 		return
 	}
 
@@ -224,7 +224,7 @@ func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*plu
 	// Record original json
 	oldData, err := json.Marshal(req)
 	if err != nil {
-		log.WithError(err).Error("Failed to marshall original PodVolumeBackup")
+		log.WithError(err).Error("Failed to marshall original Upload")
 		return nil, err
 	}
 
@@ -234,19 +234,19 @@ func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*plu
 	// Record new json
 	newData, err := json.Marshal(req)
 	if err != nil {
-		log.WithError(err).Error("Failed to marshall updated PodVolumeBackup")
+		log.WithError(err).Error("Failed to marshall updated Upload")
 		return nil, err
 	}
 
 	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
 	if err != nil {
-		log.WithError(err).Error("Failed to creat json merge patch for PodVolumeBackup")
+		log.WithError(err).Error("Failed to creat json merge patch for Upload")
 		return nil, err
 	}
 
 	req, err = c.uploadClient.Uploads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
 	if err != nil {
-		log.WithError(err).Error("Failed to patch PodVolumeBackup")
+		log.WithError(err).Error("Failed to patch Upload")
 		return nil, err
 	}
 
