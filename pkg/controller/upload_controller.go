@@ -92,17 +92,17 @@ func (c *uploadController) processQueueItem(key string) error {
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		log.WithError(err).Error("error splitting queue key")
+		log.WithError(err).Error("Failed to split the key of queue item")
 		return nil
 	}
 
 	req, err := c.uploadLister.Uploads(ns).Get(name)
 	if apierrors.IsNotFound(err) {
-		log.Debug("Unable to find Upload")
+		log.Error("Upload is not found")
 		return nil
 	}
 	if err != nil {
-		return errors.Wrap(err, "error getting Upload")
+		return errors.Wrap(err, "Failed to get Upload")
 	}
 
 	// only process new items
@@ -151,14 +151,14 @@ func (c *uploadController) processQueueItem(key string) error {
 				cancel()
 			},
 			OnStoppedLeading: func() {
-				log.Debug("Processed Upload.")
+				log.Infof("Processed Upload")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == c.nodeName {
 					// Same node is trying to acquire or renew the lease, ignore.
 					return
 				}
-				log.Debugf("Lock is acquired by another node %s. Current node - %s need not process the Upload.", identity, c.nodeName)
+				log.Infof("Lock is acquired by another node %s. Current node - %s need not process the Upload.", identity, c.nodeName)
 				cancel()
 			},
 		},
@@ -176,36 +176,40 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
 		// Process New and InProgress Uploads
 	default:
-		log.Debug("Upload is not New or InProgress, skipping")
+		log.Infof("Upload CR is not New or InProgress, skipping")
 		return
 	}
 
-	log.Info("Filtering out the upload requests come from different node")
+	log.Infof("Filtering out the upload request from nodes other than %v", c.nodeName)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		log.WithError(err).Error("error extract volume ID from snapshot ID")
+		log.WithError(err).Error("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
 		return
 	}
 
 	uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
 	if err != nil {
-		log.WithError(err).Error("error retrieve pod nodes from volume ID")
+		log.WithError(err).Error("Failed to retrieve pod nodes from volume ID, %v", peID.String())
 		return
 	}
 
+	log.Infof("Current node: %v. Expected node for uploading the upload CR: %v", c.nodeName, uploadNodeName)
 	if c.nodeName != uploadNodeName {
 		return
 	}
 
-	log.Debug("Enqueueing Upload")
+	log.Infof("Enqueueing upload")
 	c.enqueue(obj)
 }
 
 func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload)) (*pluginv1api.Upload, error) {
+	log := loggerForUpload(c.logger, req)
+
 	// Record original json
 	oldData, err := json.Marshal(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling original PodVolumeBackup")
+		log.WithError(err).Error("Failed to marshall original PodVolumeBackup")
+		return nil, err
 	}
 
 	// Mutate
@@ -214,17 +218,20 @@ func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*plu
 	// Record new json
 	newData, err := json.Marshal(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling updated PodVolumeBackup")
+		log.WithError(err).Error("Failed to marshall updated PodVolumeBackup")
+		return nil, err
 	}
 
 	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
 	if err != nil {
-		return nil, errors.Wrap(err, "error creating json merge patch for PodVolumeBackup")
+		log.WithError(err).Error("Failed to creat json merge patch for PodVolumeBackup")
+		return nil, err
 	}
 
 	req, err = c.uploadClient.Uploads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "error patching PodVolumeBackup")
+		log.WithError(err).Error("Failed to patch PodVolumeBackup")
+		return nil, err
 	}
 
 	return req, nil
@@ -232,8 +239,7 @@ func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*plu
 
 func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	log := loggerForUpload(c.logger, req)
-
-	log.Info("Upload starting")
+	log.Infof("Upload starting")
 
 	var err error
 
@@ -244,34 +250,34 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 		r.Status.ProcessingNode = c.nodeName
 	})
 	if err != nil {
-		log.WithError(err).Error("Error setting Upload StartTimestamp and phase to InProgress")
+		log.WithError(err).Error("Failed to set Upload StartTimestamp and phase to InProgress")
 		return errors.WithStack(err)
 	}
 
 	// Call data mover API to do the remote copy
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		msg := "Error getting PEID from SnapshotID string in upload CR"
-		log.WithError(err).Error(msg)
-		patchUploadFailure(c, req, msg)
+		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v", req.Spec.SnapshotID)
+		log.WithError(err).Error(errMsg)
+		patchUploadFailure(c, req, errMsg)
 		return errors.WithStack(err)
 	}
 
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
-		msg := "Error uploading snapshot to durable object storage"
-		log.WithError(err).Error(msg)
-		patchUploadFailure(c, req, msg)
+		errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage", peID.String())
+		log.WithError(err).Error(errMsg)
+		patchUploadFailure(c, req, errMsg)
 		return errors.WithStack(err)
 	}
 
 	// Call snapshot manager API to cleanup the local snapshot
 	err = c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
 	if err != nil {
-		msg := "Error cleaning up local snapshot after uploading snapshot"
-		log.WithError(err).Error(msg)
+		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v", peID.String())
+		log.WithError(err).Error(errMsg)
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-		patchUploadFailure(c, req, msg)
+		patchUploadFailure(c, req, errMsg)
 		return errors.WithStack(err)
 	}
 
@@ -282,11 +288,11 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	})
 
 	if err != nil {
-		log.WithError(err).Error("Error setting Upload phase to Completed")
+		log.WithError(err).Error("Failed to set Upload phase to Completed")
 		return err
 	}
 
-	log.Info("Upload completed")
+	log.Infof("Upload completed")
 
 	return nil
 }
@@ -306,6 +312,7 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 
 func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string) (*pluginv1api.Upload, error) {
 	// update status to Failed
+	log := loggerForUpload(c.logger, req)
 	var err error
 	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 		r.Status.Phase = pluginv1api.UploadPhaseFailed
@@ -313,7 +320,7 @@ func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string
 		r.Status.Message = msg
 	})
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to patch Upload failure")
+		log.WithError(err).Error("Failed to patch Upload failure")
 	}
 
 	return req, err
