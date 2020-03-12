@@ -34,7 +34,6 @@ func TestUpload_Creation(t *testing.T) {
 			Name:      "upload-2",
 		},
 		Spec: v1api.UploadSpec{
-			Node: "node-2",
 			SnapshotID: "ssid-2",
 			BackupTimestamp: &metav1.Time{Time: time.Now()},
 		},

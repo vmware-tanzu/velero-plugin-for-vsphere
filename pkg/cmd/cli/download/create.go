@@ -7,6 +7,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
+	"strings"
 
 	//"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/client"
 	//"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/util/output"
@@ -32,6 +33,7 @@ func NewCreateCommand(f client.Factory, use string) *cobra.Command {
 			//cmd.CheckError(o.Run(c, f))
 			logLevel := logLevelFlag.Parse()
 			logger := logging.DefaultLogger(logLevel, formatFlag.Parse())
+			logger.Debugf("setting log-level to %s", strings.ToUpper(logLevel.String()))
 			logger.Infof("Starting datamgmt server")
 		},
 	}

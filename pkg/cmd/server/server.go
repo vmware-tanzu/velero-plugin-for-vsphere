@@ -90,7 +90,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			formatter.FullTimestamp = true
 			logger.SetFormatter(formatter)
 
-			logger.Infof("setting log-level to %s", strings.ToUpper(logLevel.String()))
+			logger.Debugf("setting log-level to %s", strings.ToUpper(logLevel.String()))
 
 			logger.Infof("Starting data manager server %s (%s)", buildinfo.Version, buildinfo.FormattedGitSHA())
 

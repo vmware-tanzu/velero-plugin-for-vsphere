@@ -82,7 +82,7 @@ func (c *downloadController) enqueueDownload(obj interface{}) {
 		return
 	}
 
-	log.Debug("Enqueueing Download")
+	log.Info("Enqueueing Download")
 	c.enqueue(obj)
 }
 
@@ -148,7 +148,7 @@ func (c *downloadController) processDownload(key string) error {
 				cancel()
 			},
 			OnStoppedLeading: func() {
-				log.Debug("Processed Download.")
+				log.Info("Processed Download.")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == c.nodeName {

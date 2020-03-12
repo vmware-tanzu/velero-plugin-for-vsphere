@@ -151,7 +151,7 @@ func (c *uploadController) processQueueItem(key string) error {
 				cancel()
 			},
 			OnStoppedLeading: func() {
-				log.Debug("Processed Upload.")
+				log.Info("Processed Upload.")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == c.nodeName {
@@ -197,7 +197,7 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 		return
 	}
 
-	log.Debug("Enqueueing Upload")
+	log.Info("Enqueueing Upload")
 	c.enqueue(obj)
 }
 

@@ -30,18 +30,21 @@ func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
 		logger.Errorf("Could not retrieve velero default backup location with error message: %v", err)
 		return nil, err
 	}
-	logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v", params["region"], params["bucket"])
+	logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v",
+		params["region"], params["bucket"])
 
 	s3PETM, err := utils.GetS3PETMFromParamsMap(params, logger)
 	if err != nil {
-		logger.Errorf("Failed to get s3PETM from params map")
+		logger.Errorf("Failed to get s3PETM from params map, region=%v, bucket=%v, error messgae: %v",
+			params["region"], params["bucket"], err)
 		return nil, err
 	}
 	logger.Infof("DataMover: Get s3PETM from the params map")
 
 	ivdPETM, err := utils.GetIVDPETMFromParamsMap(params, logger)
 	if err != nil {
-		logger.Errorf("Failed to get ivdPETM from params map")
+		logger.Errorf("Failed to get ivdPETM from params map, virtualcenter=%v, port=%v, error message: %v",
+			params["VirtualCenter"], params["port"], err)
 		return nil, err
 	}
 	logger.Infof("DataMover: Get ivdPETM from the params map")
@@ -65,9 +68,9 @@ func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.P
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
-	this.Infof("Ready to call s3 PETM copy API")
+	this.Debugf("Ready to call s3 PETM copy API")
 	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, astrolabe.AllocateNewObject)
-	this.Infof("Return from the call of s3 PETM copy API")
+	this.Debugf("Return from the call of s3 PETM copy API")
 	if err != nil {
 		this.Errorf("Failed at copying to remote repository for, %s, with error message, %v",
 			peID.String(), err)
@@ -87,9 +90,9 @@ func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
-	this.Infof("Ready to call ivd PETM copy API")
+	this.Debugf("Ready to call ivd PETM copy API")
 	ivdPE, err := this.ivdPETM.Copy(ctx, pe, astrolabe.AllocateNewObject)
-	this.Infof("Return from the call of ivd PETM copy API")
+	this.Debugf("Return from the call of ivd PETM copy API")
 	if err != nil {
 		this.Errorf("Failed to copy from remote repository for, %s, with error message, %v", peID.String(), err)
 		return astrolabe.ProtectedEntityID{}, err

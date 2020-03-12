@@ -26,12 +26,12 @@ import (
 func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLogger) error {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		logger.Errorf("Failed to get k8s inClusterConfig")
+		logger.Errorf("Failed to get k8s inClusterConfig with error %v", err)
 		return err
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		logger.Errorf("Failed to get k8s clientset with the given config")
+		logger.Errorf("Failed to get k8s clientset from the given config: %v with error: %v", config, err)
 		return err
 	}
 
@@ -40,7 +40,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 	vsphere_secret := "vsphere-config-secret"
 	secret, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
 	if err != nil {
-		logger.Errorf("Failed to get k8s secret, %s", vsphere_secret)
+		logger.Errorf("Failed to get k8s secret, %s, with error message: %v", vsphere_secret, err)
 		return err
 	}
 	sEnc := string(secret.Data["csi-vsphere.conf"])
@@ -157,7 +157,7 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 
 	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromURL(&vcUrl, s3URLBase, insecure, logger)
 	if err != nil {
-		logger.Errorf("Error at creating new IVD PETM")
+		logger.Errorf("Error at creating new IVD PETM with error message %v", err)
 		return nil, err
 	}
 
@@ -182,7 +182,7 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 
 	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, bucket, logger)
 	if err != nil {
-		logger.Errorf("Error at creating new S3 PETM")
+		logger.Errorf("Error at creating new S3 PETM with error message: %v", err)
 		return nil, err
 	}
 
