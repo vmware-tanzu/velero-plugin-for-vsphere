@@ -45,8 +45,8 @@ $ make push REGISTRY=<your-repo> VERSION=<your-tag>
 
 Velero - Version 1.3.0 or above
 vSphere - Version 6.7U3 or above
-vSphere CSI/CNS driver (compatible with 6.7U3+)
-Kubernetes 1.14 or above
+vSphere CSI/CNS driver 1.0.2 or above
+Kubernetes 1.14 or above (note: the Velero Plug-in for vSphere does not support Guest or Supervisor clusters on vSphere yet)
 
 1. A working kubernetes cluster.
 2. Velero is installed on the cluster based on the `Basic Install` guide, https://velero.io/docs/v1.2.0/basic-install/.
