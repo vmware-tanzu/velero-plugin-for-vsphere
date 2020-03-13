@@ -42,6 +42,12 @@ $ make push REGISTRY=<your-repo> VERSION=<your-tag>
 
 ### Prerequisites
 
+
+Velero - Version 1.3.0 or above
+vSphere - Version 6.7U3 or above
+vSphere CSI/CNS driver (compatible with 6.7U3+)
+Kubernetes 1.14 or above
+
 1. A working kubernetes cluster.
 2. Velero is installed on the cluster based on the `Basic Install` guide, https://velero.io/docs/v1.2.0/basic-install/.
 
@@ -49,34 +55,7 @@ $ make push REGISTRY=<your-repo> VERSION=<your-tag>
 
 To deploy your image of Velero plugin for vSphere:
 
-#### Velero v1.1.0 and earlier
-
-Run `kubectl apply -f deployment/create-deployment-for-plugin.yaml`.
-Or, follow the guide below step by step.
-
-1. Adding the LD_LIBRARY_PATH `/plugins` as an environment variable, as the plugin depends on C libraries/extensions in the runtime.
-Starting from velero v1.2.0, the env `LD_LIBRARY_PATH` is set by default.
-    ```yaml
-    spec:
-    template:
-     spec:
-       containers:
-       - args:
-         name: velero
-         env:
-         # Add LD_LIBRARY_PATH to environment variable
-         - name: LD_LIBRARY_PATH
-           value: /plugins
-    ```
-2. Adding the plugin to Velero.
-    ```bash
-    velero plugin add <your-plugin-image>
-    ```
-3. Creating a VolumeSnapshotLocation with the provider being vSphere.
-   ```bash
-   velero snapshot-location create <your-volume-snapshot-location-name> --provider velero.io/vsphere
-   ```
-#### Velero v1.2.0 and later
+#### Velero v1.3.0 and later
 1. Adding the plugin to Velero.
     ```bash
     velero plugin add <your-plugin-image>
@@ -85,7 +64,9 @@ Starting from velero v1.2.0, the env `LD_LIBRARY_PATH` is set by default.
     ```bash
     velero snapshot-location create <your-volume-snapshot-location-name> --provider velero.io/vsphere
     ```
-It is aligned with the customized installation guide provided by Velero, https://velero.io/docs/v1.2.0/customize-installation/#install-an-additional-volume-snapshot-provider.
+    
+For additional information, please see the customized installation guide provided by Velero, 
+https://velero.io/docs/v1.3.0/customize-installation/#install-an-additional-volume-snapshot-provider.
 
 ### Known Issues
 1. In the vSphere CSI setup, if there is any network issue in the Velero pod. Run `kubectl patch deploy/velero -n velero --patch "$(cat deployment/patch-deployment-hostNetwork.yaml)"`.
