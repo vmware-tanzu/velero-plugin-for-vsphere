@@ -1,13 +1,15 @@
 # Velero Plugins for vSphere 
 
-## First Tips
-Please place the git repo under $GOPATH/src/github.com/vmware-tanzu/velero-plugin-for-vsphere.
+![Velero Plugin For vSphere CICD Pipeline](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/workflows/Velero%20Plugin%20For%20vSphere%20CICD%20Pipeline/badge.svg)
 
-## Kinds of Plugins
+This repository contains Velero plugin for vSphere.
 
-Velero currently supports the following kinds of plugins:
+## Kinds of Plugin(s)
 
-- **Block Store** - creates snapshots from volumes (during a backup) and volumes from snapshots (during a restore).
+Velero plugin for vSphere currently supports the following kinds of Velero plugins:
+
+- **Volume Snapshotter** - creates snapshots from volumes (during a backup) and volumes from snapshots (during a restore).
+
 
 ## Building the plugin
 
@@ -23,59 +25,96 @@ To build the image, run
 $ make container
 ```
 
-This builds an image tagged as `velero/velero-plugin-for-vsphere`. If you want to specify a
-different name, run
+This builds an image named as `<REGISTRY>/velero-plugin-for-vsphere:<VERSION>`.
+By default, the `VERSION`, i.e., tag, will be automatically generated in the format of,
+`<git branch name>-<git commit>-<timestamp>`. For example, `master-ad4388f-11.Mar.2020.23.39.13`.
+If you want to eventually push it to your own repo with your own tag, run
 
 ```bash
-$ make container IMAGE=your-repo/your-name:here
+$ make container REGISTRY=<your-repo> VERSION=<your-tag>
+```
+or, just push it by run
+```bash
+$ make push REGISTRY=<your-repo> VERSION=<your-tag>
 ```
 
-## Deploying the plugins
+## Installing the plugin
 
+### Prerequisites
 
-To deploy your plugin image to an Velero server:
+1. A working kubernetes cluster.
+2. Velero is installed on the cluster based on the `Basic Install` guide, https://velero.io/docs/v1.2.0/basic-install/.
 
-1. In the CSI setup, it is required to use the hostNetwork option for the deployment. Run `kubectl patch deploy/velero -n velero --patch "$(cat deployment/patch-deployment-hostNetwork.yaml)"`.
-2. This plugin is dependent on shared library during plugin install. Starting from velero v1.2.0, the env `LD_LIBRARY_PATH` is set by default. If not already exist, manually edit `deployment/velero` to add `LD_LIBRARY_PATH` environment variable or use `deployment/create-deployment-for-plugin.yaml` to update the deployment.
-```yaml
-spec:
-  template:
-    spec:
-      containers:
-      - args:
-        name: velero
-        env:
-        # Add LD_LIBRARY_PATH to environment variable
-        - name: LD_LIBRARY_PATH
-          value: /plugins
-```
-3. Make sure your image is pushed to a registry that is accessible to your cluster's nodes.
-4. Run `velero plugin add <image>`, e.g. `velero plugin add velero/vsphere-plugin-for-velero`
+### Workflow
 
-## Using the plugins
+To deploy your image of Velero plugin for vSphere:
 
-When the plugin is deployed, it is only made available to use. To make the plugin effective, you must modify your configuration:
+#### Velero v1.1.0 and earlier
 
-Volume snapshot storage:
+Run `kubectl apply -f deployment/create-deployment-for-plugin.yaml`.
+Or, follow the guide below step by step.
 
-1. Run `kubectl edit volumesnapshotlocation <location-name> -n <velero-namespace>` e.g. `kubectl edit volumesnapshotlocation default -n velero` OR `velero snapshot-location create <location-name> --provider <provider-name>`
-2. Change the value of `spec.provider` to enable a **Block Store** plugin
-3. Save and quit. The plugin will be used for the next `backup/restore`
-
-## HOWTO
-
-To run with the plugin, do the following:
-
-1. Run `velero snapshot-location create example-default --provider velero.io/vsphere`
-2. Run `kubectl edit deployment/velero -n <velero-namespace>`
-3. Change the value of `spec.template.spec.args` to look like the following:
-
+1. Adding the LD_LIBRARY_PATH `/plugins` as an environment variable, as the plugin depends on C libraries/extensions in the runtime.
+Starting from velero v1.2.0, the env `LD_LIBRARY_PATH` is set by default.
     ```yaml
+    spec:
+    template:
+     spec:
+       containers:
+       - args:
+         name: velero
+         env:
+         # Add LD_LIBRARY_PATH to environment variable
+         - name: LD_LIBRARY_PATH
+           value: /plugins
+    ```
+2. Adding the plugin to Velero.
+    ```bash
+    velero plugin add <your-plugin-image>
+    ```
+3. Creating a VolumeSnapshotLocation with the provider being vSphere.
+   ```bash
+   velero snapshot-location create <your-volume-snapshot-location-name> --provider velero.io/vsphere
+   ```
+#### Velero v1.2.0 and later
+1. Adding the plugin to Velero.
+    ```bash
+    velero plugin add <your-plugin-image>
+    ```
+2. Creating a VolumeSnapshotLocation with the provider being vSphere.
+    ```bash
+    velero snapshot-location create <your-volume-snapshot-location-name> --provider velero.io/vsphere
+    ```
+It is aligned with the customized installation guide provided by Velero, https://velero.io/docs/v1.2.0/customize-installation/#install-an-additional-volume-snapshot-provider.
+
+### Known Issues
+1. In the vSphere CSI setup, if there is any network issue in the Velero pod. Run `kubectl patch deploy/velero -n velero --patch "$(cat deployment/patch-deployment-hostNetwork.yaml)"`.
+
+
+## Using Velero with the plugin
+Below are just basic example of use cases in Velero. For more use cases, please refer to https://velero.io/docs/.
+### Backup
+```bash
+velero backup create <your-backup-name> \
+    --include-namespaces=<your-app-namespace> \
+    --snapshot-volumes \
+    --volume-snapshot-locations <your-volume-snapshot-location-name>
+```
+If you don't like to specify the VolumeSnapshotLocation at each backup command,
+you can do the following configuration.
+1. Run `kubectl edit deployment/velero -n <velero-namespace>`
+2. Edit the `spec.template.spec.containers[*].args` field under the velero container as below.
+    ```yaml
+    spec:
+      template:
+        spec:
+          containers:
           - args:
             - server
             - --default-volume-snapshot-locations
-            - velero.io/vsphere:example-default
+            - velero.io/vsphere:<your-volume-snapshot-location-name>
     ```
-
-    Note: users can also run `kubectl apply -f deployment/create-deployment-for-plugin.yaml` to configure the deployment for the plugin, which is equivalent to steps 1 - 3 mentioned above. 
-4. Run `kubectl apply -f examples/demo-app.yaml` to apply a sample nginx application that uses the example block store plugin. ***Note***: This example works best on a virtual machine, as it uses the host's `/tmp` directory for data storage.
+### Restore
+```bash
+velero restore create --from-backup <your-backup-name>
+```
