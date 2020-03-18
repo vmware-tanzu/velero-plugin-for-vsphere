@@ -257,17 +257,41 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	log := loggerForUpload(c.logger, req)
 	log.Infof("Upload starting")
 
-	var err error
+	if req.Status.Phase != pluginv1api.UploadPhaseNew {
+		// retrieve upload request for its updated status from k8s api server and filter out completed one
+		updatedReq, err := c.uploadClient.Uploads(req.Namespace).Get(req.Name, metav1.GetOptions{})
+		if err != nil {
+			log.WithError(err).Error("Failed to retrieve upload CR from kubernetes API server")
+			return err
+		}
+		if updatedReq.Status.Phase == pluginv1api.UploadPhaseCompleted {
+			log.Info("The status of upload CR in kubernetes API server is completed. Skipping it")
+			return nil
+		}
+		// update req with the one retrieved from k8s api server
+		req = updatedReq
+		log.Info("Upload request updated by retrieving from k8s api server")
+	}
 
-	// update status to InProgress
-	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-		r.Status.Phase = pluginv1api.UploadPhaseInProgress
-		r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.ProcessingNode = c.nodeName
-	})
-	if err != nil {
-		log.WithError(err).Error("Failed to set Upload StartTimestamp and phase to InProgress")
-		return errors.WithStack(err)
+	if req.Status.Phase != pluginv1api.UploadPhaseInProgress {
+		// update status to InProgress
+		updatedReq, err := c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = pluginv1api.UploadPhaseInProgress
+			if r.Status.Phase == pluginv1api.UploadPhaseNew {
+				r.Status.ProcessingNode = c.nodeName
+				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+			} else {
+				r.Status.ProcessingNode = req.Status.ProcessingNode
+				r.Status.StartTimestamp = req.Status.StartTimestamp
+			}
+		})
+		if err != nil {
+			log.WithError(err).Error("Failed to set Upload phase to InProgress")
+			return errors.WithStack(err)
+		}
+
+		log.Info("Upload status updated to InProgress")
+		req = updatedReq
 	}
 
 	// Call data mover API to do the remote copy
@@ -301,6 +325,8 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 		r.Status.Phase = pluginv1api.UploadPhaseCompleted
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.StartTimestamp = req.Status.StartTimestamp
+		r.Status.ProcessingNode = req.Status.ProcessingNode
 	})
 
 	if err != nil {
@@ -317,6 +343,7 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	log := baseLogger.WithFields(logrus.Fields{
 		"namespace": req.Namespace,
 		"name":      req.Name,
+		"phase":     req.Status.Phase,
 	})
 
 	if len(req.OwnerReferences) == 1 {
@@ -334,6 +361,8 @@ func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string
 		r.Status.Phase = pluginv1api.UploadPhaseFailed
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 		r.Status.Message = msg
+		r.Status.StartTimestamp = req.Status.StartTimestamp
+		r.Status.ProcessingNode = req.Status.ProcessingNode
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to patch Upload failure")
