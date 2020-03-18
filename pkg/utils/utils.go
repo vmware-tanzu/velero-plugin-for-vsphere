@@ -42,12 +42,12 @@ import (
 func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLogger) error {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		logger.Errorf("Failed to get k8s inClusterConfig")
+		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return err
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		logger.Errorf("Failed to get k8s clientset with the given config")
+		logger.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v", config)
 		return err
 	}
 
@@ -56,7 +56,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 	vsphere_secret := "vsphere-config-secret"
 	secret, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
 	if err != nil {
-		logger.Errorf("Failed to get k8s secret, %s", vsphere_secret)
+		logger.WithError(err).Errorf("Failed to get k8s secret, %s", vsphere_secret)
 		return err
 	}
 	sEnc := string(secret.Data["csi-vsphere.conf"])
@@ -105,10 +105,10 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.Fiel
 		Get(defaultBackupLocation, metav1.GetOptions{})
 
 	if err != nil {
-		logger.Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero default backup storage location with error message: %v", err)
+		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero default backup storage location")
 		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
 		if err != nil || len(backupStorageLocationList.Items) <= 0 {
-			logger.Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location with error message: %v", err)
+			logger.WithError(err).Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 			return err
 		}
 		// Select the first valid BackupStorageLocation from the list if there is no default BackupStorageLocation.
@@ -173,7 +173,8 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 
 	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromURL(&vcUrl, s3URLBase, insecure, logger)
 	if err != nil {
-		logger.Errorf("Error at creating new IVD PETM")
+		logger.WithError(err).Errorf("Error at creating new IVD PETM from vcUrl: %v, s3URLBase: %s",
+			vcUrl, s3URLBase)
 		return nil, err
 	}
 
@@ -198,7 +199,8 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 
 	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, bucket, logger)
 	if err != nil {
-		logger.Errorf("Error at creating new S3 PETM")
+		logger.WithError(err).Errorf("Error at creating new S3 PETM from serviceType: %s, region: %s, bucket: %s",
+			serviceType, region, bucket)
 		return nil, err
 	}
 
