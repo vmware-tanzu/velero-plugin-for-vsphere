@@ -93,3 +93,8 @@ func (b *UploadBuilder) ProcessingNode(node string) *UploadBuilder {
 	b.object.Status.ProcessingNode = node
 	return b
 }
+
+func (b *UploadBuilder) Retry(cnt int32) *UploadBuilder {
+	b.object.Status.RetryCnt = cnt
+	return b
+}

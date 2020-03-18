@@ -137,7 +137,7 @@ func (c *genericController) processNextWorkItem() bool {
 	c.logger.WithError(err).WithField("key", key).Error("Error in syncHandler, re-adding item to queue")
 	// we had an error processing the item so add it back
 	// into the queue for re-processing with rate-limiting
-	c.queue.AddRateLimited(key)
+	c.queue.AddAfter(key, 1 * time.Hour)
 
 	return true
 }

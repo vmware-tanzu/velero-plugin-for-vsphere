@@ -41,6 +41,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
+	"strings"
 )
 
 type uploadController struct {
@@ -123,7 +124,7 @@ func (c *uploadController) processQueueItem(key string) error {
 
 	// only process new items
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadFailed:
 		// Process new items
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
@@ -189,7 +190,7 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 	log := loggerForUpload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadFailed:
 		// Process New and InProgress Uploads
 	default:
 		log.Infof("Upload CR is not New or InProgress, skipping")
@@ -330,11 +331,27 @@ func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string
 	// update status to Failed
 	log := loggerForUpload(c.logger, req)
 	var err error
-	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-		r.Status.Phase = pluginv1api.UploadPhaseFailed
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.Message = msg
-	})
+	if strings.Contains(msg, "Failed to clean up local snapshot") {
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = pluginv1api.UploadPhaseCleanupFailed
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+	} else {
+		var retry int32
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = pluginv1api.UploadPhaseUploadFailed
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+			r.Status.RetryCnt = r.Status.RetryCnt + 1
+			log.Debugf("Retry for %d times", r.Status.RetryCnt)
+			retry = r.Status.RetryCnt
+		})
+		if retry > 5 {
+			errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
+			log.Warningf(errMsg)
+		}
+	}
 	if err != nil {
 		log.WithError(err).Error("Failed to patch Upload failure")
 	}

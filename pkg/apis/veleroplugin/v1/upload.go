@@ -35,10 +35,11 @@ type UploadSpec struct {
 type UploadPhase string
 
 const (
-	UploadPhaseNew        UploadPhase = "New"
-	UploadPhaseInProgress UploadPhase = "InProgress"
-	UploadPhaseCompleted  UploadPhase = "Completed"
-	UploadPhaseFailed     UploadPhase = "Failed"
+	UploadPhaseNew           UploadPhase = "New"
+	UploadPhaseInProgress    UploadPhase = "InProgress"
+	UploadPhaseCompleted     UploadPhase = "Completed"
+	UploadPhaseUploadFailed  UploadPhase = "UploadFailed"
+	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
 )
 
 // UploadStatus is the current status of a Upload.
@@ -75,6 +76,11 @@ type UploadStatus struct {
 	// If the DataManager couldn't process Upload for some reason it will be picked up by another
 	// node.
 	ProcessingNode string `json:"processingNode,omitempty"`
+
+	// RetryCnt records the retry count for enqueing an Upload CR when there
+	// is a newtork issue which cause an UploadFailed.
+	// +optional
+	RetryCnt int32 `json:"retryCnt,omitempty"`
 }
 
 // UploadOperationProgress represents the progress of a
