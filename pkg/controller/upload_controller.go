@@ -192,7 +192,7 @@ func (c *uploadController) pvbHandler(obj interface{}) {
 	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
 		// Process New and InProgress Uploads
 	default:
-		log.Infof("Upload CR is not New or InProgress, skipping")
+		log.Debug("Upload CR is not New or InProgress, skipping")
 		return
 	}
 
@@ -256,67 +256,84 @@ func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*plu
 func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	log := loggerForUpload(c.logger, req)
 	log.Infof("Upload starting")
-
 	var err error
 
-	// update status to InProgress
-	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-		r.Status.Phase = pluginv1api.UploadPhaseInProgress
-		r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.ProcessingNode = c.nodeName
-	})
-	if err != nil {
-		log.WithError(err).Error("Failed to set Upload StartTimestamp and phase to InProgress")
-		return errors.WithStack(err)
+	if req.Status.Phase != pluginv1api.UploadPhaseNew {
+		// retrieve upload request for its updated status from k8s api server and filter out completed one
+		req, err := c.uploadClient.Uploads(req.Namespace).Get(req.Name, metav1.GetOptions{})
+		if err != nil {
+			log.WithError(err).Error("Failed to retrieve upload CR from kubernetes API server")
+			return errors.WithStack(err)
+		}
+		// update req with the one retrieved from k8s api server
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("Upload request updated by retrieving from kubernetes API server")
+
+		if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
+			log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
+			return nil
+		}
+	}
+
+	if req.Status.Phase != pluginv1api.UploadPhaseInProgress {
+		// update status to InProgress
+		req, err = patchUploadByStatus(c, req, pluginv1api.UploadPhaseInProgress, "")
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	// Call data mover API to do the remote copy
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v", req.Spec.SnapshotID)
-		log.WithError(err).Error(errMsg)
-		patchUploadFailure(c, req, errMsg)
-		return errors.WithStack(err)
+		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
+		_, err = patchUploadByStatus(c, req, pluginv1api.UploadPhaseFailed, errMsg)
+		if err != nil {
+			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		}
+		log.Error(errMsg)
+		return errors.New(errMsg)
 	}
 
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage", peID.String())
-		log.WithError(err).Error(errMsg)
-		patchUploadFailure(c, req, errMsg)
-		return errors.WithStack(err)
+		errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
+		_, err = patchUploadByStatus(c, req, pluginv1api.UploadPhaseFailed, errMsg)
+		if err != nil {
+			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		}
+		log.Error(errMsg)
+		return errors.New(errMsg)
 	}
 
 	// Call snapshot manager API to cleanup the local snapshot
 	err = c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v", peID.String())
-		log.WithError(err).Error(errMsg)
+		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v. %v", peID.String(), errors.WithStack(err))
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-		patchUploadFailure(c, req, errMsg)
-		return errors.WithStack(err)
+		_, err = patchUploadByStatus(c, req, pluginv1api.UploadPhaseFailed, errMsg)
+		if err != nil {
+			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		}
+		log.Error(errMsg)
+		return errors.New(errMsg)
 	}
 
 	// update status to Completed with path & snapshot id
-	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-		r.Status.Phase = pluginv1api.UploadPhaseCompleted
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-	})
-
+	req, err = patchUploadByStatus(c, req, pluginv1api.UploadPhaseCompleted, "Upload completed")
 	if err != nil {
-		log.WithError(err).Error("Failed to set Upload phase to Completed")
-		return err
+		return errors.WithStack(err)
 	}
 
-	log.Infof("Upload completed")
-
+	log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("Upload completed")
 	return nil
 }
 
 func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) logrus.FieldLogger {
 	log := baseLogger.WithFields(logrus.Fields{
-		"namespace": req.Namespace,
-		"name":      req.Name,
+		"namespace":  req.Namespace,
+		"name":       req.Name,
+		"phase":      req.Status.Phase,
+		"generation": req.Generation,
 	})
 
 	if len(req.OwnerReferences) == 1 {
@@ -326,18 +343,44 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	return log
 }
 
-func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string) (*pluginv1api.Upload, error) {
+func patchUploadByStatus(c *uploadController, req *pluginv1api.Upload, newPhase pluginv1api.UploadPhase, msg string) (*pluginv1api.Upload, error) {
 	// update status to Failed
 	log := loggerForUpload(c.logger, req)
+	oldPhase := req.Status.Phase
+
 	var err error
-	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-		r.Status.Phase = pluginv1api.UploadPhaseFailed
+
+	switch newPhase {
+	case pluginv1api.UploadPhaseCompleted:
+		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		r.Status.Phase = newPhase
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 		r.Status.Message = msg
 	})
+	case pluginv1api.UploadPhaseFailed:
+		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		r.Status.Phase = newPhase
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.Message = msg
+	})
+	case pluginv1api.UploadPhaseInProgress:
+		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		if r.Status.Phase == pluginv1api.UploadPhaseNew {
+			r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+		}
+		r.Status.Phase = newPhase
+		r.Status.ProcessingNode = c.nodeName
+	})
+	default:
+		err = errors.New("Unexpected upload phase")
+	}
+
 	if err != nil {
-		log.WithError(err).Error("Failed to patch Upload failure")
+		log.WithError(err).Errorf("Failed to patch Upload from %v to %v", oldPhase, newPhase)
+	} else {
+		log.Infof("Upload status updated from %v to %v", oldPhase, newPhase)
 	}
 
 	return req, err
 }
+
