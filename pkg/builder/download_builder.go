@@ -99,3 +99,15 @@ func (b *DownloadBuilder) ProcessingNode(node string) *DownloadBuilder {
 	b.object.Status.ProcessingNode = node
 	return b
 }
+
+// Retry sets the number of retry time.
+func (b *DownloadBuilder) Retry(cnt int32) *DownloadBuilder {
+	b.object.Status.RetryCount = cnt
+	return b
+}
+
+// NextRetryTimestamp sets the timestamp for next retry.
+func (b *DownloadBuilder) NextRetryTimestamp(val time.Time) *DownloadBuilder {
+	b.object.Status.NextRetryTimestamp = &metav1.Time{Time: val}
+	return b
+}

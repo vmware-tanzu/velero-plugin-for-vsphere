@@ -38,6 +38,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
+	"time"
 )
 
 type downloadController struct {
@@ -71,6 +72,7 @@ func NewDownloadController(
 	}
 
 	c.syncHandler = c.processDownloadItem
+	c.retryHandler = c.reEnqueueHandler
 	c.cacheSyncWaiters = append(
 		c.cacheSyncWaiters,
 		downloadInformer.Informer().HasSynced,
@@ -93,10 +95,20 @@ func (c *downloadController) enqueueDownloadItem(obj interface{}) {
 	log := loggerForDownload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress:
-		// Process New and InProgress Downloads
+	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress, pluginv1api.DownLoadPhaseRetry:
+		// Process New InProgress and Retry Downloads
 	default:
-		log.Debug("Download CR is not New or InProgress, skipping")
+		log.Debug("Download CR is not New or InProgress or Retry, skipping")
+		return
+	}
+
+	log.Infof("Filtering out the retry download request which comes in before next retry time")
+	now := c.clock.Now()
+	if now.Unix() < req.Status.NextRetryTimestamp.Unix() {
+		log.WithFields(logrus.Fields{
+			"nextRetryTime": req.Status.NextRetryTimestamp,
+			"currentTime": now,
+		}).Infof("Ingnore retry donwload request which comes in before next retry time, download CR: %s", req.Name)
 		return
 	}
 
@@ -124,7 +136,7 @@ func (c *downloadController) processDownloadItem(key string) error {
 	}
 
 	switch req.Status.Phase {
-	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress:
+	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress, pluginv1api.DownLoadPhaseRetry:
 		// Process new items
 		// For DownloadPhaseInProgress, the resource lease logic will process the Download if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
@@ -216,7 +228,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
-		_, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseFailed, errMsg)
+		_, err = c.patchDownloadByStatus(req, pluginv1api.DownLoadPhaseRetry, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -227,7 +239,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	returnPeId, err := c.dataMover.CopyFromRepo(peID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to download snapshot, %v, from durable object storage. %v", peID.String(), errors.WithStack(err))
-		_, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseFailed, errMsg)
+		_, err = c.patchDownloadByStatus(req, pluginv1api.DownLoadPhaseRetry, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -299,16 +311,27 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 		})
-	case pluginv1api.DownloadPhaseFailed:
-		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
-			r.Status.Phase = newPhase
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-			r.Status.Message = msg
-		})
+	case pluginv1api.DownLoadPhaseRetry:
+		if req.Status.RetryCount > utils.DOWNLOAD_MAX_RETRY {
+			log.Debugf("Number of retry for download %s exceeds maximum limit, mark this download as DownloadPhaseFailed", req.Name)
+			req, err = c.patchDownload(req, func (r *pluginv1api.Download){
+				r.Status.Phase = pluginv1api.DownloadPhaseFailed
+				r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+				r.Status.Message = msg
+			})
+		} else {
+			req, err = c.patchDownload(req, func (r *pluginv1api.Download){
+				r.Status.Phase = newPhase
+				r.Status.NextRetryTimestamp = &metav1.Time{Time: c.clock.Now().Add(utils.DOWNLOAD_BACKOFF * time.Minute)}
+				r.Status.RetryCount = r.Status.RetryCount + 1
+				r.Status.Message = msg
+			})
+		}
 	case pluginv1api.DownloadPhaseInProgress:
 		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
 			if r.Status.Phase == pluginv1api.DownloadPhaseNew {
 				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+				r.Status.RetryCount = utils.MIN_RETRY
 			}
 			r.Status.Phase = newPhase
 			r.Status.ProcessingNode = c.nodeName
@@ -339,4 +362,12 @@ func loggerForDownload(baseLogger logrus.FieldLogger, req *pluginv1api.Download)
 	}
 
 	return log
+}
+
+func (c *downloadController) reEnqueueHandler(key string) error {
+	log := c.logger.WithField("key", key)
+	log.Info("Running reEnqueueHandler for re-adding failed download CR")
+	log.Infof("Re-adding failed download %s to the queue", key)
+	c.queue.AddAfter(key, utils.DOWNLOAD_BACKOFF * time.Minute)
+	return nil
 }
