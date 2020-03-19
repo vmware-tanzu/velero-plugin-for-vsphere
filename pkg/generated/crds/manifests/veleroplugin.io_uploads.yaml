@@ -82,9 +82,10 @@ spec:
                   format: int64
                   type: integer
               type: object
-            retryCnt:
-              description: RetryCnt records the retry count for enqueing an Upload
-                CR when there is a newtork issue which cause an UploadFailed.
+            retryCount:
+              description: RetryCount records the number of retry times for adding
+                a failed Upload which failed due to network issue back to queue. Used
+                for user tracking and debugging.
               format: int32
               type: integer
             startTimestamp:

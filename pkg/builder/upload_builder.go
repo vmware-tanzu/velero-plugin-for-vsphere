@@ -95,6 +95,6 @@ func (b *UploadBuilder) ProcessingNode(node string) *UploadBuilder {
 }
 
 func (b *UploadBuilder) Retry(cnt int32) *UploadBuilder {
-	b.object.Status.RetryCnt = cnt
+	b.object.Status.RetryCount = cnt
 	return b
 }

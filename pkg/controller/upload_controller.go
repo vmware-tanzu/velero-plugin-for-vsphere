@@ -41,7 +41,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
-	"strings"
 )
 
 type uploadController struct {
@@ -294,7 +293,7 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v", peID.String())
 		log.WithError(err).Error(errMsg)
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-		patchUploadFailure(c, req, errMsg)
+		patchUploadCleanupFailure(c, req, errMsg)
 		return errors.WithStack(err)
 	}
 
@@ -331,27 +330,35 @@ func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string
 	// update status to Failed
 	log := loggerForUpload(c.logger, req)
 	var err error
-	if strings.Contains(msg, "Failed to clean up local snapshot") {
-		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-			r.Status.Phase = pluginv1api.UploadPhaseCleanupFailed
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-			r.Status.Message = msg
-		})
-	} else {
-		var retry int32
-		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-			r.Status.Phase = pluginv1api.UploadPhaseUploadFailed
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-			r.Status.Message = msg
-			r.Status.RetryCnt = r.Status.RetryCnt + 1
-			log.Debugf("Retry for %d times", r.Status.RetryCnt)
-			retry = r.Status.RetryCnt
-		})
-		if retry > 5 {
-			errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
-			log.Warningf(errMsg)
-		}
+	var retry int32
+	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+		r.Status.Phase = pluginv1api.UploadPhaseUploadFailed
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.Message = msg
+		r.Status.RetryCount = r.Status.RetryCount + 1
+		log.Debugf("Retry for %d times", r.Status.RetryCount)
+		retry = r.Status.RetryCount
+	})
+	if retry > 5 {
+		errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
+		log.Warningf(errMsg)
 	}
+	if err != nil {
+		log.WithError(err).Error("Failed to patch Upload failure")
+	}
+
+	return req, err
+}
+
+func patchUploadCleanupFailure(c *uploadController, req *pluginv1api.Upload, msg string) (*pluginv1api.Upload, error) {
+	// upload fails due to clean up local snapshot error
+	log := loggerForUpload(c.logger, req)
+	var err error
+	req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+		r.Status.Phase = pluginv1api.UploadPhaseCleanupFailed
+		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+		r.Status.Message = msg
+	})
 	if err != nil {
 		log.WithError(err).Error("Failed to patch Upload failure")
 	}

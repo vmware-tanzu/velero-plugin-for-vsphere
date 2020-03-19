@@ -77,10 +77,10 @@ type UploadStatus struct {
 	// node.
 	ProcessingNode string `json:"processingNode,omitempty"`
 
-	// RetryCnt records the retry count for enqueing an Upload CR when there
-	// is a newtork issue which cause an UploadFailed.
+	// RetryCount records the number of retry times for adding a failed Upload which failed due to
+	// network issue back to queue. Used for user tracking and debugging.
 	// +optional
-	RetryCnt int32 `json:"retryCnt,omitempty"`
+	RetryCount int32 `json:"retryCount,omitempty"`
 }
 
 // UploadOperationProgress represents the progress of a
