@@ -336,7 +336,7 @@ func patchUploadFailure(c *uploadController, req *pluginv1api.Upload, msg string
 		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 		r.Status.Message = msg
 		r.Status.RetryCount = r.Status.RetryCount + 1
-		log.Debugf("Retry for %d times", r.Status.RetryCount)
+		log.Infof("Retry for %d times", r.Status.RetryCount)
 		retry = r.Status.RetryCount
 	})
 	if retry > 5 {
