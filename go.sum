@@ -269,9 +269,8 @@ github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7V
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
+github.com/konsorten/go-windows-terminal-sequences v1.0.1 h1:mweAR1A6xJ3oS2pRaGiHgQ4OO8tzTaLawm8vnODuwDk=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
-github.com/konsorten/go-windows-terminal-sequences v1.0.2 h1:DB17ag19krx9CFsz4o3enTrPXyIXCl+2iCXH/aMAp9s=
-github.com/konsorten/go-windows-terminal-sequences v1.0.2/go.mod h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=
 github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515/go.mod h1:+0opPa2QZZtGFBFZlji/RkVcI2GknAs/DXo4wKdlNEc=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
@@ -412,8 +411,8 @@ github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijb
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
-github.com/vmware-tanzu/astrolabe v0.0.0-20200309232518-c68d86d1c17c h1:gvnNf1SP3kN52sH0kUO+pJeJqxh+m+vBzJRBGTcFgos=
-github.com/vmware-tanzu/astrolabe v0.0.0-20200309232518-c68d86d1c17c/go.mod h1:GN9S4ftrYSj5TNRBZqiC4X2jnAQ00Pal20X50cWFW3A=
+github.com/vmware-tanzu/astrolabe v0.0.0-20200323070132-b13d66007bdf h1:NwtRNn3iVALc5LfP/C7GxzyoJRw+B+nnVUy6qCGzGsE=
+github.com/vmware-tanzu/astrolabe v0.0.0-20200323070132-b13d66007bdf/go.mod h1:GN9S4ftrYSj5TNRBZqiC4X2jnAQ00Pal20X50cWFW3A=
 github.com/vmware-tanzu/velero v1.3.0 h1:SyYQST2FQvFV8uhXJ3/iiYoq8KWqp8APV+VshaG4LAo=
 github.com/vmware-tanzu/velero v1.3.0/go.mod h1:s+8IqUKWcprcMVOfZKNC+jFY3tr/ElJfaMCcAfhThts=
 github.com/vmware/govmomi v0.22.1/go.mod h1:Y+Wq4lst78L85Ge/F8+ORXIWiKYqaro1vhAulACy9Lc=

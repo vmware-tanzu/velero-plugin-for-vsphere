@@ -62,3 +62,8 @@ const (
     // Exceeds this number of retry, will give a warning message to ask user to fix network issue in cluster.
     RETRY_WARNING_COUNT = 8
 )
+
+// configuration constants for the S3 repository
+const (
+	DefaultS3RepoPrefix = "backups/vsphere-volumes-repo"
+)
