@@ -49,6 +49,7 @@ type downloadController struct {
 	nodeName			string
 	dataMover			*dataMover.DataMover
 	clock				clock.Clock
+	processDownloadFunc func(*pluginv1api.Download) error
 }
 
 func NewDownloadController(
@@ -69,23 +70,24 @@ func NewDownloadController(
 		clock:				&clock.RealClock{},
 	}
 
-	c.syncHandler = c.processDownload
+	c.syncHandler = c.processDownloadItem
 	c.cacheSyncWaiters = append(
 		c.cacheSyncWaiters,
 		downloadInformer.Informer().HasSynced,
 	)
+	c.processDownloadFunc = c.processDownload
 
 	downloadInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.enqueueDownload,
-			UpdateFunc: func(_, obj interface{}) { c.enqueueDownload(obj) },
+			AddFunc:    c.enqueueDownloadItem,
+			UpdateFunc: func(_, obj interface{}) { c.enqueueDownloadItem(obj) },
 		},
 	)
 
 	return c
 }
 
-func (c *downloadController) enqueueDownload(obj interface{}) {
+func (c *downloadController) enqueueDownloadItem(obj interface{}) {
 	req := obj.(*pluginv1api.Download)
 
 	log := loggerForDownload(c.logger, req)
@@ -94,7 +96,7 @@ func (c *downloadController) enqueueDownload(obj interface{}) {
 	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress:
 		// Process New and InProgress Downloads
 	default:
-		log.Infof("Download CR is not New or InProgress, skipping")
+		log.Debug("Download CR is not New or InProgress, skipping")
 		return
 	}
 
@@ -102,9 +104,9 @@ func (c *downloadController) enqueueDownload(obj interface{}) {
 	c.enqueue(obj)
 }
 
-func (c *downloadController) processDownload(key string) error {
+func (c *downloadController) processDownloadItem(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Info("Running processDownload")
+	log.Info("Running processDownloadItem")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -160,7 +162,7 @@ func (c *downloadController) processDownload(key string) error {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
-				processErr = c.runDownload(req)
+				processErr = c.processDownload(req)
 				cancel()
 			},
 			OnStoppedLeading: func() {
@@ -180,63 +182,82 @@ func (c *downloadController) processDownload(key string) error {
 	return processErr
 }
 
-func (c *downloadController) runDownload(req *pluginv1api.Download) error {
+func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	log := loggerForDownload(c.logger, req)
-
 	log.Info("Download starting")
-
 	var err error
 
-	// update status to InProgress
-	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
-		r.Status.Phase = pluginv1api.DownloadPhaseInProgress
-		r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.ProcessingNode = c.nodeName
-	})
+	// retrieve download request for its updated status from k8s api server and filter out completed one
+	req, err = c.downloadClient.Downloads(req.Namespace).Get(req.Name, metav1.GetOptions{})
 	if err != nil {
-		log.WithError(err).Error("Failed to set Download StartTimestamp and phase to InProgress")
+		log.WithError(err).Error("Failed to retrieve download CR from kubernetes API server")
 		return errors.WithStack(err)
+	}
+	// update req with the one retrieved from k8s api server
+	log.WithFields(logrus.Fields{
+		"phase": req.Status.Phase,
+		"generation": req.Generation,
+	}).Info("Download request updated by retrieving from kubernetes API server")
+
+	if req.Status.Phase == pluginv1api.DownloadPhaseCompleted {
+		log.Info("The status of download CR in kubernetes API server is completed. Skipping it")
+		return nil
 	}
 
-	var peId, returnPeId astrolabe.ProtectedEntityID
-	peId, err = astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
-	if err != nil {
-		errMsg := fmt.Sprintf("Fail to construct PEID from SnapshotID %s", req.Spec.SnapshotID)
-		log.WithError(err).Error(errMsg)
-		patchDownloadFailure(c, req, errMsg)
-		return err
+	// update status to InProgress
+	if req.Status.Phase != pluginv1api.DownloadPhaseInProgress {
+		// update status to InProgress
+		req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseInProgress, "")
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
-	returnPeId, err = c.dataMover.CopyFromRepo(peId)
+
+	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to download snapshot from durable object storage %s", peId.String())
-		log.WithError(err).Error(errMsg)
-		patchDownloadFailure(c, req, errMsg)
-		return errors.WithStack(err)
+		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
+		_, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseFailed, errMsg)
+		if err != nil {
+			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		}
+		log.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	returnPeId, err := c.dataMover.CopyFromRepo(peID)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to download snapshot, %v, from durable object storage. %v", peID.String(), errors.WithStack(err))
+		_, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseFailed, errMsg)
+		if err != nil {
+			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		}
+		log.Error(errMsg)
+		return errors.New(errMsg)
 	}
 
 	log.Debugf("A new volume %s was just created from the call to CopyFromRepo", returnPeId.String())
 
 	// update status to Completed with path & snapshot id
-	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
-		r.Status.Phase = pluginv1api.DownloadPhaseCompleted
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.VolumeID = returnPeId.String()
-	})
+	req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseCompleted, "Download completed")
 	if err != nil {
-		log.WithError(err).Error("Failed to set Download phase to Completed")
-		return err
+		return errors.WithStack(err)
 	}
 
-	log.Infof("Download completed")
+	log.WithFields(logrus.Fields{
+		"phase": req.Status.Phase,
+		"generation": req.Generation,
+	}).Infof("Download completed")
 
 	return nil
 }
 
 func (c *downloadController) patchDownload(req *pluginv1api.Download, mutate func(*pluginv1api.Download)) (*pluginv1api.Download, error) {
+	log := loggerForDownload(c.logger, req)
 	// Record original json
 	oldData, err := json.Marshal(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to marshall original Download")
+		log.WithError(err).Error("Failed to marshall original Download")
+		return nil, err
 	}
 
 	// Mutate
@@ -245,26 +266,72 @@ func (c *downloadController) patchDownload(req *pluginv1api.Download, mutate fun
 	// Record new json
 	newData, err := json.Marshal(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to marshall updated Download")
+		log.WithError(err).Error("Failed to marshall updated Download")
+		return nil, err
 	}
 
 	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create json merge patch for Download")
+		log.WithError(err).Error("Failed to create json merge patch for Download")
+		return nil, err
 	}
 
 	req, err = c.downloadClient.Downloads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to patch Download")
+		log.WithError(err).Error("Failed to patch Download")
+		return nil, err
 	}
 
 	return req, nil
+}
+
+func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, newPhase pluginv1api.DownloadPhase, msg string) (*pluginv1api.Download, error) {
+	// update status to Failed
+	log := loggerForDownload(c.logger, req)
+	oldPhase := req.Status.Phase
+
+	var err error
+
+	switch newPhase {
+	case pluginv1api.DownloadPhaseCompleted:
+		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+	case pluginv1api.DownloadPhaseFailed:
+		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+	case pluginv1api.DownloadPhaseInProgress:
+		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
+			if r.Status.Phase == pluginv1api.DownloadPhaseNew {
+				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+			}
+			r.Status.Phase = newPhase
+			r.Status.ProcessingNode = c.nodeName
+		})
+	default:
+		err = errors.New("Unexpected download phase")
+	}
+
+	if err != nil {
+		log.WithError(err).Errorf("Failed to patch Download from %v to %v", oldPhase, newPhase)
+	} else {
+		log.Infof("Download status updated from %v to %v", oldPhase, newPhase)
+	}
+
+	return req, err
 }
 
 func loggerForDownload(baseLogger logrus.FieldLogger, req *pluginv1api.Download) logrus.FieldLogger {
 	log := baseLogger.WithFields(logrus.Fields{
 		"namespace": req.Namespace,
 		"name":      req.Name,
+		"phase":      req.Status.Phase,
+		"generation": req.Generation,
 	})
 
 	if len(req.OwnerReferences) == 1 {
@@ -272,20 +339,4 @@ func loggerForDownload(baseLogger logrus.FieldLogger, req *pluginv1api.Download)
 	}
 
 	return log
-}
-
-func patchDownloadFailure(c *downloadController, req *pluginv1api.Download, msg string) (*pluginv1api.Download, error) {
-	// update status to Failed
-	log := loggerForDownload(c.logger, req)
-	var err error
-	req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
-		r.Status.Phase = pluginv1api.DownloadPhaseFailed
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.Message = msg
-	})
-	if err != nil {
-		log.WithError(err).Error("Failed to patch Download failure")
-	}
-
-	return req, err
 }
