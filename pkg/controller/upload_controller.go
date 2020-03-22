@@ -258,20 +258,18 @@ func (c *uploadController) processBackup(req *pluginv1api.Upload) error {
 	log.Infof("Upload starting")
 	var err error
 
-	if req.Status.Phase != pluginv1api.UploadPhaseNew {
-		// retrieve upload request for its updated status from k8s api server and filter out completed one
-		req, err := c.uploadClient.Uploads(req.Namespace).Get(req.Name, metav1.GetOptions{})
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve upload CR from kubernetes API server")
-			return errors.WithStack(err)
-		}
-		// update req with the one retrieved from k8s api server
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("Upload request updated by retrieving from kubernetes API server")
+	// retrieve upload request for its updated status from k8s api server and filter out completed one
+	req, err = c.uploadClient.Uploads(req.Namespace).Get(req.Name, metav1.GetOptions{})
+	if err != nil {
+		log.WithError(err).Error("Failed to retrieve upload CR from kubernetes API server")
+		return errors.WithStack(err)
+	}
+	// update req with the one retrieved from k8s api server
+	log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("Upload request updated by retrieving from kubernetes API server")
 
-		if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
-			log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
-			return nil
-		}
+	if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
+		return nil
 	}
 
 	if req.Status.Phase != pluginv1api.UploadPhaseInProgress {
