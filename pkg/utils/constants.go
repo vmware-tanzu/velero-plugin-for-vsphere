@@ -67,3 +67,8 @@ const (
 const (
 	DefaultS3RepoPrefix = "backups/vsphere-volumes-repo"
 )
+
+// Minimum velero version number to meet velero plugin requirement
+const (
+	VeleroMinVersion = "v1.3.0"
+)
