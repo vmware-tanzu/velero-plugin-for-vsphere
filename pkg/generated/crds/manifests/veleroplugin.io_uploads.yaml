@@ -22,12 +22,12 @@ spec:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
             of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
             object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
@@ -53,8 +53,20 @@ spec:
               format: date-time
               nullable: true
               type: string
+            currentBackOff:
+              description: CurrentBackOff records the backoff on retry for failed
+                upload. Retry on upload should obey exponential backoff mechanism.
+              format: int32
+              type: integer
             message:
               description: Message is a message about the upload's status.
+              type: string
+            nextRetryTimestamp:
+              description: NextRetryTimestamp should be the timestamp that indicate
+                the next retry for failed upload CR. Used to filter out the upload
+                request which comes in before next retry time.
+              format: date-time
+              nullable: true
               type: string
             phase:
               description: Phase is the current state of the Upload.
@@ -62,7 +74,8 @@ spec:
               - New
               - InProgress
               - Completed
-              - Failed
+              - UploadError
+              - CleanupFailed
               type: string
             processingNode:
               description: The DataManager node that has picked up the Upload for
@@ -82,6 +95,12 @@ spec:
                   format: int64
                   type: integer
               type: object
+            retryCount:
+              description: RetryCount records the number of retry times for adding
+                a failed Upload which failed due to network issue back to queue. Used
+                for user tracking and debugging.
+              format: int32
+              type: integer
             startTimestamp:
               description: StartTimestamp records the time an upload was started.
                 The server's time is used for StartTimestamps

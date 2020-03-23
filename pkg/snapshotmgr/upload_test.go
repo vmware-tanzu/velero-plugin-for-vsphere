@@ -38,7 +38,7 @@ func TestUpload_Creation(t *testing.T) {
 		t.Fatal("Got error " + err.Error())
 	}
 
-	upload := builder.ForUpload("velero", "upload-1").SnapshotID("ssid-1").BackupTimestamp(time.Now()).Node("node-1").Phase(v1api.UploadPhaseNew).Result()
+	upload := builder.ForUpload("velero", "upload-1").SnapshotID("ssid-1").BackupTimestamp(time.Now()).Phase(v1api.UploadPhaseNew).Result()
 
 	upload2 := &v1api.Upload{
 		TypeMeta: metav1.TypeMeta{

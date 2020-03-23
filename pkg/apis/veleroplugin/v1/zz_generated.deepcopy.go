@@ -133,6 +133,10 @@ func (in *DownloadStatus) DeepCopyInto(out *DownloadStatus) {
 		*out = (*in).DeepCopy()
 	}
 	out.Progress = in.Progress
+	if in.NextRetryTimestamp != nil {
+		in, out := &in.NextRetryTimestamp, &out.NextRetryTimestamp
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
@@ -255,6 +259,10 @@ func (in *UploadStatus) DeepCopyInto(out *UploadStatus) {
 		*out = (*in).DeepCopy()
 	}
 	out.Progress = in.Progress
+	if in.NextRetryTimestamp != nil {
+		in, out := &in.NextRetryTimestamp, &out.NextRetryTimestamp
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

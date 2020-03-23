@@ -33,13 +33,14 @@ type DownloadSpec struct {
 }
 
 // DownloadPhase represents the lifecycle phase of a Download.
-// +kubebuilder:validation:Enum=New;InProgress;Completed;Failed
+// +kubebuilder:validation:Enum=New;InProgress;Completed;Retry;Failed
 type DownloadPhase string
 
 const (
 	DownloadPhaseNew        DownloadPhase = "New"
 	DownloadPhaseInProgress DownloadPhase = "InProgress"
 	DownloadPhaseCompleted  DownloadPhase = "Completed"
+	DownLoadPhaseRetry      DownloadPhase = "Retry"
 	DownloadPhaseFailed     DownloadPhase = "Failed"
 )
 
@@ -80,6 +81,17 @@ type DownloadStatus struct {
 	// If the DataManager couldn't process Download for some reason it will be picked up by another
 	// node.
 	ProcessingNode string `json:"processingNode,omitempty"`
+
+	// RetryCount records the number of retry times for re-adding a failed Download CR which failed due to
+	// network issue back to queue. Used for user tracking and debugging.
+	// +optional
+	RetryCount int32 `json:"retryCount,omitempty"`
+
+	// NextRetryTimestamp should be the timestamp that indicate the next retry for failed download CR.
+	// Used to filter out the download request which comes in before next retry time.
+	// +optional
+	// +nullable
+	NextRetryTimestamp *meta_v1.Time `json:"nextRetryTimestamp,omitempty"`
 }
 
 // DownloadOperationProgress represents the progress of a
