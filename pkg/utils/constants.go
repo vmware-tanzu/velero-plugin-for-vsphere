@@ -45,3 +45,20 @@ const (
 	VolumeSnapshotterPlugin = "Plugin"
 	VolumeSnapshotterDataServer = "DataServer"
 )
+
+const (
+    // Max retry limit for downloads.
+	DOWNLOAD_MAX_RETRY = 5
+
+	// Initial retry for both uploads and downloads.
+    MIN_RETRY = 0
+
+    // BACKOFF for downloads.
+    DOWNLOAD_BACKOFF  = 5
+
+    // Max backoff limit for uploads.
+    UPLOAD_MAX_BACKOFF = 60
+
+    // Exceeds this number of retry, will give a warning message to ask user to fix network issue in cluster.
+    RETRY_WARNING_COUNT = 8
+)

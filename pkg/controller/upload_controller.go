@@ -39,6 +39,8 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
+	"math"
+	"time"
 )
 
 type uploadController struct {
@@ -75,6 +77,7 @@ func NewUploadController(
 	}
 
 	c.syncHandler = c.processUploadItem
+	c.retryHandler = c.exponentialBackoffHandler
 	c.cacheSyncWaiters = append(
 		c.cacheSyncWaiters,
 		uploadInformer.Informer().HasSynced,
@@ -98,10 +101,20 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	log := loggerForUpload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
-		// Process New and InProgress Uploads
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
+		// Process New and InProgress and UploadError Uploads
 	default:
-		log.Debug("Upload CR is not New or InProgress, skipping")
+		log.Debug("Upload CR is not New or InProgress or UploadError, skipping")
+		return
+	}
+
+	log.Infof("Filtering out the retry upload request which comes in before next retry time")
+	now := c.clock.Now()
+	if now.Unix() < req.Status.NextRetryTimestamp.Unix() {
+		log.WithFields(logrus.Fields{
+			"nextRetryTime": req.Status.NextRetryTimestamp,
+			"currentTime": now,
+		}).Infof("Ingnore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
 		return
 	}
 
@@ -148,7 +161,7 @@ func (c *uploadController) processUploadItem(key string) error {
 
 	// only process new items
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
 		// Process new items
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
@@ -243,7 +256,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseFailed, errMsg)
+		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -254,7 +267,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseFailed, errMsg)
+		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -267,7 +280,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v. %v", peID.String(), errors.WithStack(err))
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseFailed, errMsg)
+		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -334,24 +347,44 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 	switch newPhase {
 	case pluginv1api.UploadPhaseCompleted:
 		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
-		r.Status.Phase = newPhase
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.Message = msg
-	})
-	case pluginv1api.UploadPhaseFailed:
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+	case pluginv1api.UploadPhaseUploadError:
+		var retry int32
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = newPhase
+			r.Status.Message = msg
+			r.Status.RetryCount = r.Status.RetryCount + 1
+			log.Infof("Retry for %d times", r.Status.RetryCount)
+			retry = r.Status.RetryCount
+			currentBackOff := math.Exp2(float64(retry - 1))
+			if currentBackOff >= utils.UPLOAD_MAX_BACKOFF {
+				currentBackOff = utils.UPLOAD_MAX_BACKOFF
+			}
+			r.Status.CurrentBackOff = int32(currentBackOff)
+			r.Status.NextRetryTimestamp = &metav1.Time{Time: c.clock.Now().Add(time.Duration(currentBackOff) * time.Minute)}
+		})
+		if retry > utils.RETRY_WARNING_COUNT {
+			errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
+			log.Warningf(errMsg)
+		}
+	case pluginv1api.UploadPhaseCleanupFailed:
 		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
-		r.Status.Phase = newPhase
-		r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-		r.Status.Message = msg
-	})
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
 	case pluginv1api.UploadPhaseInProgress:
 		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
-		if r.Status.Phase == pluginv1api.UploadPhaseNew {
-			r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-		}
-		r.Status.Phase = newPhase
-		r.Status.ProcessingNode = c.nodeName
-	})
+			if r.Status.Phase == pluginv1api.UploadPhaseNew {
+				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
+				r.Status.RetryCount = utils.MIN_RETRY
+			}
+			r.Status.Phase = newPhase
+			r.Status.ProcessingNode = c.nodeName
+		})
 	default:
 		err = errors.New("Unexpected upload phase")
 	}
@@ -380,3 +413,27 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	return log
 }
 
+func (c *uploadController) exponentialBackoffHandler(key string) error {
+	log := c.logger.WithField("key", key)
+	log.Info("Running exponentialBackoffHandler")
+
+	ns, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		log.WithError(err).Error("Failed to split the key of queue item")
+		c.queue.Forget(key)
+		return nil
+	}
+
+	req, err := c.uploadLister.Uploads(ns).Get(name)
+	if apierrors.IsNotFound(err) {
+		log.Error("Upload is not found")
+		c.queue.Forget(key)
+		return nil
+	}
+	if err != nil {
+		return errors.Wrap(err, "Failed to get Upload")
+	}
+	log.Infof("Re-adding failed upload to the queue")
+	c.queue.AddAfter(key, time.Duration(req.Status.CurrentBackOff) * time.Minute)
+	return nil
+}

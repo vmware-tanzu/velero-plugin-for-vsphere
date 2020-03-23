@@ -93,3 +93,21 @@ func (b *UploadBuilder) ProcessingNode(node string) *UploadBuilder {
 	b.object.Status.ProcessingNode = node
 	return b
 }
+
+// Retry sets the number of retry time.
+func (b *UploadBuilder) Retry(cnt int32) *UploadBuilder {
+	b.object.Status.RetryCount = cnt
+	return b
+}
+
+// NextRetryTimestamp sets the timestamp for next retry.
+func (b *UploadBuilder) NextRetryTimestamp(val time.Time) *UploadBuilder {
+	b.object.Status.NextRetryTimestamp = &metav1.Time{Time: val}
+	return b
+}
+
+// CurrentBackOff sets the current backoff for upload retry.
+func (b *UploadBuilder) CurrentBackOff(backoff int32) *UploadBuilder {
+	b.object.Status.CurrentBackOff = backoff
+	return b
+}

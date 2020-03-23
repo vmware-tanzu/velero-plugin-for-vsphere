@@ -91,13 +91,14 @@ An upload record looks like this;
     progress: {}
 ```
 
-Uploads have four phases (status/phase in YAML):
+Uploads have five phases (status/phase in YAML):
 * New - not processed yet
 * InProgress - data being moved
 * Completed - data moved successfully
-* Failed - data movement failed
+* UploadError - data movement upload failed
+* CleanupFailed - delete snapshot failed, this case will not retry
 
-Failed uploads will be periodically retried.  At that point their phase will return to InProgress.  After an upload has been 
+UploadError uploads will be periodically retried.  At that point their phase will return to InProgress.  After an upload has been 
 successfully completed, its record will remain for a period of time and eventually be removed.
 
 ## Restore

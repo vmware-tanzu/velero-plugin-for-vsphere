@@ -31,14 +31,15 @@ type UploadSpec struct {
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
-// +kubebuilder:validation:Enum=New;InProgress;Completed;Failed
+// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed
 type UploadPhase string
 
 const (
-	UploadPhaseNew        UploadPhase = "New"
-	UploadPhaseInProgress UploadPhase = "InProgress"
-	UploadPhaseCompleted  UploadPhase = "Completed"
-	UploadPhaseFailed     UploadPhase = "Failed"
+	UploadPhaseNew           UploadPhase = "New"
+	UploadPhaseInProgress    UploadPhase = "InProgress"
+	UploadPhaseCompleted     UploadPhase = "Completed"
+	UploadPhaseUploadError  UploadPhase = "UploadError"
+	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
 )
 
 // UploadStatus is the current status of a Upload.
@@ -75,6 +76,22 @@ type UploadStatus struct {
 	// If the DataManager couldn't process Upload for some reason it will be picked up by another
 	// node.
 	ProcessingNode string `json:"processingNode,omitempty"`
+
+	// RetryCount records the number of retry times for adding a failed Upload which failed due to
+	// network issue back to queue. Used for user tracking and debugging.
+	// +optional
+	RetryCount int32 `json:"retryCount,omitempty"`
+
+    // NextRetryTimestamp should be the timestamp that indicate the next retry for failed upload CR.
+    // Used to filter out the upload request which comes in before next retry time.
+	// +optional
+	// +nullable
+    NextRetryTimestamp *meta_v1.Time `json:"nextRetryTimestamp,omitempty"`
+
+	// CurrentBackOff records the backoff on retry for failed upload. Retry on upload should obey
+	// exponential backoff mechanism.
+	// +optional
+	CurrentBackOff int32 `json:"currentBackOff,omitempty"`
 }
 
 // UploadOperationProgress represents the progress of a
