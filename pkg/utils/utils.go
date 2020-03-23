@@ -197,7 +197,11 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 		Region: aws.String(region),
 	}))
 
-	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, bucket, logger)
+	prefix, ok := params["prefix"].(string)
+	if !ok {
+		prefix = DefaultS3RepoPrefix
+	}
+	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, prefix, bucket, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Error at creating new S3 PETM from serviceType: %s, region: %s, bucket: %s",
 			serviceType, region, bucket)

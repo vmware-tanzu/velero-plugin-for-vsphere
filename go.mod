@@ -13,13 +13,12 @@ require (
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/joho/godotenv v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
-	github.com/vmware-tanzu/astrolabe v0.0.0-20200309232518-c68d86d1c17c
+	github.com/vmware-tanzu/astrolabe v0.0.0-20200323070132-b13d66007bdf
 	github.com/vmware-tanzu/velero v1.3.0
 	github.com/vmware/govmomi v0.22.2 // indirect
 	k8s.io/api v0.17.3
