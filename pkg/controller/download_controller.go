@@ -250,7 +250,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	log.Debugf("A new volume %s was just created from the call to CopyFromRepo", returnPeId.String())
 
 	// update status to Completed with path & snapshot id
-	req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseCompleted, "Download completed")
+	req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseCompleted, returnPeId.String())
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -306,10 +306,12 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 
 	switch newPhase {
 	case pluginv1api.DownloadPhaseCompleted:
+		// in the status of DownloadPhaseCompleted, use the msg param to pass the new volume id
 		req, err = c.patchDownload(req, func (r *pluginv1api.Download){
 			r.Status.Phase = newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-			r.Status.Message = msg
+			r.Status.Message = "Download completed"
+			r.Status.VolumeID = msg
 		})
 	case pluginv1api.DownLoadPhaseRetry:
 		if req.Status.RetryCount > utils.DOWNLOAD_MAX_RETRY {
