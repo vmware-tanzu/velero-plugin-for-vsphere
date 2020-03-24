@@ -276,7 +276,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 
 	// Call snapshot manager API to cleanup the local snapshot
-	err = c.snapMgr.DeleteProtectedEntitySnapshot(peID, false)
+	err = c.snapMgr.DeleteLocalSnapshot(peID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v. %v", peID.String(), errors.WithStack(err))
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
