@@ -18,6 +18,7 @@ package snapshotmgr
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -285,7 +286,8 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 		return peID, err
 	}
 
-	download := builder.ForDownload(veleroNs, "download-"+peID.GetSnapshotID().GetID()).RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
+	uuid, _ := uuid.NewRandom()
+	download := builder.ForDownload(veleroNs, "download-"+peID.GetSnapshotID().GetID() + "-" + uuid.String()).RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
 	_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
 	if err != nil {
 		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
