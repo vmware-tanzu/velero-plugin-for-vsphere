@@ -134,6 +134,8 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.Fiel
 
 	params["region"] = backupStorageLocation.Spec.Config["region"]
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
+	params["s3ForcePathStyle"] = backupStorageLocation.Spec.Config["s3ForcePathStyle"]
+	params["s3Url"] = backupStorageLocation.Spec.Config["s3Url"]
 
 	return nil
 }
@@ -141,22 +143,22 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.Fiel
 func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*ivd.IVDProtectedEntityTypeManager, error) {
 	var vcUrl url.URL
 	vcUrl.Scheme = "https"
-	vcHostStr, ok := params["VirtualCenter"].(string)
+	vcHostStr, ok := GetStringFromParamsMap(params, "VirtualCenter", logger)
 	if !ok {
 		return nil, errors.New("Missing vcHost param, cannot initialize IVD PETM")
 	}
-	vcHostPortStr, ok := params["port"].(string)
+	vcHostPortStr, ok := GetStringFromParamsMap(params, "port", logger)
 	if !ok {
 		return nil, errors.New("Missing port param, cannot initialize IVD PETM")
 	}
 
 	vcUrl.Host = fmt.Sprintf("%s:%s", vcHostStr, vcHostPortStr)
 
-	vcUser, ok := params["user"].(string)
+	vcUser, ok := GetStringFromParamsMap(params, "user", logger)
 	if !ok {
 		return nil, errors.New("Missing vcUser param, cannot initialize IVD PETM")
 	}
-	vcPassword, ok := params["password"].(string)
+	vcPassword, ok := GetStringFromParamsMap(params, "password", logger)
 	if !ok {
 		return nil, errors.New("Missing vcPassword param, cannot initialize IVD PETM")
 	}
@@ -164,7 +166,7 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 	vcUrl.Path = "/sdk"
 
 	insecure := false
-	insecureStr, ok := params["insecure-flag"].(string)
+	insecureStr, ok := GetStringFromParamsMap(params, "insecure-flag", logger)
 	if ok && (insecureStr == "TRUE" || insecureStr == "true") {
 		insecure = true
 	}
@@ -183,12 +185,12 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 
 func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
 	serviceType := "ivd"
-	region, ok := params["region"].(string)
+	region, ok := GetStringFromParamsMap(params, "region", logger)
 	if !ok {
 		return nil, errors.New("Missing region param, cannot initialize S3 PETM")
 	}
 
-	bucket, ok := params["bucket"].(string)
+	bucket, ok := GetStringFromParamsMap(params, "bucket", logger)
 	if !ok {
 		return nil, errors.New("Missing bucket param, cannot initialize S3 PETM")
 	}
@@ -196,6 +198,22 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	}))
+
+	s3Url, ok := GetStringFromParamsMap(params, "s3Url", logger)
+	if ok {
+		sess.Config.Endpoint = aws.String(s3Url)
+	}
+
+	pathStyle, ok := GetStringFromParamsMap(params, "s3ForcePathStyle", logger)
+	if ok {
+		if GetBool(pathStyle, false) {
+			sess.Config.S3ForcePathStyle = aws.Bool(true)
+			logger.Infof("Got %s for s3ForcePathStyle, setting s3ForcePathStyle to true", pathStyle)
+		} else {
+			sess.Config.S3ForcePathStyle = aws.Bool(false)
+			logger.Infof("Got %s for s3ForcePathStyle, setting s3ForcePathStyle to false", pathStyle)
+		}
+	}
 
 	prefix, ok := params["prefix"].(string)
 	if !ok {
@@ -209,6 +227,20 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 	}
 
 	return s3PETM, nil
+}
+
+func GetStringFromParamsMap(params map[string]interface{}, key string, logger logrus.FieldLogger) (value string, ok bool) {
+	valueIF, ok := params[key]
+	if ok {
+		value, ok := valueIF.(string)
+		if !ok {
+			logger.Errorf("Value for params key %s is not a string", key)
+		}
+		return value, ok
+	} else {
+		logger.Errorf("No such key %s in params map", key)
+		return "", ok
+	}
 }
 
 func GetBool(str string, defValue bool) bool {
