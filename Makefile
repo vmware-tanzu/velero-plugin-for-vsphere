@@ -78,6 +78,7 @@ local: build-dirs
 	BIN=$(BIN) \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	GO111MODULE=on \
+	GOFLAGS=-mod=readonly \ 
 	./hack/build.sh
 
 build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
@@ -94,6 +95,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		BIN=$(BIN) \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		GO111MODULE=on \
+		GOFLAGS=-mod=readonly \
 		./hack/build.sh'"
 
 TTY := $(shell tty -s && echo "-t")

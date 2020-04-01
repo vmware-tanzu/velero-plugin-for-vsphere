@@ -5,9 +5,11 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
 	github.com/aws/aws-sdk-go v1.29.19
 	github.com/evanphx/json-patch v4.5.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/hashicorp/go-hclog v0.8.0 // indirect
 	github.com/hashicorp/go-plugin v0.0.0-20190220160451-3f118e8ee104 // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
@@ -17,9 +19,8 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
-	github.com/vmware-tanzu/astrolabe v0.0.0-20200401060903-67f64c7ae584
+	github.com/vmware-tanzu/astrolabe v0.0.0-20200401072948-2a05a03a8e57
 	github.com/vmware-tanzu/velero v1.3.0
-	github.com/vmware/govmomi v0.22.2 // indirect
 	k8s.io/api v0.17.3
 	k8s.io/apiextensions-apiserver v0.17.3
 	k8s.io/apimachinery v0.17.3
