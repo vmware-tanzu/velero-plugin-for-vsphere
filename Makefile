@@ -159,6 +159,8 @@ container-name:
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	cp -R $(VDDK_LIBS)/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
+# Some of the libraries have the executable bit set and this causes plugin startup to fail
+	chmod 644 _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64/*
 
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)

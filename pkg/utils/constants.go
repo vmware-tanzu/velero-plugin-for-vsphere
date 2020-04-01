@@ -65,12 +65,11 @@ const (
 
 // configuration constants for the S3 repository
 const (
-	DefaultS3RepoPrefix = "backups/vsphere-volumes-repo"
+	DefaultS3RepoPrefix = "plugins/vsphere-astrolabe-repo"
 )
-
 const (
 	// Minimum velero version number to meet velero plugin requirement
-	VeleroMinVersion = "v1.3.0"
+	VeleroMinVersion = "v1.3.2"
 
     // Minimum csi driver version number to meet velero plugin requirement
 	CsiMinVersion = "v1.0.2"
