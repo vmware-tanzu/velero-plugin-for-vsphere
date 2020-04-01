@@ -17,7 +17,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
-	github.com/vmware-tanzu/astrolabe v0.0.0-20200331033248-c5e952699057
+	github.com/vmware-tanzu/astrolabe v0.0.0-20200401060903-67f64c7ae584
 	github.com/vmware-tanzu/velero v1.3.0
 	github.com/vmware/govmomi v0.22.2 // indirect
 	k8s.io/api v0.17.3
