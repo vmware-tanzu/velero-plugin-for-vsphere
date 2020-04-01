@@ -6,7 +6,7 @@
 This repository contains the Velero Plugin for vSphere.  This plugin is a volume snapshotter plugin that provides crash-consistent snapshots of vSphere block volumes and backup of volume data into S3 compatible storage.
 
 ## Compatibility
-* Velero - Version 1.3.0 or above
+* Velero - Version 1.3.2 or above
 * vSphere - Version 6.7U3 or above
 * vSphere CSI/CNS driver 1.0.2 or above
 * Kubernetes 1.14 or above (note: the Velero Plug-in for vSphere does not support Guest or Supervisor clusters on vSphere yet)
@@ -112,8 +112,8 @@ velero restore create --from-backup <your-backup-name>
 Please refer to the Velero documentation for usage and additional restore options.
 
 ## Setting a default VolumeSnapshotLocation
-If you don't like to specify the VolumeSnapshotLocation at each backup command,
-you can do the following configuration.
+If you don't want to specify the VolumeSnapshotLocation for each backup command,
+follow these steps to set a default VolumeSnapshotLocation.
 1. Run `kubectl edit deployment/velero -n <velero-namespace>`
 2. Edit the `spec.template.spec.containers[*].args` field under the velero container as below.
     ```yaml
@@ -126,3 +126,9 @@ you can do the following configuration.
             - --default-volume-snapshot-locations
             - velero.io/vsphere:<your-volume-snapshot-location-name>
     ```
+
+## S3 data
+Your volume data is stored in the Velero bucket with prefixes beginning with *plugins/vsphere-astrolabe-repo*
+Velero versions prior to 1.3.2 will fail when using a bucket that has objects with the *plugins* prefix.  If you have
+multiple Velero instances sharing a common bucket, please be sure to upgrade all of the to 1.3.2 before making any
+backups with the vSphere plugin 
