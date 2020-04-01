@@ -108,7 +108,7 @@ func (c *downloadController) enqueueDownloadItem(obj interface{}) {
 		log.WithFields(logrus.Fields{
 			"nextRetryTime": req.Status.NextRetryTimestamp,
 			"currentTime": now,
-		}).Infof("Ingnore retry donwload request which comes in before next retry time, download CR: %s", req.Name)
+		}).Infof("Ignore retry download request which comes in before next retry time, download CR: %s", req.Name)
 		return
 	}
 
