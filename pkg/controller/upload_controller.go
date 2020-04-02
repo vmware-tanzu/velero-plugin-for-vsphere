@@ -114,7 +114,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 		log.WithFields(logrus.Fields{
 			"nextRetryTime": req.Status.NextRetryTimestamp,
 			"currentTime": now,
-		}).Infof("Ingnore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
+		}).Infof("Ignore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
 		return
 	}
 
