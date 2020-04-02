@@ -29,7 +29,10 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"strconv"
+	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"io/ioutil"
@@ -130,6 +133,66 @@ func NewCommand(f client.Factory) *cobra.Command {
 	return c
 }
 
+// Return version in the format: vX.Y.Z
+func GetVersionFromImage(containers []v1.Container, imageName string) string {
+	var tag = ""
+	for _, container := range containers {
+		if strings.Contains(container.Image, imageName) {
+			tag = strings.Split(container.Image, ":")[1]
+			break
+		}
+	}
+	if tag == "" {
+		fmt.Printf("Failed to get tag from image %s\n", imageName)
+		return ""
+	}
+	if strings.Contains(tag, "-") {
+		version := strings.Split(tag, "-")[0]
+		return version
+	} else {
+		return tag
+	}
+}
+
+func GetVeleroVersion(f client.Factory) (string, error) {
+    clientset, err := f.KubeClient()
+    if err != nil {
+        fmt.Println("Failed to get kubeclient.")
+        return "", err
+	}
+	deploymentList, err := clientset.AppsV1().Deployments("velero").List(metav1.ListOptions{})
+	if err != nil {
+		fmt.Println("Failed to get deployment for velero namespace.")
+		return "", err
+	}
+	for _, item := range deploymentList.Items {
+		if item.GetName() == "velero" {
+			version := GetVersionFromImage(item.Spec.Template.Spec.Containers, "velero/velero")
+			return version, nil
+		}
+	}
+	return "", nil
+}
+
+// If currentVersion == minVersion, return 0
+// If currentVersion > minVersion, return 1
+// If currentVersion < minVersion, return -1
+// Assume input string format is vX.Y.Z
+func CompareVersion(currentVersion string, minVersion string) int {
+	curVerArr := strings.Split(currentVersion[1:], ".")
+	minVerArr := strings.Split(minVersion[1:], ".")
+	for index, _ := range curVerArr {
+		curVerDigit, _ := strconv.Atoi(curVerArr[index])
+		minVerDigit, _ := strconv.Atoi(minVerArr[index])
+		if curVerDigit < minVerDigit {
+			return -1
+		} else if curVerDigit > minVerDigit {
+			return 1
+		}
+	}
+    return 0
+}
+
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	var resources *unstructured.UnstructuredList
 
@@ -138,6 +201,15 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if isLocalMode {
 		fmt.Println("Skip the data manager installation")
 		return nil
+	}
+
+	veleroVersion, err := GetVeleroVersion(f)
+	if err != nil || veleroVersion == "" {
+		fmt.Println("Failed to get velero version.")
+		return errors.Wrap(err, "Error while getting velero version")
+	}
+	if CompareVersion(veleroVersion, utils.VeleroMinVersion) == -1 {
+		fmt.Printf("WARNING: Velero version %s is prior to %s. Velero-plugin-for-vsphere requires velero version to be %s or above.\n", veleroVersion, utils.VeleroMinVersion, utils.VeleroMinVersion)
 	}
 
 	vo, err := o.AsDatamgrOptions()
