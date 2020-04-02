@@ -167,7 +167,7 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 
 	insecure := false
 	insecureStr, ok := GetStringFromParamsMap(params, "insecure-flag", logger)
-	if ok && (insecureStr == "TRUE" || insecureStr == "true") {
+	if ok && (insecureStr == "TRUE" || insecureStr == "true" || insecureStr == "1") {
 		insecure = true
 	}
 
