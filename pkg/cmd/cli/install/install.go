@@ -29,7 +29,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"strconv"
+    "strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -193,6 +193,42 @@ func CompareVersion(currentVersion string, minVersion string) int {
     return 0
 }
 
+func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
+	isVersionOK := false
+	csi_driver_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/driver")
+	csi_syncer_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/syncer")
+	if CompareVersion(csi_driver_version, utils.CsiMinVersion) < 2 && CompareVersion(csi_syncer_version, utils.CsiMinVersion) < 2 {
+		isVersionOK = true
+	}
+	return true, isVersionOK, nil
+}
+
+func CheckCSIInstalled(f client.Factory) (bool, bool, error) {
+	clientset, err := f.KubeClient()
+	if err != nil {
+		return false, false, err
+	}
+	statefulsetList, err := clientset.AppsV1().StatefulSets("kube-system").List(metav1.ListOptions{})
+	if err != nil {
+		return false, false, err
+	}
+	for _, item := range statefulsetList.Items {
+		if item.GetName() == "vsphere-csi-controller" {
+			return CheckCSIVersion(item.Spec.Template.Spec.Containers)
+		}
+	}
+	deploymentList, err := clientset.AppsV1().Deployments("kube-system").List(metav1.ListOptions{})
+	if err != nil {
+		return false, false, err
+	}
+	for _, item := range deploymentList.Items {
+		if item.Name == "vsphere-csi-controller" {
+			return CheckCSIVersion(item.Spec.Template.Spec.Containers)
+		}
+	}
+	return false, false, nil
+}
+
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	var resources *unstructured.UnstructuredList
 
@@ -203,6 +239,23 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return nil
 	}
 
+	// Check vSphere CSI driver version
+	isCSIInstalled, isVersionOk, err := CheckCSIInstalled(f)
+	if err != nil {
+		fmt.Println("Failed to check whether csi driver is installed")
+		return errors.Wrap(err, "Error while checking whether CSI driver is installed")
+	}
+	if !isCSIInstalled {
+		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
+		return errors.Wrap(err, "vSphere CSI/CNS driver is not installed")
+	}
+	if !isVersionOk {
+		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in requires CSI driver version to be %s or above\n", utils.CsiMinVersion, utils.CsiMinVersion)
+		return errors.Wrap(err, "vSphere CSI driver version is not correct. Please install CSI driver with v1.0.2 or above")
+	}
+	fmt.Println("vSphere CSI is installed")
+
+	// Check velero version
 	veleroVersion, err := GetVeleroVersion(f)
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
