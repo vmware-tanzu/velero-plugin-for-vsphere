@@ -29,13 +29,13 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-    "strconv"
+	"strconv"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"os"
 	"path/filepath"
@@ -174,16 +174,40 @@ func GetVeleroVersion(f client.Factory) (string, error) {
 	return "", nil
 }
 
+// Go doesn't have max function for integers?  Oh really, that's just so convenient
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
+
 // If currentVersion == minVersion, return 0
 // If currentVersion > minVersion, return 1
 // If currentVersion < minVersion, return -1
 // Assume input string format is vX.Y.Z
 func CompareVersion(currentVersion string, minVersion string) int {
+	if currentVersion == "" {
+		currentVersion = "v0.0.0"
+	}
+	if minVersion == "" {
+		minVersion = "v0.0.0"
+	}
 	curVerArr := strings.Split(currentVersion[1:], ".")
 	minVerArr := strings.Split(minVersion[1:], ".")
-	for index, _ := range curVerArr {
-		curVerDigit, _ := strconv.Atoi(curVerArr[index])
-		minVerDigit, _ := strconv.Atoi(minVerArr[index])
+
+	for index:=0; index < max(len(curVerArr), len(minVerArr)); index++ {
+		var curVerDigit, minVerDigit int
+		if index < len(curVerArr) {
+			curVerDigit, _ = strconv.Atoi(curVerArr[index])
+		} else {
+			curVerDigit = 0	// Substitute 0 if a position is missing
+		}
+		if index < len(minVerArr) {
+			minVerDigit, _ = strconv.Atoi(minVerArr[index])
+		} else {
+			minVerDigit = 0
+		}
 		if curVerDigit < minVerDigit {
 			return -1
 		} else if curVerDigit > minVerDigit {
@@ -196,8 +220,24 @@ func CompareVersion(currentVersion string, minVersion string) int {
 func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
 	isVersionOK := false
 	csi_driver_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/driver")
+	if csi_driver_version == "" {
+		csi_driver_version = GetVersionFromImage(containers, "cloudnativestorage/vsphere-csi")
+		if csi_driver_version != "" {
+			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/vsphere-csi, setting version to min version %s\n",
+				csi_driver_version, utils.CsiMinVersion)
+			csi_driver_version = utils.CsiMinVersion
+		}
+	}
 	csi_syncer_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/syncer")
-	if CompareVersion(csi_driver_version, utils.CsiMinVersion) < 2 && CompareVersion(csi_syncer_version, utils.CsiMinVersion) < 2 {
+	if csi_syncer_version == "" {
+		csi_syncer_version = GetVersionFromImage(containers, "cloudnativestorage/syncer")
+		if csi_syncer_version != "" {
+			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/syncer, setting version to min version %s\n",
+				csi_syncer_version, utils.CsiMinVersion)
+			csi_syncer_version = utils.CsiMinVersion
+		}
+	}
+	if CompareVersion(csi_driver_version, utils.CsiMinVersion) >=0 && CompareVersion(csi_syncer_version, utils.CsiMinVersion) >=0 {
 		isVersionOK = true
 	}
 	return true, isVersionOK, nil
@@ -235,34 +275,32 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	isLocalMode := utils.GetBool(install.DefaultImageLocalMode, false)
 	fmt.Printf("The Image LocalMode: %v\n", isLocalMode)
 	if isLocalMode {
-		fmt.Println("Skip the data manager installation")
+		fmt.Println("Local mode set, skipping data manager installation")
 		return nil
 	}
 
 	// Check vSphere CSI driver version
 	isCSIInstalled, isVersionOk, err := CheckCSIInstalled(f)
 	if err != nil {
-		fmt.Println("Failed to check whether csi driver is installed")
-		return errors.Wrap(err, "Error while checking whether CSI driver is installed")
+		fmt.Println("CSI driver check failed")
+		isCSIInstalled = false
+		isVersionOk = false
 	}
 	if !isCSIInstalled {
 		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
-		return errors.Wrap(err, "vSphere CSI/CNS driver is not installed")
 	}
 	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in requires CSI driver version to be %s or above\n", utils.CsiMinVersion, utils.CsiMinVersion)
-		return errors.Wrap(err, "vSphere CSI driver version is not correct. Please install CSI driver with v1.0.2 or above")
+		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", utils.CsiMinVersion, utils.CsiMinVersion)
 	}
-	fmt.Println("vSphere CSI is installed")
 
 	// Check velero version
 	veleroVersion, err := GetVeleroVersion(f)
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
-		return errors.Wrap(err, "Error while getting velero version")
-	}
-	if CompareVersion(veleroVersion, utils.VeleroMinVersion) == -1 {
-		fmt.Printf("WARNING: Velero version %s is prior to %s. Velero-plugin-for-vsphere requires velero version to be %s or above.\n", veleroVersion, utils.VeleroMinVersion, utils.VeleroMinVersion)
+	} else {
+		if CompareVersion(veleroVersion, utils.VeleroMinVersion) == -1 {
+			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, utils.VeleroMinVersion, utils.VeleroMinVersion)
+		}
 	}
 
 	vo, err := o.AsDatamgrOptions()
