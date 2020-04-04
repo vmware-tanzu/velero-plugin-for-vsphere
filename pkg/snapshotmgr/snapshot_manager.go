@@ -267,44 +267,66 @@ func (this *SnapshotManager) deleteSnapshotFromRepo(peID astrolabe.ProtectedEnti
 	return nil
 }
 
-func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
-	this.Info("Start creating Download CR for %s", peID.String())
+const PollLogInterval = time.Minute
+
+func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEntityID) (updatedID astrolabe.ProtectedEntityID, err error) {
+	this.Infof("Start creating Download CR for %s", peID.String())
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-		return peID, err
+		return
 	}
 	pluginClient, err := plugin_clientset.NewForConfig(config)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s clientset with the given config: %v", config)
-		return peID, err
+		return
 	}
 
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
 	if !exist {
 		this.Errorf("CreateVolumeFromSnapshot: Failed to lookup the env variable for velero namespace")
-		return peID, err
+		return
 	}
 
 	uuid, _ := uuid.NewRandom()
-	download := builder.ForDownload(veleroNs, "download-"+peID.GetSnapshotID().GetID() + "-" + uuid.String()).RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
+	downloadRecordName := "download-" + peID.GetSnapshotID().GetID() + "-" + uuid.String()
+	download := builder.ForDownload(veleroNs, downloadRecordName).
+		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
 	_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
 	if err != nil {
 		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
-		return peID, err
+		return
 	}
-
+	
+	lastPollLogTime := time.Now()
 	// TODO: Suitable length of timeout
 	err = wait.PollImmediateInfinite(time.Second, func() (bool, error) {
-		download, _ = pluginClient.VeleropluginV1().Downloads(veleroNs).Get("download-"+peID.GetSnapshotID().GetID(), metav1.GetOptions{})
+		infoLog := false
+		if time.Now().Sub(lastPollLogTime) > PollLogInterval {
+			infoLog = true
+			this.Infof("Polling download record %s", downloadRecordName)
+			lastPollLogTime = time.Now()
+		}
+		download, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Get(downloadRecordName, metav1.GetOptions{})
+		if err != nil {
+			this.Errorf("Retrieve download record %s failed with err %v", downloadRecordName, err)
+			return false, errors.Wrapf(err, "Failed to retrieve download record %s", downloadRecordName)
+		}
 		if download.Status.Phase == v1api.DownloadPhaseCompleted {
+			this.Infof("Download record %s completed", downloadRecordName)
 			return true, nil
 		} else if download.Status.Phase == v1api.DownloadPhaseFailed {
 			return false, errors.Errorf("Create download cr failed.")
 		} else {
+			if infoLog {
+				this.Infof("Retrieve phase %s for download record %s", download.Status.Phase, downloadRecordName)
+			}
 			return false, nil
 		}
 	})
-	updatedID, err := astrolabe.NewProtectedEntityIDFromString(download.Status.VolumeID)
-	return updatedID, err
+	if err != nil {
+		return
+	}
+	updatedID, err = astrolabe.NewProtectedEntityIDFromString(download.Status.VolumeID)
+	return
 }
