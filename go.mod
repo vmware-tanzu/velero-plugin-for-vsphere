@@ -22,6 +22,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/vmware-tanzu/astrolabe v0.0.0-20200403054520-e267eec94c48
 	github.com/vmware-tanzu/velero v1.3.0
+	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.17.3
 	k8s.io/apiextensions-apiserver v0.17.3
 	k8s.io/apimachinery v0.17.3
