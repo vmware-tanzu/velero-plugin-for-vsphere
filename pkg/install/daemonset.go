@@ -114,7 +114,7 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 					Annotations: c.annotations,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: "velero",
+					ServiceAccountName: "velero-server",
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsUser: &userID,
 					},
@@ -195,7 +195,7 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 				Name: "cloud-credentials",
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: "cloud-credentials",
+						SecretName: "velero",
 					},
 				},
 			},
