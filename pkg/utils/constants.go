@@ -79,3 +79,9 @@ const (
     // Minimum csi driver version number to meet velero plugin requirement
 	CsiMinVersion = "v1.0.2"
 )
+
+const (
+	// DefaultNamespace is the Kubernetes namespace that is used by default for
+	// the Velero server and API objects.
+	DefaultNamespace = "velero"
+)
