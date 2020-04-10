@@ -28,24 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// Volume keeps track of volumes created by this plugin
-type Volume struct {
-	volType, az string
-	iops        int64
-}
-
-// Snapshot keeps track of snapshots created by this plugin
-type Snapshot struct {
-	volID, az string
-	tags      map[string]string
-}
-
 // NewVolumeSnapshotter is a plugin for containing state for the blockstore
 type NewVolumeSnapshotter struct {
 	config map[string]string
 	logrus.FieldLogger
-	volumes   map[string]Volume
-	snapshots map[string]Snapshot
 	snapMgr *snapshotmgr.SnapshotManager
 }
 
@@ -57,14 +43,6 @@ var _ velero.VolumeSnapshotter = (*NewVolumeSnapshotter)(nil)
 func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 	p.Infof("Init called with config: %v", config)
 	p.config = config
-
-	// Make sure we don't overwrite data, now that we can re-initialize the plugin
-	if p.volumes == nil {
-		p.volumes = make(map[string]Volume)
-	}
-	if p.snapshots == nil {
-		p.snapshots = make(map[string]Snapshot)
-	}
 
 	// Initializing snapshot manager
 	p.Infof("Initializing snapshot manager")
@@ -80,7 +58,6 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 	}
 
 	p.Infof("vSphere VolumeSnapshotter is initialized")
-
 	return nil
 }
 
@@ -109,25 +86,16 @@ func (p *NewVolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, 
 
 	p.Debugf("A new volume %s with type being %s was just created from the call of SnapshotManager CreateVolumeFromSnapshot", returnVolumeID, returnVolumeType)
 
-	p.volumes[returnVolumeID] = Volume{
-		volType: returnVolumeType,
-		az:      volumeAZ,
-		iops:    100,
-	}
 	return returnVolumeID, nil
 }
-
-const cnsBlockVolumeType = "ivd"
 
 // GetVolumeInfo returns the type and IOPS (if using provisioned IOPS) for
 // the specified volume in the given availability zone.
 func (p *NewVolumeSnapshotter) GetVolumeInfo(volumeID, volumeAZ string) (string, *int64, error) {
 	p.Infof("GetVolumeInfo called with volumeID %s, volumeAZ %s", volumeID, volumeAZ)
-	if val, ok := p.volumes[volumeID]; ok {
-		iops := val.iops
-		return val.volType, &iops, nil
-	}
-	return cnsBlockVolumeType, nil, nil
+	var iops int64
+	iops = 100 // dummy iops is applied
+	return utils.CnsBlockVolumeType, &iops, nil
 }
 
 // IsVolumeReady Check if the volume is ready.
@@ -150,25 +118,11 @@ func (p *NewVolumeSnapshotter) CreateSnapshot(volumeID, volumeAZ string, tags ma
 		return "", err
 	}
 
-	// Remember the "original" volume, only required for the first
-	// time.
-	if _, exists := p.volumes[volumeID]; !exists {
-		p.volumes[volumeID] = Volume{
-			volType: cnsBlockVolumeType,
-			az:      volumeAZ,
-			iops:    100,
-		}
-	}
-
 	// Construct the snapshotID for cns volume
 	snapshotID = peID.String()
 	p.Debugf("The snapshotID depends on the Astrolabe PE ID in the format, <peType>:<id>:<snapshotID>, %s", snapshotID)
-	// Remember the snapshot
-	p.snapshots[snapshotID] = Snapshot{volID: volumeID,
-		az:   volumeAZ,
-		tags: tags}
 
-	p.Debugf("CreateSnapshot returning: %s", snapshotID)
+	p.Infof("CreateSnapshot completed with snapshotID, %s", snapshotID)
 	return snapshotID, nil
 }
 
@@ -230,14 +184,12 @@ func (p *NewVolumeSnapshotter) SetVolumeID(unstructuredPV runtime.Unstructured, 
 	p.Debugf("Set VolumeID, %s, to vSphere CSI VolumeHandle", volumeID)
 	pv.Spec.CSI.VolumeHandle = volumeID
 
-
 	res, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pv)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	unstructuredPV = &unstructured.Unstructured{Object: res}
-
 	p.Debugf("Updated unstructured PV: %v", unstructuredPV)
 
 	return unstructuredPV, nil
