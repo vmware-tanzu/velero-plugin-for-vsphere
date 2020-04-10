@@ -19,6 +19,11 @@ package utils
 import "time"
 
 const (
+	// supported volume type in plugin
+	CnsBlockVolumeType = "ivd"
+)
+
+const (
 	// Duration at which lease expires on CRs.
 	LeaseDuration = 60 * time.Second
 
