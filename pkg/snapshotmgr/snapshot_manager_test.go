@@ -17,171 +17,42 @@
 package snapshotmgr
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-
-	//"encoding/base64"
+	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"strings"
 	"testing"
+	"time"
 )
 
-func TestGetVcConfigSecret(t *testing.T) {
-	path := os.Getenv("HOME") + "/.kube/config"
-	config, err := clientcmd.BuildConfigFromFlags("", path)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
+func TestUpload_Creation(t *testing.T) {
+	pluginClient := fake.NewSimpleClientset()
+	upload := builder.ForUpload("velero", "upload-1").SnapshotID("ssid-1").BackupTimestamp(time.Now()).Phase(v1api.UploadPhaseNew).Result()
+
+	upload2 := &v1api.Upload{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1api.SchemeGroupVersion.String(),
+			Kind:       "Upload",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "velero",
+			Name:      "upload-2",
+		},
+		Spec: v1api.UploadSpec{
+			SnapshotID: "ssid-2",
+			BackupTimestamp: &metav1.Time{Time: time.Now()},
+		},
+		Status: v1api.UploadStatus{
+			Phase: v1api.UploadPhaseNew,
+		},
 	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
-	}
-
-	ns := "kube-system"
-	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secret := "vsphere-config-secret"
-	secret, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
-	//t.Logf("encoded secret: %s", secret.Data["csi-vsphere.conf"])
-	sEnc := string(secret.Data["csi-vsphere.conf"])
-	//sDec, _ := base64.StdEncoding.DecodeString(sEnc)
-	t.Logf("Encoded secret: %s", sEnc)
-	lines := strings.Split(sEnc, "\n")
-
-	vcMap := make(map[string]string)
-
-	for _, line := range lines {
-		if strings.Contains(line, "VirtualCenter") {
-
-			parts := strings.Split(line, "\"")
-			vcMap["VirtualCenter"] = parts[1]
-		} else if strings.Contains(line, "=") {
-			parts := strings.Split(line, "=")
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			vcMap[key] = value[1 : len(value)-1]
-		}
-	}
-	//t.Logf("vcMap: %v", vcMap)
-	t.Logf("vcHosts: %s", vcMap["VirtualCenter"])
-	t.Logf("insecureVC: %s", vcMap["insecure-flag"])
-	t.Logf("user: %s", vcMap["user"])
-	t.Logf("password: %s", vcMap["password"])
+	pluginClient.VeleropluginV1().Uploads("velero").Create(upload)
+	pluginClient.VeleropluginV1().Uploads("velero").Create(upload2)
 }
 
-func TestS3OperationsUnderEnvVars(t *testing.T) {
-	_, exist := os.LookupEnv("AWS_SHARED_CREDENTIALS_FILE")
-	if !exist {
-		t.Fatal("Expected Environmental Variable, AWS_SHARED_CREDENTIALS_FILE, is not set")
-	}
-	region := "us-west-1"
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	}))
+func TestDownload_Creation(t *testing.T) {
+	pluginClient := fake.NewSimpleClientset()
+	download := builder.ForDownload("velero", "download-1").RestoreTimestamp(time.Now()).SnapshotID("ssid-1").Phase(v1api.DownloadPhaseNew).Result()
 
-	svc := s3.New(sess)
-
-	result, err := svc.ListBuckets(nil)
-	if err != nil {
-		t.Fatal("Unable to list buckets " + err.Error())
-	}
-	// list all buckets
-	t.Logf("Buckets:")
-
-	for _, b := range result.Buckets {
-		t.Logf("* %s created on %s\n",
-			aws.StringValue(b.Name), aws.TimeValue(b.CreationDate))
-	}
-
-	bucket := "velero-backups-lintongj"
-	t.Logf("S3 base URL: s3-%s.amazonaws.com/%s", region, bucket)
-	resp, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(bucket)})
-	if err != nil {
-		t.Fatalf("Unable to list items in bucket %q, %v", bucket, err)
-	}
-
-	for i, item := range resp.Contents {
-		if i > 10 {
-			break
-		}
-		t.Log("Name:         ", *item.Key)
-		t.Log("Last modified:", *item.LastModified)
-		t.Log("Size:         ", *item.Size)
-		t.Log("Storage class:", *item.StorageClass)
-		t.Log("")
-	}
-}
-
-func TestUseVeleroV1API(t *testing.T) {
-	path := os.Getenv("HOME") + "/.kube/config"
-	config, err := clientcmd.BuildConfigFromFlags("", path)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
-	}
-
-	veleroClient, err := versioned.NewForConfig(config)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
-	}
-	backupLocationList, err := veleroClient.VeleroV1().BackupStorageLocations("velero").List(metav1.ListOptions{})
-
-	for _, item := range backupLocationList.Items {
-		t.Logf("List name: %s", item.Name)
-		t.Logf("List spec.config.region: %v", item.Spec.Config["region"])
-		t.Logf("List spec.objectstorage: %s", item.Spec.ObjectStorage.Bucket)
-	}
-
-	backupStorageLocation, err := veleroClient.VeleroV1().BackupStorageLocations("velero").Get("default", metav1.GetOptions{})
-	t.Logf("Get spec.config.region: %v", backupStorageLocation.Spec.Config["region"])
-	t.Logf("Get spec.objectstorage: %s", backupStorageLocation.Spec.ObjectStorage.Bucket)
-
-	volumeSnapshotList, err := veleroClient.VeleroV1().VolumeSnapshotLocations("velero").List(metav1.ListOptions{})
-
-	for _, item := range volumeSnapshotList.Items {
-		if item.Spec.Provider != "velero.io/vsphere" {
-			continue
-		}
-		t.Logf("Got config: %v", item.Spec.Config)
-		t.Logf("Got empty map: %v", len(item.Spec.Config) == 0)
-	}
-}
-
-func TestGetContainerArgsFromDeployment(t *testing.T) {
-	path := os.Getenv("HOME") + "/.kube/config-csi-restic-1012"
-	config, err := clientcmd.BuildConfigFromFlags("", path)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		t.Fatal("Got error " + err.Error())
-	}
-
-	deployment, err := clientset.AppsV1().Deployments("velero").Get("velero", metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("Got error " + err.Error())
-	}
-
-	for _, container := range deployment.Spec.Template.Spec.Containers {
-		if container.Name != "velero" {
-			continue
-		}
-		t.Logf("container name: %v", container.Name)
-		t.Logf("container cmd: %v", container.Command)
-		for _, arg := range container.Args {
-			if strings.Contains(arg, "velero.io/vsphere:") {
-				parts := strings.Split(arg, ":")
-				provider := strings.TrimSpace(parts[0])
-				snapshotLocation := strings.TrimSpace(parts[1])
-				t.Logf("provider: %v", provider)
-				t.Logf("snapshotLocation: %v", snapshotLocation)
-			} else {
-				t.Logf("container args: %v", arg)
-			}
-		}
-	}
+	pluginClient.VeleropluginV1().Downloads("velero").Create(download)
 }

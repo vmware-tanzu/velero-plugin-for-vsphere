@@ -24,8 +24,7 @@ ASTROLABE:= github.com/vmware-tanzu/astrolabe
 # <gopath>/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk/README.md
 #
 GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
-VDDK_LIBS:= $(GOPATH)/src/$(GVDDK)/vmware-vix-disklib-distrib/lib64
-
+VDDK_LIBS:= $(GVDDK)/vmware-vix-disklib-distrib/lib64
 
 # The binary to build (just the basename).
 PLUGIN_BIN ?= $(wildcard velero-*)
@@ -59,8 +58,8 @@ DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 all: dep plugin
 
 dep:
-ifeq (,$(wildcard $(VDDK_LIBS)))
-	$(error "$(VDDK_LIBS) cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency")
+ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
+	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency")
 endif
 
 plugin: datamgr
@@ -116,6 +115,7 @@ shell: build-dirs
 		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
+		-e GOPATH=/go \
 		-w /go/src/$(PKG) \
 		$(BUILDER_IMAGE) \
 		/bin/sh $(CMD)
@@ -158,7 +158,7 @@ container-name:
 
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
-	cp -R $(VDDK_LIBS)/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
+	cp -R $(GOPATH)/src/$(VDDK_LIBS)/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 # Some of the libraries have the executable bit set and this causes plugin startup to fail
 	chmod 644 _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64/*
 
@@ -196,9 +196,13 @@ verify:
 	@echo "verify: Started"
 	@echo "verify: Completed"
 
-test:
-	@echo "test: Started"
-	@echo "test: Completed"
+SKIP_TESTS ?=
+test: build-dirs
+ifneq ($(SKIP_TESTS), 1)
+	@$(MAKE) shell CMD="-c '\
+	     VDDK_LIBS=$(VDDK_LIBS) \
+	     hack/test.sh $(TARGETS)'"
+endif
 
 ci: all verify test
 
