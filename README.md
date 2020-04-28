@@ -126,6 +126,16 @@ follow these steps to set a default VolumeSnapshotLocation.
             - --default-volume-snapshot-locations
             - velero.io/vsphere:<your-volume-snapshot-location-name>
     ```
+## Uninstall the plugin
+To uninstall the plugin, run
+```bash
+velero plugin remove <plugin-image>
+```
+to remove the plugin from the Velero deployment. To finish the cleanup, delete the Data Manager daemonset and related CRDs.
+```bash
+kubectl -n velero delete daemonset.apps/datamgr-for-vsphere-plugin
+kubectl delete crds uploads.veleroplugin.io downloads.veleroplugin.io
+```
 
 ## S3 data
 Your volume data is stored in the Velero bucket with prefixes beginning with *plugins/vsphere-astrolabe-repo*
