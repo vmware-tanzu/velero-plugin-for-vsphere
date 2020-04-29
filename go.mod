@@ -20,7 +20,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
-	github.com/vmware-tanzu/astrolabe v0.1.0
+	github.com/vmware-tanzu/astrolabe v0.1.1-0.20200429173621-1f6b7a39655f
 	github.com/vmware-tanzu/velero v1.3.2
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.17.3
