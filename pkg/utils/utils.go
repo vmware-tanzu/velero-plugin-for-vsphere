@@ -257,6 +257,21 @@ func GetBool(str string, defValue bool) bool {
 	return res
 }
 
+type NotFoundError struct {
+	errMsg string
+}
+
+func (this NotFoundError) Error() string {
+	return this.errMsg
+}
+
+func NewNotFoundError(errMsg string) NotFoundError {
+	err := NotFoundError{
+		errMsg: errMsg,
+	}
+	return err
+}
+
 func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -274,7 +289,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 
 	var claimRefName, claimRefNs string
 	for _, pv := range pvList.Items {
-		if pv.Spec.CSI.VolumeHandle == volumeId {
+		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle == volumeId {
 			claimRefName = pv.Spec.ClaimRef.Name
 			claimRefNs = pv.Spec.ClaimRef.Namespace
 			break
@@ -282,7 +297,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 	}
 	if claimRefNs == "" || claimRefName == "" {
 		errMsg := fmt.Sprintf("Failed to retrieve the PV with the expected volume ID, %v", volumeId)
-		return "", errors.New(errMsg)
+		return "", NewNotFoundError(errMsg)
 	}
 
 	podList, err := clientset.CoreV1().Pods(claimRefNs).List(metav1.ListOptions{})
@@ -309,7 +324,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 
 	if nodeName == "" {
 		errMsg := fmt.Sprintf("Failed to retrieve pod that claim the PV, %v", volumeId)
-		return "", errors.New(errMsg)
+		return "", NewNotFoundError(errMsg)
 	}
 
 	return nodeName, nil
