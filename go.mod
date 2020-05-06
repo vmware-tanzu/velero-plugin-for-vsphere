@@ -3,6 +3,7 @@ module github.com/vmware-tanzu/velero-plugin-for-vsphere
 require (
 	github.com/Azure/azure-sdk-for-go v35.0.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
+	github.com/agiledragon/gomonkey v2.0.1+incompatible
 	github.com/aws/aws-sdk-go v1.29.19
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
@@ -20,6 +21,7 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.4.0
 	github.com/vmware-tanzu/astrolabe v0.1.1-0.20200429173621-1f6b7a39655f
 	github.com/vmware-tanzu/velero v1.3.2
 	gotest.tools v2.2.0+incompatible
