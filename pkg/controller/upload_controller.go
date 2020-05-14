@@ -127,8 +127,14 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 
 	uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
 	if err != nil {
-		log.WithError(err).Errorf("Failed to retrieve pod nodes from volume ID, %v", peID.String())
-		return
+		_, ok := err.(utils.NotFoundError)
+		if ok {
+			log.Infof("Trying to back independent PV from volume ID, %v", peID.String())
+			uploadNodeName = c.nodeName
+		} else {
+			log.WithError(err).Errorf("Failed to retrieve pod nodes from volume ID, %v", peID.String())
+			return
+		}
 	}
 
 	log.Infof("Current node: %v. Expected node for uploading the upload CR: %v", c.nodeName, uploadNodeName)
