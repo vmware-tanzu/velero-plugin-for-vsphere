@@ -303,6 +303,14 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		}
 	}
 
+	// Check velero vsphere plugin image repo
+	err = o.CheckPluginImageRepo(f)
+	if err != nil {
+		fmt.Printf("Failed to check plugin image repo, error msg: %s. Using default datamanager image %s\n", err.Error(), o.Image)
+	} else {
+		fmt.Printf("Using datamanger image %s.\n", o.Image)
+	}
+
 	vo, err := o.AsDatamgrOptions()
 	if err != nil {
 		return err
@@ -345,6 +353,37 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 
 	fmt.Printf("Data manager is installed! ⛵ Use 'kubectl logs daemonset/datamgr-for-vsphere-plugin -n %s' to view the status.\n", o.Namespace)
 	return nil
+}
+
+func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
+	clientset, err := f.KubeClient()
+	if err != nil {
+		errMsg := fmt.Sprint("Failed to get clientset.")
+		return errors.New(errMsg)
+	}
+	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(utils.VeleroDeployment, metav1.GetOptions{})
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
+		return errors.New(errMsg)
+	}
+
+	repo := ""
+	tag := ""
+	for _, container := range deployment.Spec.Template.Spec.InitContainers {
+		if strings.Contains(container.Image, utils.VeleroPluginForVsphere) {
+			repo = strings.Split(container.Image, "/")[0]
+			tag = strings.Split(container.Image, ":")[1]
+			break
+		}
+	}
+
+	if repo != "" && tag != "" {
+		o.Image = repo + "/" + utils.DataManagerForPlugin + ":" + tag
+		return nil
+	} else {
+		errMsg := fmt.Sprint("Failed to get repo and tag from velero plugin image.")
+		return errors.New(errMsg)
+	}
 }
 
 //Complete completes options for a command.
