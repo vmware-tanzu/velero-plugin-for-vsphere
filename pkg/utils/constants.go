@@ -47,25 +47,25 @@ const (
 	// The key of SnapshotManager location
 	VolumeSnapshotterManagerLocation = "SnapshotManagerLocation"
 	// Valid values for the config with the VolumeSnapshotterManagerLocation key
-	VolumeSnapshotterPlugin = "Plugin"
+	VolumeSnapshotterPlugin     = "Plugin"
 	VolumeSnapshotterDataServer = "DataServer"
 )
 
 const (
-    // Max retry limit for downloads.
+	// Max retry limit for downloads.
 	DOWNLOAD_MAX_RETRY = 5
 
 	// Initial retry for both uploads and downloads.
-    MIN_RETRY = 0
+	MIN_RETRY = 0
 
-    // BACKOFF for downloads.
-    DOWNLOAD_BACKOFF  = 5
+	// BACKOFF for downloads.
+	DOWNLOAD_BACKOFF = 5
 
-    // Max backoff limit for uploads.
-    UPLOAD_MAX_BACKOFF = 60
+	// Max backoff limit for uploads.
+	UPLOAD_MAX_BACKOFF = 60
 
-    // Exceeds this number of retry, will give a warning message to ask user to fix network issue in cluster.
-    RETRY_WARNING_COUNT = 8
+	// Exceeds this number of retry, will give a warning message to ask user to fix network issue in cluster.
+	RETRY_WARNING_COUNT = 8
 )
 
 // configuration constants for the S3 repository
@@ -76,7 +76,7 @@ const (
 	// Minimum velero version number to meet velero plugin requirement
 	VeleroMinVersion = "v1.3.2"
 
-    // Minimum csi driver version number to meet velero plugin requirement
+	// Minimum csi driver version number to meet velero plugin requirement
 	CsiMinVersion = "v1.0.2"
 )
 
@@ -84,4 +84,9 @@ const (
 	// DefaultNamespace is the Kubernetes namespace that is used by default for
 	// the Velero server and API objects.
 	DefaultNamespace = "velero"
+)
+
+const (
+	// Default port used to access vCenter.
+	DefaultVCenterPort string = "443"
 )

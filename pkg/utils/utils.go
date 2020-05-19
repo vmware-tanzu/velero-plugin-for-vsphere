@@ -18,6 +18,10 @@ package utils
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/pkg/errors"
@@ -26,13 +30,10 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"net/url"
-	"os"
-	"strconv"
-	"strings"
 )
 
 /*
@@ -45,6 +46,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return err
 	}
+
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v", config)
@@ -53,12 +55,23 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 
 	ns := "kube-system"
 	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secret := "vsphere-config-secret"
-	secret, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
+	vsphere_secrets := []string{"vsphere-config-secret", "csi-vsphere-config"}
+	var secret *k8sv1.Secret
+	for _, vsphere_secret := range vsphere_secrets {
+		secret, err = secretApis.Get(vsphere_secret, metav1.GetOptions{})
+		if err == nil {
+			logger.Infof("Retrieved k8s secret, %s", vsphere_secret)
+			break
+		}
+		logger.WithError(err).Infof("Skipping k8s secret %s as it does not exist", vsphere_secret)
+	}
+
+	// No valid secret found.
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to get k8s secret, %s", vsphere_secret)
+		logger.WithError(err).Errorf("Failed to get k8s secret, %s", vsphere_secrets)
 		return err
 	}
+
 	sEnc := string(secret.Data["csi-vsphere.conf"])
 	lines := strings.Split(sEnc, "\n")
 
@@ -70,8 +83,18 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 			parts := strings.Split(line, "=")
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			params[key] = value[1 : len(value)-1]
+			// Skip the quotes in the value if present
+			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+				params[key] = value[1 : len(value)-1]
+			} else {
+				params[key] = value
+			}
 		}
+	}
+
+	// If port is missing, add an entry in the params to use the standard https port
+	if _, ok := params["port"]; !ok {
+		params["port"] = DefaultVCenterPort
 	}
 
 	return nil
@@ -141,42 +164,12 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.Fiel
 }
 
 func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*ivd.IVDProtectedEntityTypeManager, error) {
-	var vcUrl url.URL
-	vcUrl.Scheme = "https"
-	vcHostStr, ok := GetStringFromParamsMap(params, "VirtualCenter", logger)
-	if !ok {
-		return nil, errors.New("Missing vcHost param, cannot initialize IVD PETM")
-	}
-	vcHostPortStr, ok := GetStringFromParamsMap(params, "port", logger)
-	if !ok {
-		return nil, errors.New("Missing port param, cannot initialize IVD PETM")
-	}
-
-	vcUrl.Host = fmt.Sprintf("%s:%s", vcHostStr, vcHostPortStr)
-
-	vcUser, ok := GetStringFromParamsMap(params, "user", logger)
-	if !ok {
-		return nil, errors.New("Missing vcUser param, cannot initialize IVD PETM")
-	}
-	vcPassword, ok := GetStringFromParamsMap(params, "password", logger)
-	if !ok {
-		return nil, errors.New("Missing vcPassword param, cannot initialize IVD PETM")
-	}
-	vcUrl.User = url.UserPassword(vcUser, vcPassword)
-	vcUrl.Path = "/sdk"
-
-	insecure := false
-	insecureStr, ok := GetStringFromParamsMap(params, "insecure-flag", logger)
-	if ok && (insecureStr == "TRUE" || insecureStr == "true" || insecureStr == "1") {
-		insecure = true
-	}
-
 	s3URLBase := "VOID_URL"
 
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromURL(&vcUrl, s3URLBase, insecure, logger)
+	// Create a new IVD protected entity type manager by passing the vSphere credentials.
+	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3URLBase, logger)
 	if err != nil {
-		logger.WithError(err).Errorf("Error at creating new IVD PETM from vcUrl: %v, s3URLBase: %s",
-			vcUrl, s3URLBase)
+		logger.WithError(err).Errorf("Error at creating new IVD PETM from s3URLBase: %s", s3URLBase)
 		return nil, err
 	}
 
