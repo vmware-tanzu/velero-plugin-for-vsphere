@@ -30,6 +30,7 @@ VDDK_LIBS:= $(GVDDK)/vmware-vix-disklib-distrib/lib64
 PLUGIN_BIN ?= $(wildcard velero-*)
 DATAMGR_BIN ?= $(wildcard data-manager-*)
 
+RELEASE_REGISTRY = vsphereveleroplugin
 REGISTRY ?= dpcpinternal
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
@@ -191,6 +192,18 @@ push: push-datamgr push-plugin
 
 push-pp:
 	$(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
+
+QUALIFIED_TAG ?=
+RELEASE_TAG ?= latest
+release:
+ifneq (,$(QUALIFIED_TAG))
+	docker pull $(DATAMGR_IMAGE):$(QUALIFIED_TAG)
+	docker pull $(PLUGIN_IMAGE):$(QUALIFIED_TAG)
+	@docker tag $(DATAMGR_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
+	@docker tag $(PLUGIN_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
+	docker push $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
+	docker push $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
+endif
 
 verify:
 	@echo "verify: Started"
