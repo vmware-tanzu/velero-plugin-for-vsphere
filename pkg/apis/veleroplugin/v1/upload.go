@@ -34,7 +34,7 @@ type UploadSpec struct {
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
-// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed
+// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed;Cancelled;
 type UploadPhase string
 
 const (

@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -104,7 +105,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
 		// Process New and InProgress and UploadError Uploads
 	case pluginv1api.UploadPhaseCancelled:
-		log.Infof("The upload request was cancelled")
+		log.Debug("The upload request was cancelled")
 		return
 	default:
 		log.Debug("Upload CR is not New or InProgress or UploadError, skipping")
@@ -301,9 +302,9 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
-		log.Infof("CopyToRepo Error Received: %v", err)
+		log.Infof("CopyToRepo Error Received: %v", err.Error())
 		// Check if the request was cancelled.
-		if err.Error() == context.Canceled.Error() {
+		if strings.Contains(err.Error(), context.Canceled.Error()) {
 			log.Infof("The upload of PE %v upload was cancelled.", peID.String())
 			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCancelled, "The upload was cancelled.")
 			if err != nil {

@@ -165,6 +165,8 @@ func TestProcessedUploadItem(t *testing.T) {
 				patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 					return astrolabe.ProtectedEntityID{}, test.expectedErr
 				})
+				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+				})
 				defer patches.Reset()
 				// UploadPhaseCompleted case
 				if test.expectedErr == nil {

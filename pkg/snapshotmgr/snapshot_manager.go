@@ -209,7 +209,7 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 	log.Infof("Searching for Upload CR: %v", uploadName)
 	uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 	if err != nil {
-		log.WithError(err).Error(" Error while retrieving the upload CR %v", uploadName)
+		log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
 	}
 	uploadCompleted := uploadCR.Status.Phase == v1api.UploadPhaseCompleted
 	if uploadCR != nil && !uploadCompleted {
