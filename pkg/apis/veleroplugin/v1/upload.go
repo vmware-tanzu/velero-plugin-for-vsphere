@@ -28,6 +28,9 @@ type UploadSpec struct {
 	// BackupTimestamp records the time the backup was called.
 	// The server's time is used for SnapshotTimestamp
 	BackupTimestamp *meta_v1.Time `json:"backupTimestamp,omitempty"`
+
+	// UploadAbort indicates request to upload ongoing abort.
+	UploadAbort bool `json:"uploadAbort,omitempty"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
@@ -38,8 +41,9 @@ const (
 	UploadPhaseNew           UploadPhase = "New"
 	UploadPhaseInProgress    UploadPhase = "InProgress"
 	UploadPhaseCompleted     UploadPhase = "Completed"
-	UploadPhaseUploadError  UploadPhase = "UploadError"
+	UploadPhaseUploadError   UploadPhase = "UploadError"
 	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
+	UploadPhaseCancelled 	 UploadPhase = "Cancelled"
 )
 
 // UploadStatus is the current status of a Upload.
@@ -82,11 +86,11 @@ type UploadStatus struct {
 	// +optional
 	RetryCount int32 `json:"retryCount,omitempty"`
 
-    // NextRetryTimestamp should be the timestamp that indicate the next retry for failed upload CR.
-    // Used to filter out the upload request which comes in before next retry time.
+	// NextRetryTimestamp should be the timestamp that indicate the next retry for failed upload CR.
+	// Used to filter out the upload request which comes in before next retry time.
 	// +optional
 	// +nullable
-    NextRetryTimestamp *meta_v1.Time `json:"nextRetryTimestamp,omitempty"`
+	NextRetryTimestamp *meta_v1.Time `json:"nextRetryTimestamp,omitempty"`
 
 	// CurrentBackOff records the backoff on retry for failed upload. Retry on upload should obey
 	// exponential backoff mechanism.

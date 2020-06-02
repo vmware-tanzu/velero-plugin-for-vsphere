@@ -18,6 +18,8 @@ package snapshotmgr
 
 import (
 	"context"
+	"encoding/json"
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -29,8 +31,10 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/clock"
 	"os"
 	"strings"
 	"time"
@@ -38,9 +42,9 @@ import (
 
 type SnapshotManager struct {
 	logrus.FieldLogger
-	config    map[string]string
-	ivdPETM   *ivd.IVDProtectedEntityTypeManager
-	s3PETM    *s3repository.ProtectedEntityTypeManager
+	config  map[string]string
+	ivdPETM *ivd.IVDProtectedEntityTypeManager
+	s3PETM  *s3repository.ProtectedEntityTypeManager
 }
 
 func NewSnapshotManagerFromCluster(config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
@@ -183,30 +187,95 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	log := this.WithField("peID", peID.String())
-	log.Infof("Step 1: Deleting the local snapshot")
-	err := this.DeleteLocalSnapshot(peID)
+	log.Infof("Step 0: Abort on-going upload.")
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		log.WithError(err).Errorf("Failed to delete the local snapshot for peID")
-	} else {
-		log.Infof("Deleted the local snapshot")
+		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+		return err
+	}
+	pluginClient, err := plugin_clientset.NewForConfig(config)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
+		return err
 	}
 
-	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
-
-	if isLocalMode {
-		return nil
+	// look up velero namespace from the env variable in container
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		this.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
+		return err
 	}
-
-	log.Infof("Step 2: Deleting the durable snapshot from s3")
-	err = this.DeleteRemoteSnapshot(peID)
+	uploadName := "upload-" + peID.GetSnapshotID().GetID()
+	log.Infof("Searching for Upload CR: %v", uploadName)
+	uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 	if err != nil {
-		if !strings.Contains(err.Error(), "The specified key does not exist") {
-			log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
+		log.WithError(err).Error(" Error while retrieving the upload CR %v", uploadName)
+	}
+	uploadCompleted := uploadCR.Status.Phase == v1api.UploadPhaseCompleted
+	if uploadCR != nil && !uploadCompleted {
+		log.Infof("Found the Upload CR: %v, updating spec to indicate abort.", uploadName)
+		timeNow := clock.RealClock{}
+		mutate := func (r *v1api.Upload) {
+			uploadCR.Spec.UploadAbort = true
+			uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
+			uploadCR.Status.Message = "Aborting on going upload to repository."
+		}
+		oldData, err := json.Marshal(uploadCR)
+		if err != nil {
+			log.WithError(err).Error("Failed to marshall original ongoing Upload")
 			return err
 		}
+		// Mutate
+		mutate(uploadCR)
+		// Record new json
+		newData, err := json.Marshal(uploadCR)
+		if err != nil {
+			log.WithError(err).Error("Failed to marshall updated ongoing Upload")
+			return err
+		}
+
+		patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+		if err != nil {
+			log.WithError(err).Error("Failed to create json merge patch for ongoing Upload")
+			return err
+		}
+		_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Patch(uploadName, types.MergePatchType, patchBytes)
+		if err != nil {
+			log.WithError(err).Error("Failed to patch ongoing Upload")
+			return err
+		} else {
+			log.Infof("Upload status updated to UploadPhaseUploadAbort")
+		}
+		return nil
+	} else {
+		if uploadCompleted {
+			log.Infof("The upload %v was completed, proceeding with snapshot deletes", uploadName)
+		}
+		log.Infof("Step 1: Deleting the local snapshot")
+		err = this.DeleteLocalSnapshot(peID)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to delete the local snapshot for peID")
+		} else {
+			log.Infof("Deleted the local snapshot")
+		}
+
+		isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
+
+		if isLocalMode {
+			return nil
+		}
+
+		log.Infof("Step 2: Deleting the durable snapshot from s3")
+		err = this.DeleteRemoteSnapshot(peID)
+		if err != nil {
+			if !strings.Contains(err.Error(), "The specified key does not exist") {
+				log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
+				return err
+			}
+		}
+		log.Infof("Deleted the durable snapshot from the durable repository")
+		return nil
 	}
-	log.Infof("Deleted the durable snapshot from the durable repository")
-	return nil
 }
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {
@@ -297,7 +366,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
 		return
 	}
-	
+
 	lastPollLogTime := time.Now()
 	// TODO: Suitable length of timeout
 	err = wait.PollImmediateInfinite(time.Second, func() (bool, error) {
