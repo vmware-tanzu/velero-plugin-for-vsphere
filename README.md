@@ -144,16 +144,15 @@ multiple Velero instances sharing a common bucket, please be sure to upgrade all
 backups with the vSphere plugin 
 
 ## Backup vSphere CNS File Volumes
-Although velero-plugin-for-vsphere is designed to backup vSphere CNS block volumes,
-it works seamlessly well with the backup of vSphere CNS file volumes, which depends on
-the [Velero Restic Integration](https://velero.io/docs/v1.4/restic/).
+The Velero Plugin for vSphere is designed to backup vSphere CNS block volumes.  vSphere CNS
+file volumes should be backed up with the [Velero Restic Integration](https://velero.io/docs/v1.4/restic/).  File volumes must be annotated for Restic backup.  Block and file volumes may be backed up together.
 
-Please use `--use-restic` flag in your regular `velero install` command and be sure
-to annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
-commands. Please run the following command for each pod that contains a volume to
+To use Restic backup for file volumes, please use the `--use-restic` flag to `velero install` command when 
+installing Velero.  Annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
+commands by using the following command for each pod that contains one or more file folumes to
 back up:
 ```
-kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup-volumes=YOUR_VOLUME_NAME_1,YOUR_VOLUME_NAME_2,...
+kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup-volumes=FILE_VOLUME_NAME_1,FILE_VOLUME_NAME_2,...
 ```
 
 ## FAQ
