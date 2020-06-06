@@ -105,6 +105,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
 		// Process New and InProgress and UploadError Uploads
 	case pluginv1api.UploadPhaseCancelled:
+		// The upload was cancelled, nothing to do.
 		log.Debug("The upload request was cancelled")
 		return
 	default:
@@ -304,6 +305,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	if err != nil {
 		log.Infof("CopyToRepo Error Received: %v", err.Error())
 		// Check if the request was cancelled.
+		// context canceled error is wrapped in awserr, hence a string compare.
 		if strings.Contains(err.Error(), context.Canceled.Error()) {
 			log.Infof("The upload of PE %v upload was cancelled.", peID.String())
 			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCancelled, "The upload was cancelled.")
@@ -311,7 +313,6 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 				return err
 			}
 			log.Infof("Upload Cancellation complete.")
-			// TODO: Cleanup??
 			return nil
 		} else {
 			errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))

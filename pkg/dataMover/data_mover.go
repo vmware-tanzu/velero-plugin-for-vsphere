@@ -151,6 +151,7 @@ func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) {
 		log.Infof("Triggering cancellation of the upload.")
 		cancelFunc()
 		log.Infof("Triggering cancellation of the upload complete.")
+		// Cant call UnregisterOngoingUpload as it picks up the lock again.
 		delete(this.inProgressCancelMap, peID)
 		log.Infof("Deleted entry %v from the on-going cancellation map", peID)
 	} else {
@@ -170,6 +171,10 @@ func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID)
 	log := this.WithField("PEID", peID.String())
 	this.mutex.Lock()
 	defer this.mutex.Unlock()
-	delete(this.inProgressCancelMap, peID)
-	log.Infof("Unregistered from on-going upload map.")
+	if _, ok := this.inProgressCancelMap[peID]; !ok {
+		log.Infof("The peID was unregistered previously mostly due to a triggered cancel")
+	} else {
+		delete(this.inProgressCancelMap, peID)
+		log.Infof("Unregistered from on-going upload map.")
+	}
 }
