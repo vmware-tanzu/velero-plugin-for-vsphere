@@ -90,3 +90,11 @@ const (
 	// Default port used to access vCenter.
 	DefaultVCenterPort string = "443"
 )
+
+const (
+	DataManagerForPlugin string = "data-manager-for-plugin"
+
+	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
+
+	VeleroDeployment string = "velero"
+)
