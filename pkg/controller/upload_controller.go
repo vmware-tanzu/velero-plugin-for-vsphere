@@ -104,9 +104,9 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	switch req.Status.Phase {
 	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
 		// Process New and InProgress and UploadError Uploads
-	case pluginv1api.UploadPhaseCancelled:
-		// The upload was cancelled, nothing to do.
-		log.Debug("The upload request was cancelled")
+	case pluginv1api.UploadPhaseCanceled:
+		// The upload was canceled, nothing to do.
+		log.Debug("The upload request was canceled")
 		return
 	default:
 		log.Debug("Upload CR is not New or InProgress or UploadError, skipping")
@@ -186,14 +186,14 @@ func (c *uploadController) processUploadItem(key string) error {
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
 		// will pick such record in UploadPhaseInProgress status for processing.
-	case pluginv1api.UploadPhaseCancelled:
-		log.Infof("The upload request was detected cancelled while processing it, skipping")
+	case pluginv1api.UploadPhaseCanceled:
+		log.Infof("The upload request was detected canceled while processing it, skipping")
 		return nil
 	default:
 		return nil
 	}
 
-	// Check if the upload was cancelled and trigger cancellation if needed.
+	// Check if the upload was canceled and trigger cancellation if needed.
 	if req.Spec.UploadAbort {
 		err := c.triggerUploadCancellation(req)
 		if err != nil {
@@ -270,8 +270,8 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		"generation": req.Generation,
 	}).Info("Upload request updated by retrieving from kubernetes API server")
 
-	if req.Status.Phase == pluginv1api.UploadPhaseCancelled {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is cancelled. Skipping it")
+	if req.Status.Phase == pluginv1api.UploadPhaseCanceled {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceled. Skipping it")
 		return nil
 	}
 
@@ -304,11 +304,11 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
 		log.Infof("CopyToRepo Error Received: %v", err.Error())
-		// Check if the request was cancelled.
+		// Check if the request was canceled.
 		// context canceled error is wrapped in awserr, hence a string compare.
 		if strings.Contains(err.Error(), context.Canceled.Error()) {
-			log.Infof("The upload of PE %v upload was cancelled.", peID.String())
-			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCancelled, "The upload was cancelled.")
+			log.Infof("The upload of PE %v upload was canceled.", peID.String())
+			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceled, "The upload was canceled.")
 			if err != nil {
 				return err
 			}
@@ -438,7 +438,7 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			r.Status.Phase = newPhase
 			r.Status.ProcessingNode = c.nodeName
 		})
-	case pluginv1api.UploadPhaseCancelled:
+	case pluginv1api.UploadPhaseCanceled:
 		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			r.Status.Phase = newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}

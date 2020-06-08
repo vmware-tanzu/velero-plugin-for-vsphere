@@ -79,7 +79,7 @@ spec:
               - Completed
               - UploadError
               - CleanupFailed
-              - Cancelled
+              - Canceled
               type: string
             processingNode:
               description: The DataManager node that has picked up the Upload for
