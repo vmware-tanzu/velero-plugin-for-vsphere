@@ -158,6 +158,9 @@ func TestProcessedUploadItem(t *testing.T) {
 					return astrolabe.ProtectedEntityID{}, nil
 				})
 				defer patches.Reset()
+				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+				})
+				defer patches.Reset()
 				patches.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
 					return test.expectedErr
 				})
@@ -430,6 +433,10 @@ func TestUploadErrorRetry(t *testing.T) {
 			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 				return astrolabe.ProtectedEntityID{}, nil
 			})
+
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+			})
+
 			patches.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
 				return nil
 			})
