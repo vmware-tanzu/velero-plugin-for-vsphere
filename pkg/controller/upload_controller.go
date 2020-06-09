@@ -18,9 +18,7 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -33,7 +31,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
@@ -113,8 +110,8 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 		return
 	}
 
-	// Check if the upload was aborted and trigger cancellation.
-	if req.Spec.UploadAbort {
+	// Check if the upload was canceled and trigger cancellation.
+	if req.Spec.UploadCancel {
 		err := c.triggerUploadCancellation(req)
 		if err != nil {
 			log.Error("Received error during upload cancellation.")
@@ -194,7 +191,7 @@ func (c *uploadController) processUploadItem(key string) error {
 	}
 
 	// Check if the upload was canceled and trigger cancellation if needed.
-	if req.Spec.UploadAbort {
+	if req.Spec.UploadCancel {
 		err := c.triggerUploadCancellation(req)
 		if err != nil {
 			log.Error("Received error during upload cancellation, skipping.")
@@ -325,6 +322,9 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		}
 	}
 
+	// Unregister on-going upload
+	c.dataMover.UnregisterOngoingUpload(peID)
+
 	// Call snapshot manager API to cleanup the local snapshot
 	err = c.snapMgr.DeleteLocalSnapshot(peID)
 	if err != nil {
@@ -337,9 +337,6 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		log.Error(errMsg)
 		return errors.New(errMsg)
 	}
-
-	// Unregister on-going upload
-	c.dataMover.UnregisterOngoingUpload(peID)
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCompleted, "Upload completed")
@@ -357,37 +354,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 
 func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload)) (*pluginv1api.Upload, error) {
 	log := loggerForUpload(c.logger, req)
-
-	// Record original json
-	oldData, err := json.Marshal(req)
-	if err != nil {
-		log.WithError(err).Error("Failed to marshall original Upload")
-		return nil, err
-	}
-
-	// Mutate
-	mutate(req)
-
-	// Record new json
-	newData, err := json.Marshal(req)
-	if err != nil {
-		log.WithError(err).Error("Failed to marshall updated Upload")
-		return nil, err
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		log.WithError(err).Error("Failed to creat json merge patch for Upload")
-		return nil, err
-	}
-
-	req, err = c.uploadClient.Uploads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
-	if err != nil {
-		log.WithError(err).Error("Failed to patch Upload")
-		return nil, err
-	}
-
-	return req, nil
+	return utils.PatchUpload(req, mutate, c.uploadClient.Uploads(req.Namespace), log)
 }
 
 func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase pluginv1api.UploadPhase, msg string) (*pluginv1api.Upload, error) {
@@ -499,18 +466,18 @@ func (c *uploadController) exponentialBackoffHandler(key string) error {
 
 func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) error {
 	log := loggerForUpload(c.logger, req)
-	abortPeId, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+	cancelPeId, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		log.Infof("Error received when processing abort for %v", req.Spec.SnapshotID)
+		log.Infof("Error received when processing cancel for %v", req.Spec.SnapshotID)
 		return err
 	}
-	uploadStatus := c.dataMover.IsUploading(abortPeId)
+	uploadStatus := c.dataMover.IsUploading(cancelPeId)
 	if !uploadStatus {
 		log.Infof("Current node: %v is not processing the upload, skipping", c.nodeName)
 		return nil
 	}
-	log.Infof("Current node: %v is processing the upload for PE %v, triggering cancel", c.nodeName, abortPeId.String())
-	c.dataMover.CancelUpload(abortPeId)
-	log.Infof("Upload cancellation trigger on current node: %v for PE %v is complete.", c.nodeName, abortPeId.String())
+	log.Infof("Current node: %v is processing the upload for PE %v, triggering cancel", c.nodeName, cancelPeId.String())
+	c.dataMover.CancelUpload(cancelPeId)
+	log.Infof("Upload cancellation trigger on current node: %v for PE %v is complete.", c.nodeName, cancelPeId.String())
 	return nil
 }

@@ -29,8 +29,8 @@ type UploadSpec struct {
 	// The server's time is used for SnapshotTimestamp
 	BackupTimestamp *meta_v1.Time `json:"backupTimestamp,omitempty"`
 
-	// UploadAbort indicates request to upload ongoing abort.
-	UploadAbort bool `json:"uploadAbort,omitempty"`
+	// UploadCancel indicates request to cancel ongoing upload.
+	UploadCancel bool `json:"uploadCancel,omitempty"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.

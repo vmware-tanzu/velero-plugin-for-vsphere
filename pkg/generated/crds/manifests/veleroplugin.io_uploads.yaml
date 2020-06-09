@@ -42,8 +42,8 @@ spec:
             snapshotID:
               description: SnapshotID is the identifier for the snapshot of the volume.
               type: string
-            uploadAbort:
-              description: UploadAbort indicates request to upload ongoing abort.
+            uploadCancel:
+              description: UploadCancel indicates request to cancel ongoing upload.
               type: boolean
           type: object
         status:

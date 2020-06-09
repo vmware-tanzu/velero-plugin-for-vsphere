@@ -18,8 +18,6 @@ package snapshotmgr
 
 import (
 	"context"
-	"encoding/json"
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -31,7 +29,6 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
@@ -187,7 +184,7 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	log := this.WithField("peID", peID.String())
-	log.Infof("Step 0: Abort on-going upload.")
+	log.Infof("Step 0: Cancel on-going upload.")
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
@@ -211,45 +208,28 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 	if err != nil {
 		log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
 	}
-	uploadCompleted := uploadCR.Status.Phase == v1api.UploadPhaseCompleted
+	// An upload is considered done when it's in either of the terminal stages- Completed, CleanupFailed, Canceled
+	uploadCompleted := uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
 	if uploadCR != nil && !uploadCompleted {
-		log.Infof("Found the Upload CR: %v, updating spec to indicate abort.", uploadName)
+		log.Infof("Found the Upload CR: %v, updating spec to indicate cancel upload.", uploadName)
 		timeNow := clock.RealClock{}
-		mutate := func (r *v1api.Upload) {
-			uploadCR.Spec.UploadAbort = true
+		mutate := func(r *v1api.Upload) {
+			uploadCR.Spec.UploadCancel = true
 			uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
-			uploadCR.Status.Message = "Aborting on going upload to repository."
+			uploadCR.Status.Message = "Canceling on going upload to repository."
 		}
-		oldData, err := json.Marshal(uploadCR)
-		if err != nil {
-			log.WithError(err).Error("Failed to marshall original ongoing Upload")
-			return err
-		}
-		// Mutate
-		mutate(uploadCR)
-		// Record new json
-		newData, err := json.Marshal(uploadCR)
-		if err != nil {
-			log.WithError(err).Error("Failed to marshall updated ongoing Upload")
-			return err
-		}
+		_, err = utils.PatchUpload(uploadCR, mutate, pluginClient.VeleropluginV1().Uploads(veleroNs), log)
 
-		patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-		if err != nil {
-			log.WithError(err).Error("Failed to create json merge patch for ongoing Upload")
-			return err
-		}
-		_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Patch(uploadName, types.MergePatchType, patchBytes)
 		if err != nil {
 			log.WithError(err).Error("Failed to patch ongoing Upload")
 			return err
 		} else {
-			log.Infof("Upload status updated to UploadPhaseUploadAbort")
+			log.Infof("Upload status updated to UploadCancel")
 		}
 		return nil
 	} else {
 		if uploadCompleted {
-			log.Infof("The upload %v was completed, proceeding with snapshot deletes", uploadName)
+			log.Infof("The upload %v was in terminal stage, proceeding with snapshot deletes", uploadName)
 		}
 		log.Infof("Step 1: Deleting the local snapshot")
 		err = this.DeleteLocalSnapshot(peID)
