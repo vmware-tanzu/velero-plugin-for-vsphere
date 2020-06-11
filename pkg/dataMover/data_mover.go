@@ -30,8 +30,7 @@ type DataMover struct {
 	logrus.FieldLogger
 	ivdPETM             *ivd.IVDProtectedEntityTypeManager
 	s3PETM              *s3repository.ProtectedEntityTypeManager
-	mutex               *sync.Mutex
-	inProgressCancelMap map[astrolabe.ProtectedEntityID]context.CancelFunc
+	inProgressCancelMap *sync.Map
 }
 
 func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
@@ -72,14 +71,12 @@ func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
 	}
 	logger.Infof("DataMover: Get ivdPETM from the params map")
 
-	var mutex sync.Mutex
-
+	var syncMap sync.Map
 	dataMover := DataMover{
 		FieldLogger:         logger,
 		ivdPETM:             ivdPETM,
 		s3PETM:              s3PETM,
-		mutex:               &mutex,
-		inProgressCancelMap: make(map[astrolabe.ProtectedEntityID]context.CancelFunc),
+		inProgressCancelMap: &syncMap,
 	}
 
 	logger.Infof("DataMover is initialized")
@@ -136,24 +133,22 @@ func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe
 
 func (this *DataMover) IsUploading(peID astrolabe.ProtectedEntityID) bool {
 	log := this.WithField("PEID", peID.String())
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
 	log.Infof("Checking if the node is uploading")
-	_, ok := this.inProgressCancelMap[peID]
+	_, ok := this.inProgressCancelMap.Load(peID)
 	return ok
 }
 
 func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) {
 	log := this.WithField("PEID", peID.String())
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if cancelFunc, ok := this.inProgressCancelMap[peID]; ok {
+	if value, ok := this.inProgressCancelMap.Load(peID); ok {
 		log.Infof("Triggering cancellation of the upload.")
+		// Cast it to the cancel function, followed by invoking it.
+		cancelFunc := value.(context.CancelFunc)
 		cancelFunc()
 		log.Infof("Triggering cancellation of the upload complete.")
 		// Cant call UnregisterOngoingUpload as it picks up the lock again.
-		delete(this.inProgressCancelMap, peID)
-		log.Infof("Deleted entry %v from the on-going cancellation map", peID)
+		this.inProgressCancelMap.Delete(peID)
+		log.Infof("Deleted entry from the on-going cancellation map")
 	} else {
 		log.Errorf("The pe was not found to be uploading on the node.")
 	}
@@ -161,20 +156,16 @@ func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) {
 
 func (this *DataMover) RegisterOngoingUpload(peID astrolabe.ProtectedEntityID, cancelFunc context.CancelFunc) {
 	log := this.WithField("PEID", peID.String())
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	this.inProgressCancelMap[peID] = cancelFunc
+	this.inProgressCancelMap.Store(peID, cancelFunc)
 	log.Infof("Registered a on-going cancel function.")
 }
 
 func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID) {
 	log := this.WithField("PEID", peID.String())
-	this.mutex.Lock()
-	defer this.mutex.Unlock()
-	if _, ok := this.inProgressCancelMap[peID]; !ok {
+	if _, ok := this.inProgressCancelMap.Load(peID); !ok {
 		log.Infof("The peID was unregistered previously mostly due to a triggered cancel")
 	} else {
-		delete(this.inProgressCancelMap, peID)
+		this.inProgressCancelMap.Delete(peID)
 		log.Infof("Unregistered from on-going upload map.")
 	}
 }

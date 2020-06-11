@@ -209,12 +209,13 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 		log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
 	}
 	// An upload is considered done when it's in either of the terminal stages- Completed, CleanupFailed, Canceled
-	uploadCompleted := uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
+	uploadCompleted := this.isTerminalState(uploadCR)
 	if uploadCR != nil && !uploadCompleted {
 		log.Infof("Found the Upload CR: %v, updating spec to indicate cancel upload.", uploadName)
 		timeNow := clock.RealClock{}
 		mutate := func(r *v1api.Upload) {
 			uploadCR.Spec.UploadCancel = true
+			uploadCR.Status.Phase = v1api.UploadPhaseCanceling
 			uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
 			uploadCR.Status.Message = "Canceling on going upload to repository."
 		}
@@ -256,6 +257,10 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 		log.Infof("Deleted the durable snapshot from the durable repository")
 		return nil
 	}
+}
+
+func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
+	return uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
 }
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {

@@ -34,7 +34,7 @@ type UploadSpec struct {
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
-// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed;Canceled;
+// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed;Canceled;Canceling;
 type UploadPhase string
 
 const (
@@ -43,6 +43,7 @@ const (
 	UploadPhaseCompleted     UploadPhase = "Completed"
 	UploadPhaseUploadError   UploadPhase = "UploadError"
 	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
+	UploadPhaseCanceling 	 UploadPhase = "Canceling"
 	UploadPhaseCanceled 	 UploadPhase = "Canceled"
 )
 

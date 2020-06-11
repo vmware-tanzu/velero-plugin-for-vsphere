@@ -37,7 +37,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
 	"math"
-	"strings"
 	"time"
 )
 
@@ -99,7 +98,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	log := loggerForUpload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCanceling:
 		// Process New and InProgress and UploadError Uploads
 	case pluginv1api.UploadPhaseCanceled:
 		// The upload was canceled, nothing to do.
@@ -183,8 +182,10 @@ func (c *uploadController) processUploadItem(key string) error {
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
 		// will pick such record in UploadPhaseInProgress status for processing.
+	case pluginv1api.UploadPhaseCanceling:
+		log.Infof("The upload request is being canceled")
 	case pluginv1api.UploadPhaseCanceled:
-		log.Infof("The upload request was detected canceled while processing it, skipping")
+		log.Infof("The upload request has been canceled, skipping")
 		return nil
 	default:
 		return nil
@@ -272,6 +273,11 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		return nil
 	}
 
+	if req.Status.Phase == pluginv1api.UploadPhaseCanceling {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceling. Skipping it")
+		return nil
+	}
+
 	if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
 		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
 		return nil
@@ -302,8 +308,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	if err != nil {
 		log.Infof("CopyToRepo Error Received: %v", err.Error())
 		// Check if the request was canceled.
-		// context canceled error is wrapped in awserr, hence a string compare.
-		if strings.Contains(err.Error(), context.Canceled.Error()) {
+		if errors.Is(err, context.Canceled) {
 			log.Infof("The upload of PE %v upload was canceled.", peID.String())
 			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceled, "The upload was canceled.")
 			if err != nil {
@@ -428,6 +433,7 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	log := baseLogger.WithFields(logrus.Fields{
 		"namespace":  req.Namespace,
 		"name":       req.Name,
+		"snapshotID": req.Spec.SnapshotID,
 		"phase":      req.Status.Phase,
 		"generation": req.Generation,
 	})
@@ -468,7 +474,7 @@ func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) er
 	log := loggerForUpload(c.logger, req)
 	cancelPeId, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
-		log.Infof("Error received when processing cancel for %v", req.Spec.SnapshotID)
+		log.Errorf("Error received when processing cancel")
 		return err
 	}
 	uploadStatus := c.dataMover.IsUploading(cancelPeId)

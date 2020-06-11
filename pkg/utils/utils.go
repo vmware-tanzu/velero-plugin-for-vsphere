@@ -333,8 +333,7 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 	// Record original json
 	oldData, err := json.Marshal(req)
 	if err != nil {
-		logger.WithError(err).Error("Failed to marshall original Upload")
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to marshall original Upload")
 	}
 
 	// Mutate
@@ -343,20 +342,17 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 	// Record new json
 	newData, err := json.Marshal(req)
 	if err != nil {
-		logger.WithError(err).Error("Failed to marshall updated Upload")
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to marshall updated Upload")
 	}
 
 	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
 	if err != nil {
-		logger.WithError(err).Error("Failed to creat json merge patch for Upload")
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to creat json merge patch for Upload")
 	}
 
 	req, err = uploadClient.Patch(req.Name, types.MergePatchType, patchBytes)
 	if err != nil {
-		logger.WithError(err).Error("Failed to patch Upload")
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to patch Upload")
 	}
 	return req, nil
 }
