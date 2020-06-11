@@ -18,6 +18,10 @@ package snapshotmgr
 
 import (
 	"context"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -31,29 +35,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
-	"os"
-	"strings"
-	"time"
 )
 
 type SnapshotManager struct {
 	logrus.FieldLogger
-	config    map[string]string
-	ivdPETM   *ivd.IVDProtectedEntityTypeManager
-	s3PETM    *s3repository.ProtectedEntityTypeManager
+	config  map[string]string
+	ivdPETM *ivd.IVDProtectedEntityTypeManager
+	s3PETM  *s3repository.ProtectedEntityTypeManager
 }
 
-func NewSnapshotManagerFromCluster(config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
-	params := make(map[string]interface{})
-	err := utils.RetrieveVcConfigSecret(params, logger)
-	if err != nil {
-		logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret")
-		return nil, err
+func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
+	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
+	if _, ok := params[ivd.HostVcParamKey]; !ok {
+		err := utils.RetrieveVcConfigSecret(params, logger)
+		if err != nil {
+			logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret")
+			return nil, err
+		}
+		logger.Infof("SnapshotManager: vSphere VC credential is retrieved")
 	}
-	logger.Infof("SnapshotManager: vSphere VC credential is retrieved")
 
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	var ivdPETM *ivd.IVDProtectedEntityTypeManager
+	var err error
 
 	// firstly, check whether local mode is disabled or not.
 	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
@@ -297,7 +301,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
 		return
 	}
-	
+
 	lastPollLogTime := time.Now()
 	// TODO: Suitable length of timeout
 	err = wait.PollImmediateInfinite(time.Second, func() (bool, error) {
