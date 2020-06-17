@@ -1,1 +1,0 @@
-Fix issue that cannot backup PVs which are not attached to volumes, support backup independent PVs.
