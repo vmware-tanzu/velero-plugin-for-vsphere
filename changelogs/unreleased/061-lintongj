@@ -1,1 +1,0 @@
-Picked up the fix, which enables to find node VMs in sub-folders of datacenter inventory in the restore path, from the Astrolabe at 1f6b7a39655ff34335899bb5b08310a5f6e2c872. 
