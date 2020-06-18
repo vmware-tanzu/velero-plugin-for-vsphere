@@ -46,12 +46,14 @@ if [ -z "${LOCALMODE}" ]; then
     echo "LOCALMODE must be set"
     exit 1
 fi
+if [ -z "${GIT_SHA}" ]; then
+    echo "GIT_SHA must be set"
+    exit 1
+fi
 
 
 export CGO_ENABLED=1
 
-GIT_SHA=$(git rev-parse HEAD)
-GIT_DIRTY=$(git status --porcelain 2> /dev/null)
 if [[ -z "${GIT_DIRTY}" ]]; then
   GIT_TREE_STATE=clean
 else
