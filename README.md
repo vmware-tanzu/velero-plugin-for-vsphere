@@ -29,10 +29,10 @@ the AWS plugin.  Before installing the vSphere plugin, please install and config
 velero plugin add <plugin-image>
 ```
 
-For Version 1.0.0 the command is
+For Version 1.0.1 the command is
 
 ```bash
-velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.0.0
+velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.0.1
 ```
 
 ## Create a VolumeSnapshotLocation
@@ -142,3 +142,22 @@ Your volume data is stored in the Velero bucket with prefixes beginning with *pl
 Velero versions prior to 1.3.2 will fail when using a bucket that has objects with the *plugins* prefix.  If you have
 multiple Velero instances sharing a common bucket, please be sure to upgrade all of the to 1.3.2 before making any
 backups with the vSphere plugin 
+
+## Backup vSphere CNS File Volumes
+The Velero Plugin for vSphere is designed to backup vSphere CNS block volumes.  vSphere CNS
+file volumes should be backed up with the [Velero Restic Integration](https://velero.io/docs/v1.4/restic/).  File volumes must be annotated for Restic backup.  Block and file volumes may be backed up together.
+
+To use Restic backup for file volumes, please use the `--use-restic` flag to `velero install` command when 
+installing Velero.  Annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
+commands by using the following command for each pod that contains one or more file folumes to
+back up:
+```
+kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup-volumes=FILE_VOLUME_NAME_1,FILE_VOLUME_NAME_2,...
+```
+
+## Current release:
+
+ *[CHANGELOG-1.0.1.md][1]
+
+[1]: https://github.com/vmware-tanzu/velero-plugin-for-vsphere/blob/master/changelogs/CHANGELOG-1.0.1.md
+

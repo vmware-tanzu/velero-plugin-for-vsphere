@@ -34,17 +34,19 @@ type DataMover struct {
 	inProgressCancelMap *sync.Map
 }
 
-func NewDataMoverFromCluster(logger logrus.FieldLogger) (*DataMover, error) {
-	params := make(map[string]interface{})
-	err := utils.RetrieveVcConfigSecret(params, logger)
+func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
+	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
+	if _, ok := params[ivd.HostVcParamKey]; !ok {
+		err := utils.RetrieveVcConfigSecret(params, logger)
 
-	if err != nil {
-		logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret.")
-		return nil, err
+		if err != nil {
+			logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret.")
+			return nil, err
+		}
+		logger.Infof("DataMover: vSphere VC credential is retrieved")
 	}
-	logger.Infof("DataMover: vSphere VC credential is retrieved")
 
-	err = utils.RetrieveVSLFromVeleroBSLs(params, logger)
+	err := utils.RetrieveVSLFromVeleroBSLs(params, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
 		return nil, err
