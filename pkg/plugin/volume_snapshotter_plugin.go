@@ -17,12 +17,12 @@
 package plugin
 
 import (
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,13 +45,15 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 	p.config = config
 
 	// Initializing snapshot manager
+	// Pass empty param list. VC credentials will be retrieved from the cluster configuration
 	p.Infof("Initializing snapshot manager")
 	if config == nil {
 		config = make(map[string]string)
 	}
 	config[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterPlugin
 	var err error
-	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(config, p.FieldLogger)
+	params := make(map[string]interface{})
+	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(params, config, p.FieldLogger)
 	if err != nil {
 		p.WithError(err).Errorf("Failed at calling snapshotmgr.NewSnapshotManagerFromConfigFile with config: %v", config)
 		return err
@@ -68,7 +70,7 @@ func (p *NewVolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, 
 	p.Infof("CreateVolumeFromSnapshot called with snapshotID %s, volumeType %s", snapshotID, volumeType)
 	var returnVolumeID, returnVolumeType string
 
-	var peId,returnPeId astrolabe.ProtectedEntityID
+	var peId, returnPeId astrolabe.ProtectedEntityID
 	var err error
 	peId, err = astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {

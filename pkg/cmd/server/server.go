@@ -19,6 +19,17 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"net/http/pprof"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -39,13 +50,6 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"log"
-	"net/http"
-	"net/http/pprof"
-	"os"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -55,7 +59,9 @@ const (
 	defaultClientQPS   float32 = 20.0
 	defaultClientBurst int     = 30
 
-	defaultProfilerAddress = "localhost:6060"
+	defaultProfilerAddress         = "localhost:6060"
+	defaultInsecureFlag       bool = true
+	defaultVCConfigFromSecret bool = true
 
 	defaultControllerWorkers = 1
 	// the default TTL for a backup
@@ -63,22 +69,31 @@ const (
 )
 
 type serverConfig struct {
-	metricsAddress                        									string
-	clientQPS                                                               float32
-	clientBurst                                                             int
-	profilerAddress                                                         string
-	formatFlag                                                              *logging.FormatFlag
+	metricsAddress     string
+	clientQPS          float32
+	clientBurst        int
+	profilerAddress    string
+	formatFlag         *logging.FormatFlag
+	vCenter            string
+	port               string
+	user               string
+	clusterId          string
+	insecureFlag       bool
+	vcConfigFromSecret bool
 }
 
 func NewCommand(f client.Factory) *cobra.Command {
 	var (
-		logLevelFlag            = logging.LogLevelFlag(logrus.InfoLevel)
-		config                  = serverConfig{
-			metricsAddress:                    defaultMetricsAddress,
-			clientQPS:                         defaultClientQPS,
-			clientBurst:                       defaultClientBurst,
-			profilerAddress:                   defaultProfilerAddress,
-			formatFlag:                        logging.NewFormatFlag(),
+		logLevelFlag = logging.LogLevelFlag(logrus.InfoLevel)
+		config       = serverConfig{
+			metricsAddress:     defaultMetricsAddress,
+			clientQPS:          defaultClientQPS,
+			clientBurst:        defaultClientBurst,
+			profilerAddress:    defaultProfilerAddress,
+			formatFlag:         logging.NewFormatFlag(),
+			port:               utils.DefaultVCenterPort,
+			insecureFlag:       defaultInsecureFlag,
+			vcConfigFromSecret: defaultVCConfigFromSecret,
 		}
 	)
 
@@ -125,6 +140,12 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().Float32Var(&config.clientQPS, "client-qps", config.clientQPS, "maximum number of requests per second by the server to the Kubernetes API once the burst limit has been reached")
 	command.Flags().IntVar(&config.clientBurst, "client-burst", config.clientBurst, "maximum number of requests by the server to the Kubernetes API in a short period of time")
 	command.Flags().StringVar(&config.profilerAddress, "profiler-address", config.profilerAddress, "the address to expose the pprof profiler")
+	command.Flags().StringVar(&config.vCenter, "vcenter-address", config.vCenter, "VirtualCenter address. If specified, --use-secret should be set to False.")
+	command.Flags().StringVar(&config.port, "vcenter-port", config.port, "VirtualCenter port. If specified, --use-secret should be set to False.")
+	command.Flags().StringVar(&config.user, "vcenter-user", config.user, "VirtualCenter user. If specified, --use-secret should be set to False.")
+	command.Flags().StringVar(&config.clusterId, "cluster-id", config.clusterId, "kubernetes cluster id. If specified, --use-secret should be set to False.")
+	command.Flags().BoolVar(&config.insecureFlag, "insecure-Flag", config.insecureFlag, "insecure flag. If specified, --use-secret should be set to False.")
+	command.Flags().BoolVar(&config.vcConfigFromSecret, "use-secret", config.vcConfigFromSecret, "retrieve VirtualCenter configuration from secret")
 
 	return command
 }
@@ -145,7 +166,7 @@ type server struct {
 	metrics               *metrics.ServerMetrics
 	config                serverConfig
 	dataMover             *dataMover.DataMover
-	snapManager               *snapshotmgr.SnapshotManager
+	snapManager           *snapshotmgr.SnapshotManager
 }
 
 func (s *server) run() error {
@@ -166,6 +187,37 @@ func (s *server) run() error {
 	if err := s.runControllers(); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// Assign vSphere VC credentials and configuration parameters
+func getVCConfigParams(config serverConfig, params map[string]interface{}, logger logrus.FieldLogger) error {
+
+	if config.vCenter == "" {
+		return errors.New("getVCConfigParams: parameter vcenter-address not provided")
+	}
+	params[ivd.HostVcParamKey] = config.vCenter
+
+	if config.user == "" {
+		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
+	}
+	params[ivd.UserVcParamKey] = config.user
+
+	passwd := os.Getenv("VC_PASSWORD")
+	if passwd == "" {
+		logger.Warnf("getVCConfigParams: Environment variable VC_PASSWORD not set or empty")
+	}
+	params[ivd.PasswordVcParamKey] = passwd
+
+	if config.clusterId == "" {
+		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
+	}
+	params[ivd.ClusterVcParamKey] = config.clusterId
+
+	// Below vc configuration params are optional
+	params[ivd.PortVcParamKey] = config.port
+	params[ivd.InsecureFlagVcParamKey] = strconv.FormatBool(config.insecureFlag)
 
 	return nil
 }
@@ -192,14 +244,26 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	dataMover, err := dataMover.NewDataMoverFromCluster(logger)
+	configParams := make(map[string]interface{})
+	if config.vcConfigFromSecret == true {
+		logger.Infof("VC Configuration will be retrieved from cluster secret")
+	} else {
+		err := getVCConfigParams(config, configParams, logger)
+		if err != nil {
+			return nil, err
+		}
+
+		logger.Infof("VC configuration provided by user for :%s", configParams[ivd.HostVcParamKey])
+	}
+
+	dataMover, err := dataMover.NewDataMoverFromCluster(configParams, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(snapshotMgrConfig, logger)
+	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(configParams, snapshotMgrConfig, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +315,6 @@ func (s *server) runProfiler() {
 		s.logger.WithError(errors.WithStack(err)).Error("error running profiler http server")
 	}
 }
-
 
 func (s *server) runControllers() error {
 	s.logger.Info("Starting data manager controllers")
@@ -305,4 +368,3 @@ func (s *server) runControllers() error {
 
 	return nil
 }
-
