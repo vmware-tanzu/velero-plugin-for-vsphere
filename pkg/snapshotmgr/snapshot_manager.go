@@ -215,7 +215,6 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 		timeNow := clock.RealClock{}
 		mutate := func(r *v1api.Upload) {
 			uploadCR.Spec.UploadCancel = true
-			uploadCR.Status.Phase = v1api.UploadPhaseCanceling
 			uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
 			uploadCR.Status.Message = "Canceling on going upload to repository."
 		}

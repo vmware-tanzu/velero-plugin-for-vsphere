@@ -416,6 +416,12 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 		})
+	case pluginv1api.UploadPhaseCanceling:
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
 	default:
 		err = errors.New("Unexpected upload phase")
 	}
@@ -482,8 +488,19 @@ func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) er
 		log.Infof("Current node: %v is not processing the upload, skipping", c.nodeName)
 		return nil
 	}
+	patchCancelingFunc := func() error {
+		_ , err := c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on going upload to repository.")
+		if err != nil {
+			log.WithError(err).Error("Failed to patch ongoing Upload")
+			return err
+		}
+		return nil
+	}
 	log.Infof("Current node: %v is processing the upload for PE %v, triggering cancel", c.nodeName, cancelPeId.String())
-	c.dataMover.CancelUpload(cancelPeId)
+	err = c.dataMover.CancelUpload(cancelPeId, patchCancelingFunc)
+	if err != nil {
+		return err
+	}
 	log.Infof("Upload cancellation trigger on current node: %v for PE %v is complete.", c.nodeName, cancelPeId.String())
 	return nil
 }

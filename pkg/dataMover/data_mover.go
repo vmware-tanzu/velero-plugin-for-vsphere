@@ -18,6 +18,7 @@ package dataMover
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
@@ -138,10 +139,16 @@ func (this *DataMover) IsUploading(peID astrolabe.ProtectedEntityID) bool {
 	return ok
 }
 
-func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) {
+func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID, patchFunc func() error) error {
 	log := this.WithField("PEID", peID.String())
 	if value, ok := this.inProgressCancelMap.Load(peID); ok {
 		log.Infof("Triggering cancellation of the upload.")
+		// Patch the status
+		err := patchFunc()
+		if err != nil {
+			return err
+		}
+		log.Infof("Changed state to canceling for the PE")
 		// Cast it to the cancel function, followed by invoking it.
 		cancelFunc := value.(context.CancelFunc)
 		cancelFunc()
@@ -149,8 +156,9 @@ func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) {
 		// Cant call UnregisterOngoingUpload as it picks up the lock again.
 		this.inProgressCancelMap.Delete(peID)
 		log.Infof("Deleted entry from the on-going cancellation map")
+		return nil
 	} else {
-		log.Errorf("The pe was not found to be uploading on the node.")
+		return errors.Errorf("The pe was not found to be uploading on the node.")
 	}
 }
 
