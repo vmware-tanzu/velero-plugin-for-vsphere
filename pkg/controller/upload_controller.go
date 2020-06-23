@@ -489,7 +489,7 @@ func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) er
 		return nil
 	}
 	patchCancelingFunc := func() error {
-		_ , err := c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on going upload to repository.")
+		_, err := c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on going upload to repository.")
 		if err != nil {
 			log.WithError(err).Error("Failed to patch ongoing Upload")
 			return err

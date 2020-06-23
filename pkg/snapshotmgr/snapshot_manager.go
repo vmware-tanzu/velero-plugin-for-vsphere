@@ -35,7 +35,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 )
 
 type SnapshotManager struct {
