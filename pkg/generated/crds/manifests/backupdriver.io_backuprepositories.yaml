@@ -1,0 +1,68 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: (devel)
+  creationTimestamp: null
+  name: backuprepositories.backupdriver.io
+spec:
+  group: backupdriver.io
+  names:
+    kind: BackupRepository
+    listKind: BackupRepositoryList
+    plural: backuprepositories
+    singular: backuprepository
+  scope: Cluster
+  validation:
+    openAPIV3Schema:
+      description: ' BackupRepository is a cluster-scoped resource.  It is controlled
+        by the Backup Driver and referenced by  Snapshot, CloneFromSnapshot and Delete.  The
+        BackupRespository resource contains the credential for a backup repository.  The
+        RepositoryDriver defines the driver that will be used to talk to the repository  Only
+        Snapshot,etc. CRs from namespaces that are listed in AllowedNamespaces will
+        be acted on, if the namespace is  not in AllowedNamespaces the operation will
+        fail.'
+      properties:
+        allowedNamespaces:
+          items:
+            type: string
+          type: array
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        backupRepositoryClaim:
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        repopsitoryParameters:
+          additionalProperties:
+            type: string
+          type: object
+        repositoryDriver:
+          type: string
+      required:
+      - allowedNamespaces
+      - backupRepositoryClaim
+      - repopsitoryParameters
+      - repositoryDriver
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
