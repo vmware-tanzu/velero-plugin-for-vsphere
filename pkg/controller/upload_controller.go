@@ -488,16 +488,13 @@ func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) er
 		log.Infof("Current node: %v is not processing the upload, skipping", c.nodeName)
 		return nil
 	}
-	patchCancelingFunc := func() error {
-		_, err := c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on going upload to repository.")
-		if err != nil {
-			log.WithError(err).Error("Failed to patch ongoing Upload")
-			return err
-		}
-		return nil
+	_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on-going upload to repository.")
+	if err != nil {
+		log.WithError(err).Error("Failed to patch ongoing Upload to Canceling state")
+		return err
 	}
 	log.Infof("Current node: %v is processing the upload for PE %v, triggering cancel", c.nodeName, cancelPeId.String())
-	err = c.dataMover.CancelUpload(cancelPeId, patchCancelingFunc)
+	err = c.dataMover.CancelUpload(cancelPeId)
 	if err != nil {
 		return err
 	}

@@ -141,16 +141,10 @@ func (this *DataMover) IsUploading(peID astrolabe.ProtectedEntityID) bool {
 	return ok
 }
 
-func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID, patchFunc func() error) error {
+func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) error {
 	log := this.WithField("PEID", peID.String())
 	if value, ok := this.inProgressCancelMap.Load(peID); ok {
 		log.Infof("Triggering cancellation of the upload.")
-		// Patch the status
-		err := patchFunc()
-		if err != nil {
-			return err
-		}
-		log.Infof("Changed state to canceling for the PE")
 		// Cast it to the cancel function, followed by invoking it.
 		cancelFunc := value.(context.CancelFunc)
 		cancelFunc()
