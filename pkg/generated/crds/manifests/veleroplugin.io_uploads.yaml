@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: (unknown)
+    controller-gen.kubebuilder.io/version: (devel)
   creationTimestamp: null
   name: uploads.veleroplugin.io
 spec:
@@ -20,14 +20,10 @@ spec:
       description: Upload describe a velero-plugin backup
       properties:
         apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation
-            of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
-          description: 'Kind is a string value representing the REST resource this
-            object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
@@ -35,8 +31,7 @@ spec:
           description: Spec is the custom resource spec
           properties:
             backupTimestamp:
-              description: BackupTimestamp records the time the backup was called.
-                The server's time is used for SnapshotTimestamp
+              description: BackupTimestamp records the time the backup was called. The server's time is used for SnapshotTimestamp
               format: date-time
               type: string
             snapshotID:
@@ -47,24 +42,19 @@ spec:
           description: UploadStatus is the current status of a Upload.
           properties:
             completionTimestamp:
-              description: CompletionTimestamp records the time an upload was completed.
-                Completion time is recorded even on failed uploads. The server's time
-                is used for CompletionTimestamps
+              description: CompletionTimestamp records the time an upload was completed. Completion time is recorded even on failed uploads. The server's time is used for CompletionTimestamps
               format: date-time
               nullable: true
               type: string
             currentBackOff:
-              description: CurrentBackOff records the backoff on retry for failed
-                upload. Retry on upload should obey exponential backoff mechanism.
+              description: CurrentBackOff records the backoff on retry for failed upload. Retry on upload should obey exponential backoff mechanism.
               format: int32
               type: integer
             message:
               description: Message is a message about the upload's status.
               type: string
             nextRetryTimestamp:
-              description: NextRetryTimestamp should be the timestamp that indicate
-                the next retry for failed upload CR. Used to filter out the upload
-                request which comes in before next retry time.
+              description: NextRetryTimestamp should be the timestamp that indicate the next retry for failed upload CR. Used to filter out the upload request which comes in before next retry time.
               format: date-time
               nullable: true
               type: string
@@ -78,15 +68,10 @@ spec:
               - CleanupFailed
               type: string
             processingNode:
-              description: The DataManager node that has picked up the Upload for
-                processing. This will be updated as soon as the Upload is picked up
-                for processing. If the DataManager couldn't process Upload for some
-                reason it will be picked up by another node.
+              description: The DataManager node that has picked up the Upload for processing. This will be updated as soon as the Upload is picked up for processing. If the DataManager couldn't process Upload for some reason it will be picked up by another node.
               type: string
             progress:
-              description: Progress holds the total number of bytes of the volume
-                and the current number of backed up bytes. This can be used to display
-                progress information about the backup operation.
+              description: Progress holds the total number of bytes of the volume and the current number of backed up bytes. This can be used to display progress information about the backup operation.
               properties:
                 bytesDone:
                   format: int64
@@ -96,14 +81,11 @@ spec:
                   type: integer
               type: object
             retryCount:
-              description: RetryCount records the number of retry times for adding
-                a failed Upload which failed due to network issue back to queue. Used
-                for user tracking and debugging.
+              description: RetryCount records the number of retry times for adding a failed Upload which failed due to network issue back to queue. Used for user tracking and debugging.
               format: int32
               type: integer
             startTimestamp:
-              description: StartTimestamp records the time an upload was started.
-                The server's time is used for StartTimestamps
+              description: StartTimestamp records the time an upload was started. The server's time is used for StartTimestamps
               format: date-time
               nullable: true
               type: string

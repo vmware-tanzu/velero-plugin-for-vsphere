@@ -2,6 +2,10 @@ package v1
 
 import meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 /*
  BackupRepository is a cluster-scoped resource.  It is controlled by the Backup Driver and referenced by
  Snapshot, CloneFromSnapshot and Delete.  The BackupRespository resource contains the credential for a backup repository.
@@ -20,8 +24,23 @@ type BackupRepository struct {
 
 	RepositoryDriver      string            `json:"repositoryDriver"`
 	RepositoryParameters  map[string]string `json:"repopsitoryParameters"`
-	BackupRepositoryClaim string            `json:backupRepositoryClaim`
+	BackupRepositoryClaim string            `json:"backupRepositoryClaim"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// BackupRepositoryList is a list of BackupRepository resources
+type BackupRepositoryList struct {
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ListMeta `json:"metadata,omitempty"`
+
+	Items []BackupRepository `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 /*
  BackupRepositoryClaim is used to define/access a BackupRepository.  A new BackupRepository will be created
@@ -37,11 +56,23 @@ type BackupRepositoryClaim struct {
 	meta_v1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +optional
-	AllowedNamespaces []string `json:"allowedNamespaces, omitempty"`
+	AllowedNamespaces []string `json:"allowedNamespaces,omitempty"`
 
 	RepositoryDriver     string            `json:"repositoryDriver"`
 	RepositoryParameters map[string]string `json:"repopsitoryParameters"`
 
 	// +optional
-	BackupRepository string `json: "backupRepository, omitempty"`
+	BackupRepository string `json:"backupRepository,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// BackupRepositoryClaimList is a list of BackupRepositoryClaim resources
+type BackupRepositoryClaimList struct {
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ListMeta `json:"metadata,omitempty"`
+
+	Items []BackupRepositoryClaim `json:"items"`
 }

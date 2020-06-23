@@ -62,15 +62,18 @@ type SnapshotStatus struct {
 	Message string `json:"message,omitempty"`
 
 	// Progress for the upload
-	Progress SnapshotProgress `json:"progress, omitempty"`
+	Progress SnapshotProgress `json:"progress,omitempty"`
 
 	// Snapshot ID that has been taken.  This will be filled in when the phase goes to "Snapshotted"
 	// +optional
-	SnapshotID string `json:"snapshotID, omitempty"`
+	SnapshotID string `json:"snapshotID,omitempty"`
 
 	// Metadata for the snapshotted object
-	Metadata []byte `"json:metadata, omitempty""`
+	Metadata []byte `json:"metadata,omitempty"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 /*
  Snapshot is used to request that a snapshot is taken.  It is not used to manage the inventory of snapshots and does not
@@ -91,6 +94,18 @@ type Snapshot struct {
 	Status SnapshotStatus `json:"status,omitempty"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// SnapshotList is a list of Snapshot resources
+type SnapshotList struct {
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Snapshot `json:"items"`
+}
+
 /*
 CloneFromSnapshotSpec specifies an object to be cloned from a snapshot ID.  The Metadata may be overridden, the format
 of the metadata is object specific.  APIGroup and Kind specify the type of object to create.
@@ -99,7 +114,7 @@ type CloneFromSnapshotSpec struct {
 	SnapshotID string `json:"snapshotID"`
 
 	// +optional - if set, this overrides metadata that was stored in the snapshot
-	Metadata []byte `json:"metadata, omitempty"`
+	Metadata []byte `json:"metadata,omitempty"`
 
 	// APIGroup of the resource being created
 	APIGroup *string `json:"apiGroup"`
@@ -145,6 +160,9 @@ type CloneStatus struct {
 	ResourceHandle core_v1.TypedLocalObjectReference `json:"resourceHandle"`
 }
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 /*
  CloneFromSnapshot is used to create a new resource (typically a PVC) from a snapshot.  Once the Snapshot's Phase has
  moved to Snapshotted it is valid to create a new resource from the snapshot ID
@@ -159,4 +177,16 @@ type CloneFromSnapshot struct {
 	Spec CloneFromSnapshotSpec `json:"spec"`
 
 	Status CloneStatus `json:"status"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CloneFromSnapshotList is a list of CloneFromSnapshot resources
+type CloneFromSnapshotList struct {
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ListMeta `json:"metadata,omitempty"`
+
+	Items []CloneFromSnapshot `json:"items"`
 }
