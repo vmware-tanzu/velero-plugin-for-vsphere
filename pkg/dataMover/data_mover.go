@@ -18,18 +18,20 @@ package dataMover
 
 import (
 	"context"
-
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"sync"
 )
 
 type DataMover struct {
 	logrus.FieldLogger
-	ivdPETM *ivd.IVDProtectedEntityTypeManager
-	s3PETM  *s3repository.ProtectedEntityTypeManager
+	ivdPETM             *ivd.IVDProtectedEntityTypeManager
+	s3PETM              *s3repository.ProtectedEntityTypeManager
+	inProgressCancelMap *sync.Map
 }
 
 func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
@@ -72,10 +74,12 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 	}
 	logger.Infof("DataMover: Get ivdPETM from the params map")
 
+	var syncMap sync.Map
 	dataMover := DataMover{
-		FieldLogger: logger,
-		ivdPETM:     ivdPETM,
-		s3PETM:      s3PETM,
+		FieldLogger:         logger,
+		ivdPETM:             ivdPETM,
+		s3PETM:              s3PETM,
+		inProgressCancelMap: &syncMap,
 	}
 
 	logger.Infof("DataMover is initialized")
@@ -91,6 +95,10 @@ func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.P
 		log.WithError(err).Errorf("Failed to get ProtectedEntity")
 		return astrolabe.ProtectedEntityID{}, err
 	}
+
+	log.Infof("Registering a in-progress cancel function.")
+	ctx, cancelFunc := context.WithCancel(ctx)
+	this.RegisterOngoingUpload(peID, cancelFunc)
 
 	log.Debugf("Ready to call s3 PETM copy API for local PE")
 	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, astrolabe.AllocateNewObject)
@@ -124,4 +132,50 @@ func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe
 
 	log.WithField("Local peID", ivdPE.GetID().String()).Infof("Protected Entity was just copied from remote repository to local.")
 	return ivdPE.GetID(), nil
+}
+
+func (this *DataMover) IsUploading(peID astrolabe.ProtectedEntityID) bool {
+	log := this.WithField("PEID", peID.String())
+	log.Infof("Checking if the node is uploading")
+	_, ok := this.inProgressCancelMap.Load(peID)
+	return ok
+}
+
+func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID, patchFunc func() error) error {
+	log := this.WithField("PEID", peID.String())
+	if value, ok := this.inProgressCancelMap.Load(peID); ok {
+		log.Infof("Triggering cancellation of the upload.")
+		// Patch the status
+		err := patchFunc()
+		if err != nil {
+			return err
+		}
+		log.Infof("Changed state to canceling for the PE")
+		// Cast it to the cancel function, followed by invoking it.
+		cancelFunc := value.(context.CancelFunc)
+		cancelFunc()
+		log.Infof("Triggering cancellation of the upload complete.")
+		// Cant call UnregisterOngoingUpload as it picks up the lock again.
+		this.inProgressCancelMap.Delete(peID)
+		log.Infof("Deleted entry from the on-going cancellation map")
+		return nil
+	} else {
+		return errors.Errorf("The pe was not found to be uploading on the node.")
+	}
+}
+
+func (this *DataMover) RegisterOngoingUpload(peID astrolabe.ProtectedEntityID, cancelFunc context.CancelFunc) {
+	log := this.WithField("PEID", peID.String())
+	this.inProgressCancelMap.Store(peID, cancelFunc)
+	log.Infof("Registered a on-going cancel function.")
+}
+
+func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID) {
+	log := this.WithField("PEID", peID.String())
+	if _, ok := this.inProgressCancelMap.Load(peID); !ok {
+		log.Infof("The peID was unregistered previously mostly due to a triggered cancel")
+	} else {
+		this.inProgressCancelMap.Delete(peID)
+		log.Infof("Unregistered from on-going upload map.")
+	}
 }

@@ -18,9 +18,7 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -33,7 +31,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
@@ -46,12 +43,12 @@ import (
 type uploadController struct {
 	*genericController
 
-	kubeClient			kubernetes.Interface
-	uploadClient pluginv1client.UploadsGetter
-	uploadLister listers.UploadLister
-	nodeName     string
-	dataMover    *dataMover.DataMover
-	snapMgr      *snapshotmgr.SnapshotManager
+	kubeClient        kubernetes.Interface
+	uploadClient      pluginv1client.UploadsGetter
+	uploadLister      listers.UploadLister
+	nodeName          string
+	dataMover         *dataMover.DataMover
+	snapMgr           *snapshotmgr.SnapshotManager
 	clock             clock.Clock
 	processUploadFunc func(*pluginv1api.Upload) error
 }
@@ -67,7 +64,7 @@ func NewUploadController(
 ) Interface {
 	c := &uploadController{
 		genericController: newGenericController("upload", logger),
-		kubeClient:		   kubeClient,
+		kubeClient:        kubeClient,
 		uploadClient:      uploadClient,
 		uploadLister:      uploadInformer.Lister(),
 		nodeName:          nodeName,
@@ -101,10 +98,23 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	log := loggerForUpload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCanceling:
 		// Process New and InProgress and UploadError Uploads
+	case pluginv1api.UploadPhaseCanceled:
+		// The upload was canceled, nothing to do.
+		log.Debug("The upload request was canceled")
+		return
 	default:
 		log.Debug("Upload CR is not New or InProgress or UploadError, skipping")
+		return
+	}
+
+	// Check if the upload was canceled and trigger cancellation.
+	if req.Spec.UploadCancel {
+		err := c.triggerUploadCancellation(req)
+		if err != nil {
+			log.Error("Received error during upload cancellation.")
+		}
 		return
 	}
 
@@ -113,7 +123,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	if now.Unix() < req.Status.NextRetryTimestamp.Unix() {
 		log.WithFields(logrus.Fields{
 			"nextRetryTime": req.Status.NextRetryTimestamp,
-			"currentTime": now,
+			"currentTime":   now,
 		}).Infof("Ignore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
 		return
 	}
@@ -172,7 +182,21 @@ func (c *uploadController) processUploadItem(key string) error {
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
 		// will pick such record in UploadPhaseInProgress status for processing.
+	case pluginv1api.UploadPhaseCanceling:
+		log.Infof("The upload request is being canceled")
+	case pluginv1api.UploadPhaseCanceled:
+		log.Infof("The upload request has been canceled, skipping")
+		return nil
 	default:
+		return nil
+	}
+
+	// Check if the upload was canceled and trigger cancellation if needed.
+	if req.Spec.UploadCancel {
+		err := c.triggerUploadCancellation(req)
+		if err != nil {
+			log.Error("Received error during upload cancellation, skipping.")
+		}
 		return nil
 	}
 
@@ -197,7 +221,7 @@ func (c *uploadController) processUploadItem(key string) error {
 
 	// start the leader election code loop
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock: lock,
+		Lock:            lock,
 		ReleaseOnCancel: false,
 		LeaseDuration:   utils.LeaseDuration,
 		RenewDeadline:   utils.RenewDeadline,
@@ -240,9 +264,19 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 	// update req with the one retrieved from k8s api server
 	log.WithFields(logrus.Fields{
-		"phase": req.Status.Phase,
+		"phase":      req.Status.Phase,
 		"generation": req.Generation,
 	}).Info("Upload request updated by retrieving from kubernetes API server")
+
+	if req.Status.Phase == pluginv1api.UploadPhaseCanceled {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceled. Skipping it")
+		return nil
+	}
+
+	if req.Status.Phase == pluginv1api.UploadPhaseCanceling {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceling. Skipping it")
+		return nil
+	}
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
 		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
@@ -272,14 +306,29 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 
 	_, err = c.dataMover.CopyToRepo(peID)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
-		if err != nil {
-			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+		log.Infof("CopyToRepo Error Received: %v", err.Error())
+		// Check if the request was canceled.
+		if errors.Is(err, context.Canceled) {
+			log.Infof("The upload of PE %v upload was canceled.", peID.String())
+			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceled, "The upload was canceled.")
+			if err != nil {
+				return err
+			}
+			log.Infof("Upload Cancellation complete.")
+			return nil
+		} else {
+			errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
+			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
+			if err != nil {
+				errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+			}
+			log.Error(errMsg)
+			return errors.New(errMsg)
 		}
-		log.Error(errMsg)
-		return errors.New(errMsg)
 	}
+
+	// Unregister on-going upload
+	c.dataMover.UnregisterOngoingUpload(peID)
 
 	// Call snapshot manager API to cleanup the local snapshot
 	err = c.snapMgr.DeleteLocalSnapshot(peID)
@@ -301,7 +350,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 
 	log.WithFields(logrus.Fields{
-		"phase": req.Status.Phase,
+		"phase":      req.Status.Phase,
 		"generation": req.Generation,
 	}).Info("Upload Completed")
 
@@ -310,37 +359,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 
 func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload)) (*pluginv1api.Upload, error) {
 	log := loggerForUpload(c.logger, req)
-
-	// Record original json
-	oldData, err := json.Marshal(req)
-	if err != nil {
-		log.WithError(err).Error("Failed to marshall original Upload")
-		return nil, err
-	}
-
-	// Mutate
-	mutate(req)
-
-	// Record new json
-	newData, err := json.Marshal(req)
-	if err != nil {
-		log.WithError(err).Error("Failed to marshall updated Upload")
-		return nil, err
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		log.WithError(err).Error("Failed to creat json merge patch for Upload")
-		return nil, err
-	}
-
-	req, err = c.uploadClient.Uploads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
-	if err != nil {
-		log.WithError(err).Error("Failed to patch Upload")
-		return nil, err
-	}
-
-	return req, nil
+	return utils.PatchUpload(req, mutate, c.uploadClient.Uploads(req.Namespace), log)
 }
 
 func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase pluginv1api.UploadPhase, msg string) (*pluginv1api.Upload, error) {
@@ -352,7 +371,7 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 
 	switch newPhase {
 	case pluginv1api.UploadPhaseCompleted:
-		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			r.Status.Phase = newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
@@ -377,19 +396,31 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			log.Warningf(errMsg)
 		}
 	case pluginv1api.UploadPhaseCleanupFailed:
-		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			r.Status.Phase = newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 		})
 	case pluginv1api.UploadPhaseInProgress:
-		req, err = c.patchUpload(req, func (r *pluginv1api.Upload){
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			if r.Status.Phase == pluginv1api.UploadPhaseNew {
 				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
 				r.Status.RetryCount = utils.MIN_RETRY
 			}
 			r.Status.Phase = newPhase
 			r.Status.ProcessingNode = c.nodeName
+		})
+	case pluginv1api.UploadPhaseCanceled:
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+	case pluginv1api.UploadPhaseCanceling:
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
 		})
 	default:
 		err = errors.New("Unexpected upload phase")
@@ -408,6 +439,7 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 	log := baseLogger.WithFields(logrus.Fields{
 		"namespace":  req.Namespace,
 		"name":       req.Name,
+		"snapshotID": req.Spec.SnapshotID,
 		"phase":      req.Status.Phase,
 		"generation": req.Generation,
 	})
@@ -440,6 +472,35 @@ func (c *uploadController) exponentialBackoffHandler(key string) error {
 		return errors.Wrap(err, "Failed to get Upload")
 	}
 	log.Infof("Re-adding failed upload to the queue")
-	c.queue.AddAfter(key, time.Duration(req.Status.CurrentBackOff) * time.Minute)
+	c.queue.AddAfter(key, time.Duration(req.Status.CurrentBackOff)*time.Minute)
+	return nil
+}
+
+func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) error {
+	log := loggerForUpload(c.logger, req)
+	cancelPeId, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+	if err != nil {
+		log.Errorf("Error received when processing cancel")
+		return err
+	}
+	uploadStatus := c.dataMover.IsUploading(cancelPeId)
+	if !uploadStatus {
+		log.Infof("Current node: %v is not processing the upload, skipping", c.nodeName)
+		return nil
+	}
+	patchCancelingFunc := func() error {
+		_ , err := c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on going upload to repository.")
+		if err != nil {
+			log.WithError(err).Error("Failed to patch ongoing Upload")
+			return err
+		}
+		return nil
+	}
+	log.Infof("Current node: %v is processing the upload for PE %v, triggering cancel", c.nodeName, cancelPeId.String())
+	err = c.dataMover.CancelUpload(cancelPeId, patchCancelingFunc)
+	if err != nil {
+		return err
+	}
+	log.Infof("Upload cancellation trigger on current node: %v for PE %v is complete.", c.nodeName, cancelPeId.String())
 	return nil
 }

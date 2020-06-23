@@ -18,10 +18,6 @@ package snapshotmgr
 
 import (
 	"context"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -35,6 +31,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/clock"
+	"os"
+	"strings"
+	"time"
+
 )
 
 type SnapshotManager struct {
@@ -187,30 +188,82 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	log := this.WithField("peID", peID.String())
-	log.Infof("Step 1: Deleting the local snapshot")
-	err := this.DeleteLocalSnapshot(peID)
+	log.Infof("Step 0: Cancel on-going upload.")
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		log.WithError(err).Errorf("Failed to delete the local snapshot for peID")
-	} else {
-		log.Infof("Deleted the local snapshot")
+		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+		return err
+	}
+	pluginClient, err := plugin_clientset.NewForConfig(config)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
+		return err
 	}
 
-	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
+	// look up velero namespace from the env variable in container
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		this.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
+		return err
+	}
+	uploadName := "upload-" + peID.GetSnapshotID().GetID()
+	log.Infof("Searching for Upload CR: %v", uploadName)
+	uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
+	if err != nil {
+		log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
+	}
+	// An upload is considered done when it's in either of the terminal stages- Completed, CleanupFailed, Canceled
+	uploadCompleted := this.isTerminalState(uploadCR)
+	if uploadCR != nil && !uploadCompleted {
+		log.Infof("Found the Upload CR: %v, updating spec to indicate cancel upload.", uploadName)
+		timeNow := clock.RealClock{}
+		mutate := func(r *v1api.Upload) {
+			uploadCR.Spec.UploadCancel = true
+			uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
+			uploadCR.Status.Message = "Canceling on going upload to repository."
+		}
+		_, err = utils.PatchUpload(uploadCR, mutate, pluginClient.VeleropluginV1().Uploads(veleroNs), log)
 
-	if isLocalMode {
+		if err != nil {
+			log.WithError(err).Error("Failed to patch ongoing Upload")
+			return err
+		} else {
+			log.Infof("Upload status updated to UploadCancel")
+		}
+		return nil
+	} else {
+		if uploadCompleted {
+			log.Infof("The upload %v was in terminal stage, proceeding with snapshot deletes", uploadName)
+		}
+		log.Infof("Step 1: Deleting the local snapshot")
+		err = this.DeleteLocalSnapshot(peID)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to delete the local snapshot for peID")
+		} else {
+			log.Infof("Deleted the local snapshot")
+		}
+
+		isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
+
+		if isLocalMode {
+			return nil
+		}
+
+		log.Infof("Step 2: Deleting the durable snapshot from s3")
+		err = this.DeleteRemoteSnapshot(peID)
+		if err != nil {
+			if !strings.Contains(err.Error(), "The specified key does not exist") {
+				log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
+				return err
+			}
+		}
+		log.Infof("Deleted the durable snapshot from the durable repository")
 		return nil
 	}
+}
 
-	log.Infof("Step 2: Deleting the durable snapshot from s3")
-	err = this.DeleteRemoteSnapshot(peID)
-	if err != nil {
-		if !strings.Contains(err.Error(), "The specified key does not exist") {
-			log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
-			return err
-		}
-	}
-	log.Infof("Deleted the durable snapshot from the durable repository")
-	return nil
+func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
+	return uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
 }
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {

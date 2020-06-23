@@ -1,0 +1,8 @@
+This change enables canceling on going uploads.
+On each upload an cancellation function is extracted from
+the context and registered into the data mover until it is
+completed. In the meanwhile if a request to delete the backup
+is received, a check is made to see if any node is uploading,
+if found the cancel function is triggered. The cancel function
+cleans up any previously uploaded data, eventually moving the
+state of upload to "canceled"
