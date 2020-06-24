@@ -4,21 +4,24 @@ import (
 	"context"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	core_v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"time"
 )
 
 type BackupDriverClient struct {
-
+	clientset * kubernetes.Clientset
 }
 
-func NewBackupDriverClient() (*BackupDriverClient, error) {
-	return nil, nil
+func NewBackupDriverClient(clientset *kubernetes.Clientset) (*BackupDriverClient, error) {
+	return &BackupDriverClient{
+		clientset: clientset,
+	}, nil
 }
 /*
 Proxy for the SnapshotStatus CR.  Convenience functions for querying, canceling and waiting for phases
  */
 type SnapshotStatus struct {
-
+	snapshotRecord core_v1.ObjectReference
 }
 
 /*
@@ -64,8 +67,9 @@ func (this *SnapshotStatus) GetSnapshotID(ctx context.Context) (string, error) {
 
 /*
 Creates a Snapshot CR and returns a SnapshotStatus that can be used to monitor/control the snapshot.
+The Snapshot CR will be created in the same namespace that the ref exists in
  */
-func (this *BackupDriverClient) Snapshot(ctx context.Context, ref core_v1.TypedLocalObjectReference, backupRepository string) (*SnapshotStatus, error) {
+func (this *BackupDriverClient) Snapshot(ctx context.Context, ref core_v1.ObjectReference, backupRepository *BackupRepository) (*SnapshotStatus, error) {
 	return nil, nil
 }
 
@@ -89,7 +93,8 @@ func (this *CloneFromSnapshotStatus) CancelCloneFromSnapshot(ctx context.Context
 	return nil
 }
 
-func (this *BackupDriverClient) CloneFromSnapshot(ctx context.Context, snapshotID string, metadata []byte, apiGroup string, kind string, backupRepository string) (*CloneFromSnapshotStatus, error) {
+func (this *BackupDriverClient) CloneFromSnapshot(ctx context.Context, snapshotID string, metadata []byte, apiGroup string, kind string,
+	backupRepository *BackupRepository) (*CloneFromSnapshotStatus, error) {
 	return nil, nil
 }
 
