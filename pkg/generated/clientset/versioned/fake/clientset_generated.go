@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	fakebackupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1/fake"
 	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	fakeveleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -75,6 +77,11 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
+
+// BackupdriverV1 retrieves the BackupdriverV1Client
+func (c *Clientset) BackupdriverV1() backupdriverv1.BackupdriverV1Interface {
+	return &fakebackupdriverv1.FakeBackupdriverV1{Fake: &c.Fake}
+}
 
 // VeleropluginV1 retrieves the VeleropluginV1Client
 func (c *Clientset) VeleropluginV1() veleropluginv1.VeleropluginV1Interface {

@@ -24,6 +24,7 @@ import (
 	time "time"
 
 	versioned "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriver "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/backupdriver"
 	internalinterfaces "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/internalinterfaces"
 	veleroplugin "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -172,7 +173,12 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
+	Backupdriver() backupdriver.Interface
 	Veleroplugin() veleroplugin.Interface
+}
+
+func (f *sharedInformerFactory) Backupdriver() backupdriver.Interface {
+	return backupdriver.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Veleroplugin() veleroplugin.Interface {
