@@ -27,13 +27,15 @@ GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
 VDDK_LIBS:= $(GVDDK)/vmware-vix-disklib-distrib/lib64
 
 # The binary to build (just the basename).
-PLUGIN_BIN ?= $(wildcard velero-*)
-DATAMGR_BIN ?= $(wildcard data-manager-*)
+PLUGIN_BIN ?= velero-plugin-for-vsphere
+DATAMGR_BIN ?= data-manager-for-plugin
+BACKUPDRIVER_BIN ?= backup-driver
 
 RELEASE_REGISTRY = vsphereveleroplugin
 REGISTRY ?= dpcpinternal
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
+BACKUPDRIVER_IMAGE ?= $(REGISTRY)/$(BACKUPDRIVER_BIN)
 
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
@@ -55,6 +57,7 @@ GOARCH = $(word 2, $(platform_temp))
 BUILDER_IMAGE := golang:1.13
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
+BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
 
 all: dep plugin
 
@@ -63,13 +66,17 @@ ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
 	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency")
 endif
 
-plugin: datamgr
+plugin: datamgr backup-driver
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN) VERSION=$(VERSION)
 
 datamgr: astrolabe
 	@echo "making: $@"
 	$(MAKE) build BIN=$(DATAMGR_BIN) VERSION=$(VERSION)
+
+backup-driver: astrolabe
+	@echo "making: $@"
+	$(MAKE) build BIN=$(BACKUPDRIVER_BIN) VERSION=$(VERSION)
 
 local: build-dirs
 	GOOS=$(GOOS) \
@@ -176,7 +183,10 @@ plugin-container: all copy-install-script
 datamgr-container: datamgr
 	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
 
-container: plugin-container datamgr-container
+backup-driver-container: backup-driver
+	$(MAKE) build-container BIN=$(BACKUPDRIVER_BIN) IMAGE=$(BACKUPDRIVER_IMAGE) DOCKERFILE=$(BACKUPDRIVER_DOCKERFILE) VERSION=$(VERSION)
+
+container: plugin-container datamgr-container backup-driver-container
 
 update:
 	@echo "updating CRDs"
@@ -188,7 +198,10 @@ push-plugin: plugin-container
 push-datamgr: datamgr-container
 	docker push $(DATAMGR_IMAGE):$(VERSION)
 
-push: push-datamgr push-plugin
+push-backup-driver: backup-driver-container
+	docker push $(BACKUPDRIVER_IMAGE):$(VERSION)
+
+push: push-datamgr push-plugin push-backup-driver
 
 push-pp:
 	$(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
@@ -199,8 +212,10 @@ release:
 ifneq (,$(QUALIFIED_TAG))
 	docker pull $(DATAMGR_IMAGE):$(QUALIFIED_TAG)
 	docker pull $(PLUGIN_IMAGE):$(QUALIFIED_TAG)
+	@docker tag $(DATAMGR_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
 	@docker tag $(DATAMGR_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
 	@docker tag $(PLUGIN_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
+	docker push $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
 	docker push $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
 endif

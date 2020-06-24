@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	backupdriverClientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	backupdriverInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -43,7 +43,7 @@ var (
 	master             = flag.String("master", "", "Master URL to build a client config from. Either this or kubeconfig needs to be set if the backupdriver is being run out of cluster.")
 	kubeConfig         = flag.String("kubeconfig", "", "Absolute path to the kubeconfig")
 	resyncPeriod       = flag.Duration("resync-period", time.Minute*10, "Resync period for cache")
-	workers            = flag.Int("workers", 10, "Concurrency to process multiple backup requests")
+	workers            = flag.Int("workers", 1, "Concurrency to process multiple backup requests")
 	retryIntervalStart = flag.Duration("retry-interval-start", time.Second, "Initial retry interval of failed backup request. It exponentially increases with each failure, up to retry-interval-max.")
 	retryIntervalMax   = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed backup request.")
 
@@ -111,8 +111,16 @@ func main() {
 	// By default we are in the Vanilla Cluster
 	rc := backupdriver.NewBackupDriverController("BackupDriverController", logger, kubeClient, *resyncPeriod, informerFactory, backupdriverInformerFactory, workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax))
 	run := func(ctx context.Context) {
-		informerFactory.Start(wait.NeverStop)
-		rc.Run(ctx, *workers)
+		stopCh := make(chan struct{})
+		informerFactory.Start(stopCh)
+		backupdriverInformerFactory.Start(stopCh)
+		go rc.Run(ctx, *workers)
+
+		// ...until SIGINT
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		close(stopCh)
 	}
 
 	run(context.TODO())
