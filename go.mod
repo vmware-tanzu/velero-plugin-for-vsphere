@@ -9,7 +9,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible // indirect
-	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/go-hclog v0.8.0 // indirect
@@ -31,9 +30,20 @@ require (
 	k8s.io/cli-runtime v0.17.3 // indirect
 	k8s.io/client-go v0.17.3
 	k8s.io/klog v1.0.0
-	k8s.io/utils v0.0.0-20200229041039-0a110f9eb7ab
+	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
+	sigs.k8s.io/controller-tools v0.0.0-00010101000000-000000000000 // indirect
 )
 
 replace github.com/vmware/gvddk => ../astrolabe/vendor/github.com/vmware/gvddk
+
+replace k8s.io/api => k8s.io/api v0.17.3
+
+replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.17.3
+
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.17.3
+
+replace k8s.io/client-go => k8s.io/client-go v0.17.3
+
+replace sigs.k8s.io/controller-tools => sigs.k8s.io/controller-tools v0.2.5
 
 go 1.13
