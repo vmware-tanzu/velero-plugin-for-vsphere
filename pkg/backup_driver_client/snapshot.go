@@ -22,7 +22,7 @@ func NewBackupDriverClient(clientset *kubernetes.Clientset) (*BackupDriverClient
 Proxy for the SnapshotStatus CR.  Convenience functions for querying, canceling and waiting for phases
 */
 type SnapshotStatus struct {
-	backupDriverClient *backupDriverClient
+	backupDriverClient *BackupDriverClient
 	snapshotRecord     core_v1.ObjectReference
 }
 
