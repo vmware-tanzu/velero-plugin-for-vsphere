@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -169,12 +170,21 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.Fiel
 }
 
 func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*ivd.IVDProtectedEntityTypeManager, error) {
-	s3URLBase := "VOID_URL"
+	// Largely a dummy s3Config - s3Config is to enable access to astrolabe objects via S3 which we don't support from
+	// here
+	s3Config := astrolabe.S3Config{
+		Port:      0,
+		Host:      nil,
+		AccessKey: "",
+		Secret:    "",
+		Prefix:    "",
+		URLBase:   "VOID_URL",
+	}
 
-	// Create a new IVD protected entity type manager by passing the vSphere credentials.
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3URLBase, logger)
+	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3Config, logger)
 	if err != nil {
-		logger.WithError(err).Errorf("Error at creating new IVD PETM from s3URLBase: %s", s3URLBase)
+		logger.WithError(err).Errorf("Error at creating new IVD PETM from vc params: %v, s3Config: %v",
+			params, s3Config)
 		return nil, err
 	}
 
