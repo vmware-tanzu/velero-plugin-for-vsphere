@@ -17,7 +17,12 @@ limitations under the License.
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
+	jsonpatch "github.com/evanphx/json-patch"
+	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"os"
 	"strconv"
 	"strings"
@@ -321,4 +326,33 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 	}
 
 	return nodeName, nil
+}
+
+func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uploadClient pluginv1client.UploadInterface, logger logrus.FieldLogger) (*pluginv1api.Upload, error) {
+
+	// Record original json
+	oldData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall original Upload")
+	}
+
+	// Mutate
+	mutate(req)
+
+	// Record new json
+	newData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall updated Upload")
+	}
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to creat json merge patch for Upload")
+	}
+
+	req, err = uploadClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to patch Upload")
+	}
+	return req, nil
 }

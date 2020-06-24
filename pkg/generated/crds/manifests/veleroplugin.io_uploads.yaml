@@ -42,6 +42,9 @@ spec:
             snapshotID:
               description: SnapshotID is the identifier for the snapshot of the volume.
               type: string
+            uploadCancel:
+              description: UploadCancel indicates request to cancel ongoing upload.
+              type: boolean
           type: object
         status:
           description: UploadStatus is the current status of a Upload.
@@ -76,6 +79,8 @@ spec:
               - Completed
               - UploadError
               - CleanupFailed
+              - Canceled
+              - Canceling
               type: string
             processingNode:
               description: The DataManager node that has picked up the Upload for

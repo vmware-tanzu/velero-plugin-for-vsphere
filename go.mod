@@ -21,7 +21,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
-	github.com/vmware-tanzu/astrolabe v0.1.1-0.20200519042640-570f84703079
+	github.com/vmware-tanzu/astrolabe v0.1.1-0.20200617070259-8abdf8f2fe4b
 	github.com/vmware-tanzu/velero v1.3.2
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.17.3
@@ -31,7 +31,7 @@ require (
 	k8s.io/client-go v0.17.3
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
-	sigs.k8s.io/controller-tools v0.2.5 // indirect
+	sigs.k8s.io/controller-tools v0.0.0-00010101000000-000000000000 // indirect
 )
 
 replace github.com/vmware/gvddk => ../astrolabe/vendor/github.com/vmware/gvddk
