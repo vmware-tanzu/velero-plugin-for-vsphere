@@ -1,9 +1,6 @@
 # Known Issues
 
 
-V1.0.iio
-
-
 
 ## v1.0.1
 
