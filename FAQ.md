@@ -1,4 +1,10 @@
 # Known Issues
+
+
+V1.0.2
+
+
+
 ## v1.0.1
 
 2. The restore might place the restored PVs in a vSphere datastore which is imcompatible with the StorageClass
