@@ -1,4 +1,4 @@
-package backup_driver_client
+package backupdriver
 
 import "context"
 
