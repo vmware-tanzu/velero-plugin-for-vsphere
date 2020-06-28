@@ -25,8 +25,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
+	backupdriverClientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriverInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -80,31 +83,42 @@ func main() {
 
 	logger.Debugf("setting log-level to %s", strings.ToUpper(logLevel.String()))
 
-	// kubeClient is the client to the current cluster
-	// (vanilla, guest, or supervisor)
-	kubeClient, err := newK8sClient(*master, *kubeConfig)
+	config, err := buildConfig(*master, *kubeConfig)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
+	// kubeClient is the client to the current cluster
+	// (vanilla, guest, or supervisor)
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Errorf("Error building kube client: %s", err.Error())
+		os.Exit(1)
+	}
+
+	backupdriverClient, err := backupdriverClientset.NewForConfig(config)
+	if err != nil {
+		logger.Errorf("Error building backupdriver clientset: %s", err.Error())
+		os.Exit(1)
+	}
+
 	informerFactory := informers.NewSharedInformerFactory(kubeClient, *resyncPeriod)
+	backupdriverInformerFactory := backupdriverInformers.NewSharedInformerFactory(backupdriverClient, *resyncPeriod)
 
 	// TODO: If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeClient to communicate with the Supervisor Cluster
 	// If CLUSTER_FLAVOR is WORKLOAD, it is a Supervisor Cluster.
 	// By default we are in the Vanilla Cluster
-	rc := backupdriver.NewBackupDriverController("BackupDriverController", logger, kubeClient, *resyncPeriod, informerFactory, workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax) /*svcKubeClient,*/)
+	rc := backupdriver.NewBackupDriverController("BackupDriverController", logger, kubeClient, *resyncPeriod, informerFactory, backupdriverInformerFactory, workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax))
 	run := func(ctx context.Context) {
 		informerFactory.Start(wait.NeverStop)
 		rc.Run(ctx, *workers)
-
 	}
 
 	run(context.TODO())
 }
 
-// newK8sClient is an utility function used to create a kubernetes sdk client.
-func newK8sClient(master, kubeConfig string) (kubernetes.Interface, error) {
+func buildConfig(master, kubeConfig string) (*rest.Config, error) {
 	var config *rest.Config
 	var err error
 	if master != "" || kubeConfig != "" {
@@ -113,11 +127,7 @@ func newK8sClient(master, kubeConfig string) (kubernetes.Interface, error) {
 		config, err = rest.InClusterConfig()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create config: %v", err)
+		return nil, errors.Errorf("failed to create config: %v", err)
 	}
-	kubeClient, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
-	}
-	return kubeClient, nil
+	return config, nil
 }

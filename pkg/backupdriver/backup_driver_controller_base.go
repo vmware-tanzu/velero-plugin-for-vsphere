@@ -22,10 +22,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	//backupdriverclient "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	backupdriverinformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/backupdriver/v1"
+	backupdriverinformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -118,21 +117,30 @@ func NewBackupDriverController(
 	kubeClient kubernetes.Interface,
 	resyncPeriod time.Duration,
 	informerFactory informers.SharedInformerFactory,
+	backupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
 	rateLimiter workqueue.RateLimiter) BackupDriverController {
 	var supervisorNamespace string
 	// Supervisor Cluster KubeClient
 	var svcKubeClient kubernetes.Interface
-	var svcInformerFactory informers.SharedInformerFactory
-	svcPVCInformer := svcInformerFactory.Core().V1().PersistentVolumeClaims()
+	// TODO: Fix svcPVCInformer to use svcInformerFactory
+	svcPVCInformer := informerFactory.Core().V1().PersistentVolumeClaims()
+	//svcPVCInformer := svcInformerFactory.Core().V1().PersistentVolumeClaims()
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
-	var backupRepositoryInformer backupdriverinformers.BackupRepositoryInformer
-	var backupRepositoryClaimInformer backupdriverinformers.BackupRepositoryClaimInformer
-	var svcBackupRepositoryClaimInformer backupdriverinformers.BackupRepositoryClaimInformer
-	var snapshotInformer backupdriverinformers.SnapshotInformer
-	var svcSnapshotInformer backupdriverinformers.SnapshotInformer
-	var cloneFromSnapshotInformer backupdriverinformers.CloneFromSnapshotInformer
-	var svcCloneFromSnapshotInformer backupdriverinformers.CloneFromSnapshotInformer
+
+	backupRepositoryInformer := backupdriverInformerFactory.Backupdriver().V1().BackupRepositories()
+
+	backupRepositoryClaimInformer := backupdriverInformerFactory.Backupdriver().V1().BackupRepositoryClaims()
+	// TODO: Use svcBackupdriverInformerFactory for svcBackupRepositoryClaimInformer
+	svcBackupRepositoryClaimInformer := backupdriverInformerFactory.Backupdriver().V1().BackupRepositoryClaims()
+
+	snapshotInformer := backupdriverInformerFactory.Backupdriver().V1().Snapshots()
+	// TODO: Use svcBackupdriverInformerFactory for svcSnapshotInformer
+	svcSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().Snapshots()
+
+	cloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().CloneFromSnapshots()
+	// TODO: Use svcBackupdriverInformerFactor for svcCloneFromSnapshotInformer
+	svcCloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().CloneFromSnapshots()
 
 	claimQueue := workqueue.NewNamedRateLimitingQueue(
 		rateLimiter, "backup-driver")
@@ -142,28 +150,34 @@ func NewBackupDriverController(
 		rateLimiter, "backup-driver")
 
 	rc := &backupDriverController{
-		name:                       name,
-		logger:                     logger.WithField("controller", name),
-		kubeClient:                 kubeClient,
-		svcKubeClient:              svcKubeClient,
-		pvLister:                   pvInformer.Lister(),
-		pvSynced:                   pvInformer.Informer().HasSynced,
-		pvcLister:                  pvcInformer.Lister(),
-		pvcSynced:                  pvcInformer.Informer().HasSynced,
-		claimQueue:                 claimQueue,
-		svcPVCLister:               svcPVCInformer.Lister(),
-		svcPVCSynced:               svcPVCInformer.Informer().HasSynced,
-		supervisorNamespace:        supervisorNamespace,
-		snapshotLister:             snapshotInformer.Lister(),
-		snapshotSynced:             snapshotInformer.Informer().HasSynced,
-		snapshotQueue:              snapshotQueue,
-		svcSnapshotLister:          svcSnapshotInformer.Lister(),
-		svcSnapshotSynced:          svcSnapshotInformer.Informer().HasSynced,
-		cloneFromSnapshotLister:    cloneFromSnapshotInformer.Lister(),
-		cloneFromSnapshotSynced:    cloneFromSnapshotInformer.Informer().HasSynced,
-		cloneFromSnapshotQueue:     cloneFromSnapshotQueue,
-		svcCloneFromSnapshotLister: svcCloneFromSnapshotInformer.Lister(),
-		svcCloneFromSnapshotSynced: svcCloneFromSnapshotInformer.Informer().HasSynced,
+		name:                           name,
+		logger:                         logger.WithField("controller", name),
+		kubeClient:                     kubeClient,
+		svcKubeClient:                  svcKubeClient,
+		pvLister:                       pvInformer.Lister(),
+		pvSynced:                       pvInformer.Informer().HasSynced,
+		pvcLister:                      pvcInformer.Lister(),
+		pvcSynced:                      pvcInformer.Informer().HasSynced,
+		claimQueue:                     claimQueue,
+		svcPVCLister:                   svcPVCInformer.Lister(),
+		svcPVCSynced:                   svcPVCInformer.Informer().HasSynced,
+		supervisorNamespace:            supervisorNamespace,
+		snapshotLister:                 snapshotInformer.Lister(),
+		snapshotSynced:                 snapshotInformer.Informer().HasSynced,
+		snapshotQueue:                  snapshotQueue,
+		svcSnapshotLister:              svcSnapshotInformer.Lister(),
+		svcSnapshotSynced:              svcSnapshotInformer.Informer().HasSynced,
+		cloneFromSnapshotLister:        cloneFromSnapshotInformer.Lister(),
+		cloneFromSnapshotSynced:        cloneFromSnapshotInformer.Informer().HasSynced,
+		cloneFromSnapshotQueue:         cloneFromSnapshotQueue,
+		svcCloneFromSnapshotLister:     svcCloneFromSnapshotInformer.Lister(),
+		svcCloneFromSnapshotSynced:     svcCloneFromSnapshotInformer.Informer().HasSynced,
+		backupRepositoryLister:         backupRepositoryInformer.Lister(),
+		backupRepositorySynced:         backupRepositoryInformer.Informer().HasSynced,
+		backupRepositoryClaimLister:    backupRepositoryClaimInformer.Lister(),
+		backupRepositoryClaimSynced:    backupRepositoryClaimInformer.Informer().HasSynced,
+		svcBackupRepositoryClaimLister: svcBackupRepositoryClaimInformer.Lister(),
+		svcBackupRepositoryClaimSynced: svcBackupRepositoryClaimInformer.Informer().HasSynced,
 	}
 
 	pvcInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
