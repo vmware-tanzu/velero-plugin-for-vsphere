@@ -12,31 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: backup-driver-clusterrole
-rules:
-  - apiGroups: ["velero.io", "veleroplugin.io"]
-    resources: ["*"]
-    verbs: ["*"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: backup-driver-clusterrole-binding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: backup-driver-clusterrole
-subjects:
-  - kind: ServiceAccount
-    name: velero
-    namespace: velero
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
