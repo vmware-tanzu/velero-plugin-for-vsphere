@@ -1,0 +1,10 @@
+apiVersion: backupdriver.io/v1
+kind: Snapshot
+metadata:
+  name: dave-test-1
+spec:
+  backupRepository: "test-repo"
+  resourceHandle:
+    apiGroup: xyzzy
+    kind: volume
+    name: dave-volume
