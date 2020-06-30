@@ -9,10 +9,12 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
+	"reflect"
 	"time"
 )
 
@@ -45,7 +47,7 @@ func ClaimBackupRepository(ctx context.Context,
 			a BR
 	*/
 	var backupRepository *backupdriverv1.BackupRepository
-
+	var backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim
 	brcList, err := backupdriverV1Client.BackupRepositoryClaims(ns).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Errorf("Failed to list backup repository claims from the %v namespace", ns)
@@ -62,11 +64,11 @@ func ClaimBackupRepository(ctx context.Context,
 			backupRepositoryNameFound := repositoryClaimFound.BackupRepository
 			backupRepositoryFound, err := backupdriverV1Client.BackupRepositories().
 				Get(backupRepositoryNameFound, metav1.GetOptions{})
-			if apierrors.IsNotFound(err) {
-				// BR was deleted before access.
-				// TODO: Create a new BR and cross reference the BR and BRC?.
-			}
 			if err != nil {
+				if apierrors.IsNotFound(err) {
+					// BR was deleted before access.
+					// TODO: Trigger a new BR creation and cross reference the BR and BRC?.
+				}
 				return nil, errors.Errorf("Failed to retrieve backup repository %v", err)
 			}
 			return backupRepositoryFound, nil
@@ -82,14 +84,14 @@ func ClaimBackupRepository(ctx context.Context,
 		backupRepositoryClaimReq := builder.ForBackupRepositoryClaim(ns, backupRepoClaimName).
 			RepositoryParameters(repositoryParameters).RepositoryDriver().
 			AllowedNamespaces(allowedNamespaces).Result()
-		_, err = backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
+		backupRepositoryClaim, err = backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
 		if err != nil {
 			return nil, errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
 		}
 		// Wait here till a BR is assigned or created for the BRC.
 		results := make(chan waitBRResult)
 		watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
-			"backuprepository", metav1.NamespacePublic, fields.Everything())
+			"backuprepository", metav1.NamespaceNone, fields.Everything())
 		_, controller := cache.NewInformer(
 			watchlist,
 			&backupdriverv1.BackupRepository{},
@@ -98,17 +100,12 @@ func ClaimBackupRepository(ctx context.Context,
 				AddFunc: func(obj interface{}) {
 					backupRepo := obj.(*backupdriverv1.BackupRepository)
 					fmt.Printf("Backup Repository added: %v", backupRepo)
-					checkBackupRepositoryIsClaimed(backupRepoClaimName, backupRepo, results)
+					checkIfBackupRepositoryIsClaimed(backupRepositoryClaim, backupRepo, results)
 				},
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					backupRepoNew := newObj.(*backupdriverv1.BackupRepository)
 					fmt.Printf("Backup Repository updated to: %v", backupRepoNew)
-					checkBackupRepositoryIsClaimed(backupRepoClaimName, backupRepoNew, results)
-				},
-				DeleteFunc: func(obj interface{}) {
-					backupRepo := obj.(*backupdriverv1.BackupRepository)
-					fmt.Printf("Backup Repository deleted: %v", backupRepo)
-					// Nothing to do.
+					checkIfBackupRepositoryIsClaimed(backupRepositoryClaim, backupRepoNew, results)
 				},
 			})
 		stop := make(chan struct{})
@@ -118,21 +115,60 @@ func ClaimBackupRepository(ctx context.Context,
 			stop <- struct{}{}
 			return nil, ctx.Err()
 		case result := <-results:
+			err := patchBackupRepositoryClaim(backupRepositoryClaim,
+				result.backupRepository.Name, ns, backupdriverV1Client)
+			if err != nil {
+				return nil, err
+			}
 			return result.backupRepository, nil
 		}
 	}
 	return backupRepository, nil
 }
 
-// checkBackupRepositoryIsClaimed checks if the the BackupRepository is associated with
+// checkIfBackupRepositoryIsClaimed checks if the the BackupRepository is associated with
 // a specific claim, if so it writes the BackupRepository into the result channel
-func checkBackupRepositoryIsClaimed(backupRepositoryClaimName string,
+func checkIfBackupRepositoryIsClaimed(
+	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
 	backupRepository *backupdriverv1.BackupRepository,
 	result chan waitBRResult) {
-	if backupRepository.BackupRepositoryClaim == backupRepositoryClaimName {
+	if backupRepository.BackupRepositoryClaim == backupRepositoryClaim.Name {
+		// If the BR was created explicitly with the claim name return it.
+		result <- waitBRResult{
+			backupRepository: backupRepository,
+			err:              nil,
+		}
+	} else if backupRepository.BackupRepositoryClaim == "" {
+		// Unclaimed BackupRepository.
+		// Compare the params. RepositoryDriver is always same.
+		equal := reflect.DeepEqual(backupRepositoryClaim.RepositoryParameters, backupRepository.RepositoryParameters)
+		if !equal {
+			return
+		}
+		equal = reflect.DeepEqual(backupRepositoryClaim.RepositoryDriver, backupRepository.RepositoryDriver)
+		if !equal {
+			return
+		}
+		// TODO: verify allowed namespaces.
 		result <- waitBRResult{
 			backupRepository: backupRepository,
 			err:              nil,
 		}
 	}
 }
+
+// Patch the BackupRepositoryClaim with the BackupRepository name.
+func patchBackupRepositoryClaim(backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
+	backRepositoryName string,
+	ns string,
+	backupdriverV1Client *v1.BackupdriverV1Client) error {
+	mutate := func(r *backupdriverv1.BackupRepositoryClaim) {
+		backupRepositoryClaim.BackupRepository = backRepositoryName
+	}
+	_, err := utils.PatchBackupRepositoryClaim(backupRepositoryClaim, mutate, backupdriverV1Client.BackupRepositoryClaims(ns))
+	if err != nil {
+		return errors.Errorf("Failed to patch backup repository claim %v with backup repository %v in namespace %v", backupRepositoryClaim.Name, backRepositoryName, ns)
+	}
+	return nil
+}
+
