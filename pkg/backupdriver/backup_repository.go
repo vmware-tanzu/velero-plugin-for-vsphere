@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-type waitResult struct {
+type waitBRResult struct {
 	backupRepository *backupdriverv1.BackupRepository
 	err              error
 }
@@ -88,7 +88,7 @@ func ClaimBackupRepository(ctx context.Context,
 			return nil, errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
 		}
 		// Wait here till a BR is assigned or created for the BRC.
-		results := make(chan waitResult)
+		results := make(chan waitBRResult)
 		watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
 			"backuprepositories", metav1.NamespaceNone, fields.Everything())
 		_, controller := cache.NewInformer(
@@ -130,10 +130,10 @@ func ClaimBackupRepository(ctx context.Context,
 func checkIfBackupRepositoryIsClaimed(
 	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
 	backupRepository *backupdriverv1.BackupRepository,
-	result chan waitResult) {
+	result chan waitBRResult) {
 	if backupRepository.BackupRepositoryClaim == backupRepositoryClaim.Name {
 		// If the BR was created explicitly with the claim name return it.
-		result <- waitResult{
+		result <- waitBRResult{
 			backupRepository: backupRepository,
 			err:              nil,
 		}
@@ -149,7 +149,7 @@ func checkIfBackupRepositoryIsClaimed(
 			return
 		}
 		// TODO: verify allowed namespaces.
-		result <- waitResult{
+		result <- waitBRResult{
 			backupRepository: backupRepository,
 			err:              nil,
 		}
