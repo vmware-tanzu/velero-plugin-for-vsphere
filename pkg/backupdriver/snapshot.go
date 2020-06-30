@@ -26,6 +26,10 @@ type waitResult struct {
 	err   error
 }
 
+type BackupRepository struct {
+	backupRepository string
+}
+
 func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snapshot *backupdriverv1.Snapshot,
 	results chan waitResult) {
 	for _, checkPhase := range waitForPhases {
