@@ -90,7 +90,7 @@ func ClaimBackupRepository(ctx context.Context,
 		// Wait here till a BR is assigned or created for the BRC.
 		results := make(chan waitResult)
 		watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
-			"backuprepository", metav1.NamespaceNone, fields.Everything())
+			"backuprepositories", metav1.NamespaceNone, fields.Everything())
 		_, controller := cache.NewInformer(
 			watchlist,
 			&backupdriverv1.BackupRepository{},
