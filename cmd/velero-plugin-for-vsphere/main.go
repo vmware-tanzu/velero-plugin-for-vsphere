@@ -17,16 +17,16 @@
 package main
 
 import (
-	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 	"github.com/sirupsen/logrus"
 	plugins_pkg "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin"
+	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 )
 
 func main() {
 	veleroplugin.NewServer().
 		RegisterVolumeSnapshotter("velero.io/vsphere", newVolumeSnapshotterPlugin).
 		RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
-		RegisterBackupItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
+		RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
 		Serve()
 }
 

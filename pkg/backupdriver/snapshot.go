@@ -30,6 +30,12 @@ type BackupRepository struct {
 	backupRepository string
 }
 
+func NewBackupRepository(backupRepository string) *BackupRepository {
+	return &BackupRepository{
+		backupRepository,
+	}
+}
+
 func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snapshot *backupdriverv1.Snapshot,
 	results chan waitResult) {
 	for _, checkPhase := range waitForPhases {
