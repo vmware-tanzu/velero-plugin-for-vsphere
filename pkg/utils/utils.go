@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	jsonpatch "github.com/evanphx/json-patch"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"os"
@@ -363,6 +365,37 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 	req, err = uploadClient.Patch(req.Name, types.MergePatchType, patchBytes)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to patch Upload")
+	}
+	return req, nil
+}
+
+func PatchBackupRepositoryClaim(req *backupdriverapi.BackupRepositoryClaim,
+	mutate func(*backupdriverapi.BackupRepositoryClaim),
+	backupRepoClaimClient backupdriverv1client.BackupRepositoryClaimInterface) (*backupdriverapi.BackupRepositoryClaim, error) {
+
+	// Record original json
+	oldData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall original BackupRepositoryClaim")
+	}
+
+	// Mutate
+	mutate(req)
+
+	// Record new json
+	newData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall updated BackupRepositoryClaim")
+	}
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepositoryClaim")
+	}
+
+	req, err = backupRepoClaimClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to patch BackupRepositoryClaim")
 	}
 	return req, nil
 }

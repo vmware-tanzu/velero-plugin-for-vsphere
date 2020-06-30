@@ -98,3 +98,7 @@ const (
 
 	VeleroDeployment string = "velero"
 )
+
+const (
+	S3RepositoryDriver string = "s3repository.astrolabe.vmware-tanzu.com"
+)
