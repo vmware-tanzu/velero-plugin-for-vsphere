@@ -80,7 +80,7 @@ func ClaimBackupRepository(ctx context.Context,
 		if err != nil {
 			return nil, errors.Errorf("Failed to generate backup repository claim name")
 		}
-		backupRepoClaimName := backupRepoClaimUUID.String()
+		backupRepoClaimName := "brc-" + backupRepoClaimUUID.String()
 		backupRepositoryClaimReq := builder.ForBackupRepositoryClaim(ns, backupRepoClaimName).
 			RepositoryParameters(repositoryParameters).RepositoryDriver().
 			AllowedNamespaces(allowedNamespaces).Result()
