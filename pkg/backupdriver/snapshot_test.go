@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	core_v1 "k8s.io/api/core/v1"
@@ -49,6 +50,13 @@ func TestWaitForPhases(t *testing.T) {
 		},
 	}
 
+	// set up logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+
 	err = clientSet.Snapshots("backup-driver").Delete(testSnapshot.Name, nil)
 	if err != nil {
 		t.Fatalf("Delete error = %v\n", err)
@@ -62,7 +70,7 @@ func TestWaitForPhases(t *testing.T) {
 	}
 
 	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
-	endPhase, err := WaitForPhases(timeoutContext, clientSet, testSnapshot, []backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted})
+	endPhase, err := WaitForPhases(timeoutContext, clientSet, testSnapshot, []backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted}, "backup-driver", logger)
 	if err != nil {
 		t.Fatalf("WaitForPhases returned err = %v\n", err)
 	} else {

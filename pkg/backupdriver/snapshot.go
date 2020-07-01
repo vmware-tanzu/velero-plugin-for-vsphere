@@ -2,9 +2,9 @@ package backupdriver
 
 import (
 	"context"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	core_v1 "k8s.io/api/core/v1"
@@ -48,46 +48,48 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 	}
 }
 
-func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client,
-	objectToSnapshot core_v1.TypedLocalObjectReference, namespace string,
-	repository BackupRepository,
-	waitForPhases []backupdriverv1.SnapshotPhase) (backupdriverv1.Snapshot, error) {
+func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, objectToSnapshot core_v1.TypedLocalObjectReference, namespace string, repository BackupRepository, waitForPhases []backupdriverv1.SnapshotPhase, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
 
 	snapshotUUID, err := uuid.NewRandom()
 
 	if err != nil {
 		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Could not create snapshot UUID")
 	}
-	snapshotCR :=
-		backupdriverv1.Snapshot{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Snapshot",
-				APIVersion: "backupdriver.io/v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: snapshotUUID.String(),
-			},
-			Spec: backupdriverv1.SnapshotSpec{
-				TypedLocalObjectReference: objectToSnapshot,
-				BackupRepository:          repository.backupRepository,
-				SnapshotCancel:            false,
-			},
-		}
+	snapshotCR := backupdriverv1.Snapshot{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Snapshot",
+			APIVersion: "backupdriver.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: snapshotUUID.String(),
+		},
+		Spec: backupdriverv1.SnapshotSpec{
+			TypedLocalObjectReference: objectToSnapshot,
+			BackupRepository:          repository.backupRepository,
+			SnapshotCancel:            false,
+		},
+	}
 
 	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(&snapshotCR)
 	if err != nil {
 		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to create snapshot record")
-
 	}
+	logger.Infof("Snapshot record, %s, created", writtenSnapshot.Name)
 
-	_, err = WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases)
+	writtenSnapshot.Status.Phase = backupdriverv1.SnapshotPhaseNew
+	writtenSnapshot, err = clientSet.Snapshots(namespace).UpdateStatus(writtenSnapshot)
+	if err != nil {
+		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to update status of snapshot record")
+	}
+	logger.Infof("Snapshot record, %s, status updated to %s", writtenSnapshot.Name, writtenSnapshot.Status.Phase)
+
+	_, err = WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases, namespace, logger)
 	return *writtenSnapshot, err
 }
 
-func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshot backupdriverv1.Snapshot,
-	waitForPhases []backupdriverv1.SnapshotPhase) (backupdriverv1.SnapshotPhase, error) {
+func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshot backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
 	results := make(chan waitResult)
-	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", "backup-driver",
+	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", namespace,
 		fields.Everything())
 	_, controller := cache.NewInformer(
 		watchlist,
@@ -96,12 +98,12 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				snapshot := obj.(*backupdriverv1.Snapshot)
-				fmt.Printf("snapshot added: %v \n", snapshot)
-				fmt.Printf("phase = %s\n", snapshot.Status.Phase)
+				logger.Infof("snapshot added: %v", snapshot)
+				logger.Infof("phase = %s", snapshot.Status.Phase)
 				checkPhasesAndSendResult(waitForPhases, snapshot, results)
 			},
 			DeleteFunc: func(obj interface{}) {
-				fmt.Printf("snapshot deleted: %s \n", obj)
+				logger.Infof("snapshot deleted: %s", obj)
 				results <- waitResult{
 					phase: "",
 					err:   errors.New("Snapshot deleted"),
@@ -109,8 +111,8 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				snapshot := newObj.(*backupdriverv1.Snapshot)
-				fmt.Printf("snapshot changed: %v \n", snapshot)
-				fmt.Printf("phase = %s\n", snapshot.Status.Phase)
+				logger.Infof("snapshot changed: %v", snapshot)
+				logger.Infof("phase = %s", snapshot.Status.Phase)
 				checkPhasesAndSendResult(waitForPhases, snapshot, results)
 
 			},

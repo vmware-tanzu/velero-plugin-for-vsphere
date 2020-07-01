@@ -38,7 +38,7 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 
 // Execute recognizes PVCs backed by volumes provisioned by vSphere CNS block volumes
 func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.Log.Info("Starting PVCBackupItemAction for vSphere")
+	p.Log.Info("PVCBackupItemAction for vSphere started")
 
 	// Do nothing if volume snapshots have not been requested in this backup
 	//if utils.IsSetToFalse(backup.Spec.SnapshotVolumes) {
@@ -71,12 +71,14 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
+	p.Log.Info("Claiming backup repository for snapshot")
 	repositoryParameters := make(map[string]string) // TODO: retrieve the real object store config from velero storage location
 	ctx := context.Background()
 
 	backupRepositoryCR, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
 		[]string{pvc.Namespace}, veleroNs, backupdriverClient)
 	if err != nil {
+		p.Log.Errorf("Failed to claim backup repository: %v", err)
 		return nil, nil, errors.WithStack(err)
 	}
 
@@ -86,11 +88,15 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		Name: pvc.Name,
 	}
 
+	p.Log.Info("Creating a snapshot CR")
 	backupRepository := backupdriver.NewBackupRepository(backupRepositoryCR.Name)
-	_, err = backupdriver.SnapshopRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted})
+	_, err = backupdriver.SnapshopRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, p.Log)
 	if err != nil {
+		p.Log.Errorf("Failed to create a snapshot CR: %v", err)
 		return nil, nil, errors.WithStack(err)
 	}
+
+	p.Log.Info("Snapshot is completed in plugin")
 
 	var additionalItems []velero.ResourceIdentifier
 
@@ -99,5 +105,6 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
+	p.Log.Info("PVCBackupItemAction for vSphere completed")
 	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
 }
