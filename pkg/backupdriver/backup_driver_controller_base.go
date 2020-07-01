@@ -299,10 +299,12 @@ func (rc *backupDriverController) Run(
 
 	stopCh := ctx.Done()
 
+	rc.logger.Infof("Waiting for caches to sync")
 	if !cache.WaitForCacheSync(stopCh, rc.pvSynced, rc.pvcSynced, rc.svcPVCSynced, rc.backupRepositorySynced, rc.backupRepositoryClaimSynced, rc.svcBackupRepositoryClaimSynced, rc.snapshotSynced, rc.svcSnapshotSynced, rc.cloneFromSnapshotSynced, rc.svcCloneFromSnapshotSynced) {
 		rc.logger.Errorf("Cannot sync caches")
 		return
 	}
+	rc.logger.Infof("Caches are synced")
 
 	for i := 0; i < workers; i++ {
 		//go wait.Until(rc.pvcWorker, 0, stopCh)

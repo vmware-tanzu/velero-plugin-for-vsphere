@@ -41,9 +41,7 @@ spec:
         deploy: backup-driver
     spec:
       containers:
-      - args:
-        - server
-        command:
+      - command:
         - /backup-driver
         env:
         - name: VELERO_SCRATCH_DIR
