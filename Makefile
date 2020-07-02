@@ -48,6 +48,10 @@ VERSION := $(shell echo `git rev-parse --abbrev-ref HEAD`-`git log -1 --pretty=f
 endif
 LOCALMODE ?= false
 
+# set git sha and tree state
+GIT_SHA = $(shell git rev-parse HEAD)
+GIT_DIRTY = $(shell git status --porcelain 2> /dev/null)
+
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
@@ -76,6 +80,8 @@ local: build-dirs
 	GOARCH=$(GOARCH) \
 	PKG=$(PKG) \
 	BIN=$(BIN) \
+	GIT_SHA=$(GIT_SHA) \
+	GIT_DIRTY="$(GIT_DIRTY)" \
 	OUTPUT_DIR=$$(pwd)/_output/bin/$(GOOS)/$(GOARCH) \
 	GO111MODULE=on \
 	GOFLAGS=-mod=readonly \ 
@@ -93,6 +99,8 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		LOCALMODE=$(LOCALMODE) \
 		PKG=$(PKG) \
 		BIN=$(BIN) \
+		GIT_SHA=$(GIT_SHA) \
+		GIT_DIRTY=\"$(GIT_DIRTY)\" \
 		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
 		GO111MODULE=on \
 		GOFLAGS=-mod=readonly \
