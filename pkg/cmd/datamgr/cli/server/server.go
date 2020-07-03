@@ -52,22 +52,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const (
-	// the port where prometheus metrics are exposed
-	defaultMetricsAddress = ":8085"
-	// server's client default qps and burst
-	defaultClientQPS   float32 = 20.0
-	defaultClientBurst int     = 30
-
-	defaultProfilerAddress         = "localhost:6060"
-	defaultInsecureFlag       bool = true
-	defaultVCConfigFromSecret bool = true
-
-	defaultControllerWorkers = 1
-	// the default TTL for a backup
-	//defaultBackupTTL = 30 * 24 * time.Hour
-)
-
 type serverConfig struct {
 	metricsAddress     string
 	clientQPS          float32
@@ -86,14 +70,14 @@ func NewCommand(f client.Factory) *cobra.Command {
 	var (
 		logLevelFlag = logging.LogLevelFlag(logrus.InfoLevel)
 		config       = serverConfig{
-			metricsAddress:     defaultMetricsAddress,
-			clientQPS:          defaultClientQPS,
-			clientBurst:        defaultClientBurst,
-			profilerAddress:    defaultProfilerAddress,
+			metricsAddress:     cmd.DefaultMetricsAddress,
+			clientQPS:          cmd.DefaultClientQPS,
+			clientBurst:        cmd.DefaultClientBurst,
+			profilerAddress:    cmd.DefaultProfilerAddress,
 			formatFlag:         logging.NewFormatFlag(),
 			port:               utils.DefaultVCenterPort,
-			insecureFlag:       defaultInsecureFlag,
-			vcConfigFromSecret: defaultVCConfigFromSecret,
+			insecureFlag:       cmd.DefaultInsecureFlag,
+			vcConfigFromSecret: cmd.DefaultVCConfigFromSecret,
 		}
 	)
 
@@ -134,6 +118,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 		},
 	}
 
+	// Common flags
 	command.Flags().Var(logLevelFlag, "log-level", fmt.Sprintf("the level at which to log. Valid values are %s.", strings.Join(logLevelFlag.AllowedValues(), ", ")))
 	command.Flags().Var(config.formatFlag, "log-format", fmt.Sprintf("the format for log output. Valid values are %s.", strings.Join(config.formatFlag.AllowedValues(), ", ")))
 	command.Flags().StringVar(&config.metricsAddress, "metrics-address", config.metricsAddress, "the address to expose prometheus metrics")
@@ -244,6 +229,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	configParams := make(map[string]interface{})
 	if config.vcConfigFromSecret == true {
 		logger.Infof("VC Configuration will be retrieved from cluster secret")
@@ -268,8 +255,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
 	s := &server{
 		namespace:             f.Namespace(),
 		metricsAddress:        config.metricsAddress,
@@ -286,7 +271,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		dataMover:             dataMover,
 		snapManager:           snapshotmgr,
 	}
-
 	return s, nil
 }
 

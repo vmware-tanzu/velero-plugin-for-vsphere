@@ -18,65 +18,31 @@ package install
 
 import (
 	"strings"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type podTemplateOption func(*podTemplateConfig)
-
-type podTemplateConfig struct {
-	image                             string
-	envVars                           []corev1.EnvVar
-	restoreOnly                       bool
-	annotations                       map[string]string
-	resources                         corev1.ResourceRequirements
-	withSecret                        bool
-	defaultResticMaintenanceFrequency time.Duration
-}
-
-func WithImage(image string) podTemplateOption {
+func WithEnvFromSecretKey(varName, secret, key string) podTemplateOption {
 	return func(c *podTemplateConfig) {
-		c.image = image
+		c.envVars = append(c.envVars, corev1.EnvVar{
+			Name: varName,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secret,
+					},
+					Key: key,
+				},
+			},
+		})
 	}
 }
 
-func WithAnnotations(annotations map[string]string) podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.annotations = annotations
-	}
-}
-
-func WithSecret(secretPresent bool) podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.withSecret = secretPresent
-
-	}
-}
-
-func WithRestoreOnly() podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.restoreOnly = true
-	}
-}
-
-func WithResources(resources corev1.ResourceRequirements) podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.resources = resources
-	}
-}
-
-func WithDefaultResticMaintenanceFrequency(val time.Duration) podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.defaultResticMaintenanceFrequency = val
-	}
-}
-
-func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
+func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment {
 	c := &podTemplateConfig{
-		image: DefaultDatamgrImage,
+		image: DefaultBackupDriverImage,
 	}
 
 	for _, opt := range opts {
@@ -92,27 +58,28 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 
 	userID := int64(0)
 
-	daemonSet := &appsv1.DaemonSet{
-		ObjectMeta: objectMeta(namespace, "datamgr-for-vsphere-plugin"),
+	deployment := &appsv1.Deployment{
+		ObjectMeta: objectMeta(namespace, "backup-driver"),
 		TypeMeta: metav1.TypeMeta{
-			Kind:       "DaemonSet",
+			Kind:       "Deployment",
 			APIVersion: appsv1.SchemeGroupVersion.String(),
 		},
-		Spec: appsv1.DaemonSetSpec{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"name": "datamgr-for-vsphere-plugin",
+					"name": "backup-driver",
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"name":      "datamgr-for-vsphere-plugin",
+						"name":      "backup-driver",
 						"component": "velero",
 					},
 					Annotations: c.annotations,
 				},
 				Spec: corev1.PodSpec{
+					RestartPolicy:      corev1.RestartPolicyAlways,
 					ServiceAccountName: "velero",
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsUser: &userID,
@@ -125,18 +92,34 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 							},
 						},
 					},
+					Tolerations: []corev1.Toleration{
+						{
+							Effect:   "NoSchedule",
+							Key:      "node-role.kubernetes.io/master",
+							Operator: "Exists",
+						},
+						{
+							Effect:   "NoSchedule",
+							Key:      "kubeadmNode",
+							Operator: "Equal",
+							Value:    "master",
+						},
+					},
+					NodeSelector: map[string]string{
+						"node-role.kubernetes.io/master": "",
+					},
 					Containers: []corev1.Container{
 						{
-							Name:            "datamgr-for-vsphere-plugin",
+							Name:            "backup-driver",
 							Image:           c.image,
+							Ports:           containerPorts(),
 							ImagePullPolicy: pullPolicy,
 							Command: []string{
-								"/datamgr",
+								"/backup-driver",
 							},
 							Args: []string{
 								"server",
 							},
-
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "scratch",
@@ -177,44 +160,7 @@ func DaemonSet(namespace string, opts ...podTemplateOption) *appsv1.DaemonSet {
 		},
 	}
 
-	if c.withSecret {
-		daemonSet.Spec.Template.Spec.Volumes = append(
-			daemonSet.Spec.Template.Spec.Volumes,
-			corev1.Volume{
-				Name: "cloud-credentials",
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: "cloud-credentials",
-					},
-				},
-			},
-		)
+	deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, c.envVars...)
 
-		daemonSet.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			daemonSet.Spec.Template.Spec.Containers[0].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      "cloud-credentials",
-				MountPath: "/credentials",
-			},
-		)
-
-		daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, []corev1.EnvVar{
-			{
-				Name:  "GOOGLE_APPLICATION_CREDENTIALS",
-				Value: "/credentials/cloud",
-			},
-			{
-				Name:  "AWS_SHARED_CREDENTIALS_FILE",
-				Value: "/credentials/cloud",
-			},
-			{
-				Name:  "AZURE_CREDENTIALS_FILE",
-				Value: "/credentials/cloud",
-			},
-		}...)
-	}
-
-	daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, c.envVars...)
-
-	return daemonSet
+	return deployment
 }

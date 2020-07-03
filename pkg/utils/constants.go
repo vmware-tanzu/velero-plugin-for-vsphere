@@ -92,7 +92,8 @@ const (
 )
 
 const (
-	DataManagerForPlugin string = "data-manager-for-plugin"
+	DataManagerForPlugin  string = "data-manager-for-plugin"
+	BackupDriverForPlugin string = "backup-driver"
 
 	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
 
