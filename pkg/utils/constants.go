@@ -102,3 +102,8 @@ const (
 const (
 	S3RepositoryDriver string = "s3repository.astrolabe.vmware-tanzu.com"
 )
+
+const (
+	// VSphereItemActionPluginFlag is the feature flag string that defines whether or not vSphere ItemActionPlugin features are being used.
+	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
+)
