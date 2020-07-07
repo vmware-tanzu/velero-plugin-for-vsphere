@@ -1,6 +1,5 @@
 package backupdriver
 
-
 import (
 	"context"
 	"fmt"
@@ -171,4 +170,3 @@ func patchBackupRepositoryClaim(backupRepositoryClaim *backupdriverv1.BackupRepo
 	}
 	return nil
 }
-

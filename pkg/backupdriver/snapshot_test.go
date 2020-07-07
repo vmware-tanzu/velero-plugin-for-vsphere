@@ -81,9 +81,10 @@ func TestWaitForPhases(t *testing.T) {
 		fmt.Printf("WaitForPhases returned phase = %s\n", endPhase)
 	}
 }
+
 /*
 TODO - figure out how to advance the phase and status
- */
+*/
 /*
 func TestSnapshotRef(t *testing.T) {
 	clientSet, err := createClientSet()
@@ -151,4 +152,3 @@ func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
 	}
 	return err
 }
-
