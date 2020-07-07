@@ -19,15 +19,16 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
 	jsonpatch "github.com/evanphx/json-patch"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -61,9 +62,22 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 		return err
 	}
 
-	ns := "kube-system"
+	// Get the cluster flavor
+	var ns, secretData string
+	clusterFlavor, err := GetClusterFlavor(clientset)
+	if clusterFlavor == TkgGuest || clusterFlavor == Unknown {
+		logger.Errorf("RetrieveVcConfigSecret: Cannot retrieve VC secret in cluster flavor %s", clusterFlavor)
+		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret")
+	} else if clusterFlavor == Supervisor {
+		ns = VCSecretNsSupervisor
+		secretData = VCSecretDataSupervisor
+	} else {
+		ns = VCSecretNs
+		secretData = VCSecretData
+	}
+
 	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secrets := []string{"vsphere-config-secret", "csi-vsphere-config"}
+	vsphere_secrets := []string{VCSecret, VCSecretTKG}
 	var secret *k8sv1.Secret
 	for _, vsphere_secret := range vsphere_secrets {
 		secret, err = secretApis.Get(vsphere_secret, metav1.GetOptions{})
@@ -80,7 +94,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 		return err
 	}
 
-	sEnc := string(secret.Data["csi-vsphere.conf"])
+	sEnc := string(secret.Data[secretData])
 	lines := strings.Split(sEnc, "\n")
 
 	for _, line := range lines {
@@ -398,4 +412,51 @@ func PatchBackupRepositoryClaim(req *backupdriverapi.BackupRepositoryClaim,
 		return nil, errors.Wrapf(err, "Failed to patch BackupRepositoryClaim")
 	}
 	return req, nil
+}
+
+// Check the cluster flavor that the plugin is deployed in
+func GetClusterFlavor(clientset *kubernetes.Clientset) (ClusterFlavor, error) {
+	if clientset == nil {
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			return Unknown, err
+		}
+
+		clientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			return Unknown, err
+		}
+	}
+
+	// Direct vSphere deployment.
+	// Check if vSphere secret is available in appropriate namespace.
+	ns := VCSecretNs
+	secretApis := clientset.CoreV1().Secrets(ns)
+	vsphere_secrets := []string{VCSecret, VCSecretTKG}
+	for _, vsphere_secret := range vsphere_secrets {
+		_, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
+		if err == nil {
+			return VSphere, nil
+		}
+	}
+
+	// Check if in supervisor.
+	// Check if vSphere secret is available in appropriate namespace.
+	ns = VCSecretNsSupervisor
+	secretApis = clientset.CoreV1().Secrets(ns)
+	_, err := secretApis.Get(VCSecret, metav1.GetOptions{})
+	if err == nil {
+		return Supervisor, nil
+	}
+
+	// Check if in guest cluster.
+	// Check for the supervisor service in the guest cluster.
+	serviceApi := clientset.CoreV1().Services("default")
+	_, err = serviceApi.Get(TkgSupervisorService, metav1.GetOptions{})
+	if err == nil {
+		return TkgGuest, nil
+	}
+
+	// Did not match any search criteria. Unknown cluster flavor.
+	return Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
 }

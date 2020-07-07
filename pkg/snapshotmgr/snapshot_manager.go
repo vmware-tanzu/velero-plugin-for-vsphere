@@ -18,6 +18,10 @@ package snapshotmgr
 
 import (
 	"context"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -32,9 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
-	"os"
-	"strings"
-	"time"
 )
 
 type SnapshotManager struct {
@@ -45,7 +46,21 @@ type SnapshotManager struct {
 }
 
 func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
-	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
+	// TODO: For now, do not proceed with snapshot manager creation for guest and supervisor cluster
+	// Do not use BackupStorageLocation, but the BackupRepositories
+	// For guest:
+	// 1. Params can contain supervisor API server endpoint, Token, namespace and crt file location
+	// 2. Initialize pvIVD
+	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	if err == nil &&
+		(clusterFlavor == utils.TkgGuest || clusterFlavor == utils.Supervisor) {
+		logger.Infof("SnapshotManager: Skipping for cluster flavor %s", clusterFlavor)
+		return nil, nil
+	} else if err != nil {
+		logrus.WithError(err).Errorf("Failed to identify cluster flavor")
+	}
+
+	// Retrieve VC configuration from the cluster only if it has not been passed by the caller
 	if _, ok := params[ivd.HostVcParamKey]; !ok {
 		err := utils.RetrieveVcConfigSecret(params, logger)
 		if err != nil {
@@ -57,7 +72,6 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	var ivdPETM *ivd.IVDProtectedEntityTypeManager
-	var err error
 
 	// firstly, check whether local mode is disabled or not.
 	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
