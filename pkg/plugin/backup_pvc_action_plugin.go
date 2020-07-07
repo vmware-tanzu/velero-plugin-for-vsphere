@@ -24,22 +24,15 @@ type NewPVCBackupItemAction struct {
 
 // AppliesTo returns information indicating that the PVCBackupItemAction should be invoked to backup PVCs.
 func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Info("PVCBackupItemAction AppliesTo for vSphere")
+	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
 	}, nil
 }
 
-//const (
-//	PollTimeoutForSnapshot = 5 * time.Minute
-//	PollLogInterval = 30 * time.Second
-//)
-
 // Execute recognizes PVCs backed by volumes provisioned by vSphere CNS block volumes
 func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.Log.Info("PVCBackupItemAction for vSphere started")
-
 	// Do nothing if volume snapshots have not been requested in this backup
 	//if utils.IsSetToFalse(backup.Spec.SnapshotVolumes) {
 	if backup.Spec.SnapshotVolumes != nil && *backup.Spec.SnapshotVolumes == false {
@@ -51,6 +44,12 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
+
+	p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
+	var err error
+	defer func() {
+		p.Log.WithError(err).Infof("VSphere PVCBackupItemAction for PVC %s/%s completed", pvc.Namespace, pvc.Name)
+	}()
 
 	// get the velero namespace and the rest config in k8s cluster
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
@@ -105,6 +104,5 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
-	p.Log.Info("PVCBackupItemAction for vSphere completed")
 	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
 }

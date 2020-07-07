@@ -49,7 +49,6 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 }
 
 func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, objectToSnapshot core_v1.TypedLocalObjectReference, namespace string, repository BackupRepository, waitForPhases []backupdriverv1.SnapshotPhase, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
-
 	snapshotUUID, err := uuid.NewRandom()
 
 	if err != nil {

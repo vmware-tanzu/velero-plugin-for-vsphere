@@ -18,6 +18,10 @@ func TestWaitForPhases(t *testing.T) {
 	clientSet, err := createClientSet()
 
 	if err != nil {
+		_, ok := err.(ClientConfigNotFoundError)
+		if ok {
+			t.Skip(err)
+		}
 		t.Fatal(err)
 	}
 	apiGroup := "xyzzy"
@@ -122,7 +126,7 @@ func createClientSet() (*v1.BackupdriverV1Client, error) {
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 	config, err := kubeConfig.ClientConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "Could not create client config")
+		return nil, NewClientConfigNotFoundError("Could not create client config")
 	}
 
 	clientset, err := v1.NewForConfig(config)
@@ -131,5 +135,20 @@ func createClientSet() (*v1.BackupdriverV1Client, error) {
 		return nil, errors.Wrap(err, "Could not create clientset")
 	}
 	return clientset, err
+}
+
+type ClientConfigNotFoundError struct {
+	errMsg string
+}
+
+func (this ClientConfigNotFoundError) Error() string {
+	return this.errMsg
+}
+
+func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
+	err := ClientConfigNotFoundError{
+		errMsg: errMsg,
+	}
+	return err
 }
 
