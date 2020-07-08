@@ -138,9 +138,17 @@ func NewCommand(f client.Factory) *cobra.Command {
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	var resources *unstructured.UnstructuredList
 
+	// In case of Guest or Supervisor cluster, skip installing data manager
+	skipDataMgr := false
+	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	if clusterFlavor == utils.TkgGuest || clusterFlavor == utils.Supervisor {
+		fmt.Printf("The Plugin is installed in %s\n. Skipping data manager installation.", clusterFlavor)
+		skipDataMgr = true
+	}
+
 	isLocalMode := utils.GetBool(install.DefaultDatamgrImageLocalMode, false)
 	fmt.Printf("The Image LocalMode: %v\n", isLocalMode)
-	if isLocalMode {
+	if isLocalMode || skipDataMgr {
 		fmt.Println("Local mode set, skipping data manager installation")
 		return nil
 	}

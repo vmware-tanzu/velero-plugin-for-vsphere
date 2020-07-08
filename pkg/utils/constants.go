@@ -103,3 +103,26 @@ const (
 const (
 	S3RepositoryDriver string = "s3repository.astrolabe.vmware-tanzu.com"
 )
+
+const (
+	VCSecretNs             = "kube-system"
+	VCSecretNsSupervisor   = "vmware-system-csi"
+	VCSecret               = "vsphere-config-secret"
+	VCSecretTKG            = "csi-vsphere-config"
+	VCSecretData           = "csi-vsphere.conf"
+	VCSecretDataSupervisor = "vsphere-cloud-provider.conf"
+)
+
+const (
+	TkgSupervisorService = "supervisor"
+)
+
+// Indicates the type of cluster where Plugin is installed
+type ClusterFlavor string
+
+const (
+	Unknown    ClusterFlavor = "Unknown"
+	Supervisor               = "Supervisor Cluster"
+	TkgGuest                 = "TGK Guest Cluster"
+	VSphere                  = "vSphere Kubernetes Cluster"
+)
