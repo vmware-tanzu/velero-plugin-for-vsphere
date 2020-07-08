@@ -160,6 +160,28 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 		},
 	}
 
+	if c.withSecret {
+		deployment.Spec.Template.Spec.Volumes = append(
+			deployment.Spec.Template.Spec.Volumes,
+			corev1.Volume{
+				Name: "pv-credentials",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: "pvbackupdriver-provider-creds",
+					},
+				},
+			},
+		)
+
+		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			deployment.Spec.Template.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "pv-credentials",
+				MountPath: "/credentials",
+			},
+		)
+	}
+
 	deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, c.envVars...)
 
 	return deployment

@@ -112,6 +112,7 @@ func (o *InstallOptions) AsDatamgrOptions() (*install.PodOptions, error) {
 		PodAnnotations: o.PodAnnotations.Data(),
 		PodResources:   podResources,
 		SecretData:     secretData,
+		SecretAdd:      true,
 	}, nil
 }
 

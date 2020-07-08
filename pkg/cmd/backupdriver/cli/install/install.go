@@ -49,6 +49,7 @@ type InstallOptions struct {
 	PodMemRequest  string
 	PodCPULimit    string
 	PodMemLimit    string
+	PVSecret       bool
 }
 
 func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
@@ -69,6 +70,7 @@ func NewInstallOptions() *InstallOptions {
 		PodMemRequest:  pkgInstall.DefaultBackupDriverPodMemRequest,
 		PodCPULimit:    pkgInstall.DefaultBackupDriverPodCPULimit,
 		PodMemLimit:    pkgInstall.DefaultBackupDriverPodMemLimit,
+		PVSecret:       false,
 	}
 }
 
@@ -84,6 +86,7 @@ func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error)
 		Image:          o.Image,
 		PodAnnotations: o.PodAnnotations.Data(),
 		PodResources:   podResources,
+		SecretAdd:      o.PVSecret,
 	}, nil
 }
 
@@ -140,6 +143,13 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		fmt.Printf("Failed to check plugin image repo, error msg: %s. Using default image %s\n", err.Error(), o.Image)
 	} else {
 		fmt.Printf("Using image %s.\n", o.Image)
+	}
+
+	// Check cluster flavor. Add the PV secret to pod in Guest Cluster
+	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	if clusterFlavor == utils.TkgGuest {
+		fmt.Printf("Guest Cluster. Deploy pod with secret.")
+		o.PVSecret = true
 	}
 
 	vo, err := o.AsBackupDriverOptions()
