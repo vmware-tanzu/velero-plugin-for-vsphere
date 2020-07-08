@@ -24,6 +24,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	"github.com/vmware-tanzu/astrolabe/pkg/server"
 	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
@@ -39,9 +40,9 @@ import (
 
 type SnapshotManager struct {
 	logrus.FieldLogger
-	config  map[string]string
-	ivdPETM *ivd.IVDProtectedEntityTypeManager
-	s3PETM  *s3repository.ProtectedEntityTypeManager
+	config map[string]string
+	pem    astrolabe.ProtectedEntityManager
+	s3PETM *s3repository.ProtectedEntityTypeManager
 }
 
 func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
@@ -57,6 +58,8 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	var ivdPETM *ivd.IVDProtectedEntityTypeManager
+	// TODO: initialize other ProtectedEntityTypeManager
+
 	var err error
 
 	// firstly, check whether local mode is disabled or not.
@@ -90,8 +93,7 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 		logger.Infof("SnapshotManager: Get s3PETM from the params map")
 	}
 
-	// If the local mode is enabled, we don't need to specify remote storage location
-	// for persistence since it has been taken care of 3rd party backup solution.
+	// Initializing IVD ProtectedEntityTypeManager
 	ivdPETM, err = utils.GetIVDPETMFromParamsMap(params, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get ivdPETM from params map: VirtualCenter=%v, port=%v",
@@ -100,10 +102,24 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 	}
 	logger.Infof("SnapshotManager: Get ivdPETM from the params map, VirtualCenter=%v, port=%v", params["VirtualCenter"], params["port"])
 
+	// TODO: Initialize PVC PETM.
+
+	// Initialize dummy s3 config.
+	s3Config := astrolabe.S3Config{
+		Port:      0,
+		Host:      nil,
+		AccessKey: "",
+		Secret:    "",
+		Prefix:    "",
+		URLBase:   "VOID_URL",
+	}
+
+	// Initialize the DirectProtectedEntityManager
+	depm := server.NewDirectProtectedEntityManager([]astrolabe.ProtectedEntityTypeManager{ivdPETM}, s3Config)
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
 		config:      config,
-		ivdPETM:     ivdPETM,
+		pem:         depm,
 		s3PETM:      s3PETM,
 	}
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
@@ -116,7 +132,7 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
-	pe, err := this.ivdPETM.GetProtectedEntity(ctx, peID)
+	pe, err := this.pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to GetProtectedEntity for %s", peID.String())
 		return astrolabe.ProtectedEntityID{}, err
@@ -267,7 +283,7 @@ func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteLocalSnapshot Called")
-	return this.deleteSnapshotFromRepo(peID, this.ivdPETM)
+	return this.deleteSnapshotFromRepo(peID, this.pem.GetProtectedEntityTypeManager(peID.GetPeType()))
 }
 
 func (this *SnapshotManager) DeleteRemoteSnapshot(peID astrolabe.ProtectedEntityID) error {
