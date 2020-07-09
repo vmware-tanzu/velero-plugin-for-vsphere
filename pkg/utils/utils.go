@@ -414,6 +414,37 @@ func PatchBackupRepositoryClaim(req *backupdriverapi.BackupRepositoryClaim,
 	return req, nil
 }
 
+func PatchBackupRepository(req *backupdriverapi.BackupRepository,
+	mutate func(*backupdriverapi.BackupRepository),
+	backupRepoClient backupdriverv1client.BackupRepositoryInterface) (*backupdriverapi.BackupRepository, error) {
+
+	// Record original json
+	oldData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall original BackupRepository")
+	}
+
+	// Mutate
+	mutate(req)
+
+	// Record new json
+	newData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall updated BackupRepository")
+	}
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepository")
+	}
+
+	req, err = backupRepoClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to patch BackupRepository")
+	}
+	return req, nil
+}
+
 // Check the cluster flavor that the plugin is deployed in
 func GetClusterFlavor(clientset *kubernetes.Clientset) (ClusterFlavor, error) {
 	if clientset == nil {
