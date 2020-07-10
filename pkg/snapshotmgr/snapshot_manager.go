@@ -46,18 +46,16 @@ type SnapshotManager struct {
 }
 
 func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
-	// TODO: For now, do not proceed with snapshot manager creation for guest and supervisor cluster
+	// TODO: For now, do not proceed with snapshot manager creation for guest cluster
+	// TEMP change for this sprint. Causes install to fails as secret is not present
 	// Do not use BackupStorageLocation, but the BackupRepositories
 	// For guest:
 	// 1. Params can contain supervisor API server endpoint, Token, namespace and crt file location
 	// 2. Initialize pvIVD
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
-	if err == nil &&
-		(clusterFlavor == utils.TkgGuest || clusterFlavor == utils.Supervisor) {
+	if clusterFlavor == utils.TkgGuest {
 		logger.Infof("SnapshotManager: Skipping for cluster flavor %s", clusterFlavor)
 		return nil, nil
-	} else if err != nil {
-		logrus.WithError(err).Errorf("Failed to identify cluster flavor")
 	}
 
 	// Retrieve VC configuration from the cluster only if it has not been passed by the caller
