@@ -28,6 +28,7 @@ import (
 	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -134,6 +135,15 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
+	return this.createSnapshot(peID, tags, nil)
+}
+
+func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v", peID.String(), tags)
+	return this.createSnapshot(peID, tags, backupRepository)
+}
+
+func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
@@ -196,7 +206,12 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return updatedPeID, err
 	}
 
-	upload := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(updatedPeID.String()).Phase(v1api.UploadPhaseNew).Result()
+	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(updatedPeID.String()).Phase(v1api.UploadPhaseNew)
+	if backupRepository != nil {
+		this.Infof("Create upload CR with backup repository %s", backupRepository.Name)
+		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepository.Name)
+	}
+	upload := uploadBuilder.Result()
 	_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
 	if err != nil {
 		this.WithError(err).Errorf("CreateSnapshot: Failed to create Upload CR for PE %s", updatedPeID.String())
@@ -206,7 +221,16 @@ func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, ta
 	return updatedPeID, nil
 }
 
+func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID) error {
+	this.WithField("peID", peID.String()).Info("SnapshotManager.DeleteSnapshotWithBackupRepository was called.")
+	return this.deleteSnapshot(peID, &backupdriverv1.BackupRepository{})
+}
+
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
+	return this.deleteSnapshot(peID, nil)
+}
+
+func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) error {
 	log := this.WithField("peID", peID.String())
 	log.Infof("Step 0: Cancel on-going upload.")
 	config, err := rest.InClusterConfig()
@@ -270,7 +294,16 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 		}
 
 		log.Infof("Step 2: Deleting the durable snapshot from s3")
-		err = this.DeleteRemoteSnapshot(peID)
+		if backupRepository != nil {
+			backupRepositoryName := uploadCR.Spec.BackupRepositoryName
+			backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
+			if err != nil {
+				log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
+			}
+			err = this.DeleteRemoteSnapshotFromRepo(peID, backupRepositoryCR)
+		} else {
+			err = this.DeleteRemoteSnapshot(peID)
+		}
 		if err != nil {
 			if !strings.Contains(err.Error(), "The specified key does not exist") {
 				log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
@@ -291,9 +324,20 @@ func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityI
 	return this.deleteSnapshotFromRepo(peID, this.pem.GetProtectedEntityTypeManager(peID.GetPeType()))
 }
 
+// Will be deleted eventually. Use S3PETM created from backup repository instead of hard coding S3PETM which is initialized when NewSnapshotManagerFromCluster
+// Eventually will use DeleteRemoteSnapshotFromRepo instead of this
 func (this *SnapshotManager) DeleteRemoteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteRemoteSnapshot Called")
 	return this.deleteSnapshotFromRepo(peID, this.s3PETM)
+}
+
+func (this *SnapshotManager) DeleteRemoteSnapshotFromRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) error {
+	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteRemoteSnapshotFromRepo Called")
+	s3PETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, this.FieldLogger)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to create s3PETM from backup repository %s", backupRepository.Name)
+	}
+	return this.deleteSnapshotFromRepo(peID, s3PETM)
 }
 
 func (this *SnapshotManager) deleteSnapshotFromRepo(peID astrolabe.ProtectedEntityID, petm astrolabe.ProtectedEntityTypeManager) error {
