@@ -126,3 +126,9 @@ const (
 	TkgGuest                 = "TGK Guest Cluster"
 	VSphere                  = "vSphere Kubernetes Cluster"
 )
+
+// feature flog constants
+const (
+	// VSphereItemActionPluginFlag is the feature flag string that defines whether or not vSphere ItemActionPlugin features are being used.
+	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
+)

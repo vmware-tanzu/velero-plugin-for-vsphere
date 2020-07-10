@@ -180,7 +180,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return errors.Wrap(err, errorMsg)
 	}
 
-	fmt.Println("Waiting for %s deployment to be ready.", utils.BackupDriverForPlugin)
+	fmt.Printf("Waiting for %s deployment to be ready.\n", utils.BackupDriverForPlugin)
 
 	if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
 		return errors.Wrap(err, errorMsg)
