@@ -16,7 +16,7 @@ type NewPVCRestoreItemAction struct {
 
 // AppliesTo returns information indicating that the PVCBackupItemAction should be invoked to backup PVCs.
 func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Info("PVCBackupItemAction AppliesTo for vSphere")
+	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
 		IncludedResources: []string{"persistentvolumeclaims"},
@@ -24,13 +24,16 @@ func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-
 	var pvc corev1api.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	p.Log.Infof("Starting PVCRestoreItemAction for PVC %s/%s", pvc.Namespace, pvc.Name)
+	p.Log.Infof("VSphere PVCRestoreItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
+	var err error
+	defer func() {
+		p.Log.WithError(err).Infof("VSphere PVCRestoreItemAction for PVC %s/%s completed", pvc.Namespace, pvc.Name)
+	}()
 
 	// TODO: add logic for PVC restoration
 
@@ -38,7 +41,6 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	p.Log.Infof("Returning from PVCRestoreItemAction for PVC %s/%s", pvc.Namespace, pvc.Name)
 
 	return &velero.RestoreItemActionExecuteOutput{
 		UpdatedItem: &unstructured.Unstructured{Object: pvcMap},
