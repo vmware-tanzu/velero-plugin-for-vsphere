@@ -92,22 +92,6 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 							},
 						},
 					},
-					Tolerations: []corev1.Toleration{
-						{
-							Effect:   "NoSchedule",
-							Key:      "node-role.kubernetes.io/master",
-							Operator: "Exists",
-						},
-						{
-							Effect:   "NoSchedule",
-							Key:      "kubeadmNode",
-							Operator: "Equal",
-							Value:    "master",
-						},
-					},
-					NodeSelector: map[string]string{
-						"node-role.kubernetes.io/master": "",
-					},
 					Containers: []corev1.Container{
 						{
 							Name:            "backup-driver",
@@ -180,6 +164,30 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 				MountPath: "/credentials",
 			},
 		)
+	}
+
+	if c.masterAffinity {
+		deployment.Spec.Template.Spec.Tolerations = append(
+			deployment.Spec.Template.Spec.Tolerations,
+			corev1.Toleration{
+				Effect:   "NoSchedule",
+				Key:      "node-role.kubernetes.io/master",
+				Operator: "Exists",
+			},
+			corev1.Toleration{
+				Effect:   "NoSchedule",
+				Key:      "kubeadmNode",
+				Operator: "Equal",
+				Value:    "master",
+			},
+		)
+
+		deployment.Spec.Template.Spec.NodeSelector = make(map[string]string)
+		deployment.Spec.Template.Spec.NodeSelector["node-role.kubernetes.io/master"] = ""
+	}
+
+	if c.hostNetwork {
+		deployment.Spec.Template.Spec.HostNetwork = true
 	}
 
 	deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, c.envVars...)

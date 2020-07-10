@@ -30,6 +30,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	"github.com/vmware-tanzu/velero/pkg/features"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -50,6 +51,9 @@ type InstallOptions struct {
 	PodCPULimit    string
 	PodMemLimit    string
 	PVSecret       bool
+	MasterAffinity bool
+	HostNetwork    bool
+	Features       string
 }
 
 func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
@@ -59,6 +63,7 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&o.PodMemRequest, "pod-mem-request", o.PodMemRequest, `memory request for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
 	flags.StringVar(&o.PodCPULimit, "pod-cpu-limit", o.PodCPULimit, `CPU limit for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
 	flags.StringVar(&o.PodMemLimit, "pod-mem-limit", o.PodMemLimit, `memory limit for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
+	flags.StringVar(&o.Features, "features", o.Features, "comma separated list of backup-driver feature flags. Optional.")
 }
 
 func NewInstallOptions() *InstallOptions {
@@ -70,7 +75,6 @@ func NewInstallOptions() *InstallOptions {
 		PodMemRequest:  pkgInstall.DefaultBackupDriverPodMemRequest,
 		PodCPULimit:    pkgInstall.DefaultBackupDriverPodCPULimit,
 		PodMemLimit:    pkgInstall.DefaultBackupDriverPodMemLimit,
-		PVSecret:       false,
 	}
 }
 
@@ -87,6 +91,8 @@ func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error)
 		PodAnnotations: o.PodAnnotations.Data(),
 		PodResources:   podResources,
 		SecretAdd:      o.PVSecret,
+		MasterAffinity: o.MasterAffinity,
+		HostNetwork:    o.HostNetwork,
 	}, nil
 }
 
@@ -111,6 +117,14 @@ func NewCommand(f client.Factory) *cobra.Command {
 }
 
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
+	// Check if ItemActionPlugin feature is enabled.
+	featureFlags := strings.Split(o.Features, ",")
+	features.Enable(featureFlags...)
+	if !features.IsEnabled(utils.VSphereItemActionPluginFlag) {
+		fmt.Printf("Feature %s is not enabled. Skipping backup-driver installation", utils.VSphereItemActionPluginFlag)
+		return nil
+	}
+
 	var resources *unstructured.UnstructuredList
 
 	// Check vSphere CSI driver version
@@ -150,6 +164,13 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if clusterFlavor == utils.TkgGuest {
 		fmt.Printf("Guest Cluster. Deploy pod with secret.")
 		o.PVSecret = true
+	}
+
+	// Assign master node affinity and host network to Supervisor deployment
+	if clusterFlavor == utils.Supervisor {
+		fmt.Printf("Supervisor Cluster. Assign master node affinity and enable host network.")
+		o.MasterAffinity = true
+		o.HostNetwork = true
 	}
 
 	vo, err := o.AsBackupDriverOptions()

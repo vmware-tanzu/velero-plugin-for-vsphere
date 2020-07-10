@@ -18,7 +18,6 @@ package install
 
 import (
 	"strings"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,13 +27,14 @@ import (
 type podTemplateOption func(*podTemplateConfig)
 
 type podTemplateConfig struct {
-	image                             string
-	envVars                           []corev1.EnvVar
-	restoreOnly                       bool
-	annotations                       map[string]string
-	resources                         corev1.ResourceRequirements
-	withSecret                        bool
-	defaultResticMaintenanceFrequency time.Duration
+	image          string
+	envVars        []corev1.EnvVar
+	restoreOnly    bool
+	annotations    map[string]string
+	resources      corev1.ResourceRequirements
+	withSecret     bool
+	masterAffinity bool
+	hostNetwork    bool
 }
 
 func WithImage(image string) podTemplateOption {
@@ -52,7 +52,6 @@ func WithAnnotations(annotations map[string]string) podTemplateOption {
 func WithSecret(secretPresent bool) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.withSecret = secretPresent
-
 	}
 }
 
@@ -68,9 +67,15 @@ func WithResources(resources corev1.ResourceRequirements) podTemplateOption {
 	}
 }
 
-func WithDefaultResticMaintenanceFrequency(val time.Duration) podTemplateOption {
+func WithMasterNodeAffinity(affinity bool) podTemplateOption {
 	return func(c *podTemplateConfig) {
-		c.defaultResticMaintenanceFrequency = val
+		c.masterAffinity = affinity
+	}
+}
+
+func WithHostNetwork(hostNetwork bool) podTemplateOption {
+	return func(c *podTemplateConfig) {
+		c.hostNetwork = hostNetwork
 	}
 }
 

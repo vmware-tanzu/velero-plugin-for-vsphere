@@ -92,6 +92,8 @@ type PodOptions struct {
 	PodResources   corev1.ResourceRequirements
 	SecretData     []byte
 	SecretAdd      bool
+	MasterAffinity bool
+	HostNetwork    bool
 }
 
 // Use "latest" if the build process didn't supply a version
@@ -377,15 +379,12 @@ func AllDatamgrResources(o *PodOptions, withCRDs bool) (*unstructured.Unstructur
 		resources = new(unstructured.UnstructuredList)
 	}
 
-	// velero secret will be used
-	secretPresent := o.SecretAdd
-
 	// Datamgr pod
 	ds := DaemonSet(o.Namespace,
 		WithAnnotations(o.PodAnnotations),
 		WithImage(o.Image),
 		WithResources(o.PodResources),
-		WithSecret(secretPresent),
+		WithSecret(o.SecretAdd),
 	)
 	appendUnstructured(resources, ds)
 
@@ -402,15 +401,14 @@ func AllBackupDriverResources(o *PodOptions, withCRDs bool) (*unstructured.Unstr
 		resources = new(unstructured.UnstructuredList)
 	}
 
-	// velero secret will not used
-	secretPresent := o.SecretAdd
-
 	// BackupDriver pod
 	deploy := Deployment(o.Namespace,
 		WithAnnotations(o.PodAnnotations),
 		WithImage(o.Image),
 		WithResources(o.PodResources),
-		WithSecret(secretPresent),
+		WithSecret(o.SecretAdd),
+		WithMasterNodeAffinity(o.MasterAffinity),
+		WithHostNetwork(o.HostNetwork),
 	)
 	appendUnstructured(resources, deploy)
 
