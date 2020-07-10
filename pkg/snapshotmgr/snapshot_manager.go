@@ -18,10 +18,6 @@ package snapshotmgr
 
 import (
 	"context"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -30,13 +26,18 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/astrolabe/pkg/server"
 	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
+	"os"
+	"strings"
+	"time"
 )
 
 type SnapshotManager struct {

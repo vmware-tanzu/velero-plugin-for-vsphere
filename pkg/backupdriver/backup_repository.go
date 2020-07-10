@@ -2,7 +2,6 @@ package backupdriver
 
 import (
 	"context"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -35,19 +34,11 @@ func ClaimBackupRepository(ctx context.Context,
 	ns string,
 	backupdriverV1Client *v1.BackupdriverV1Client,
 	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
-	/*
-		1. Look for BRC in the "ns" specified.
-		2. If there are no BRC in the namespace create one.
-		3. If there are pre-existing BRCs in the namespace, for each BRC
-			a) check if the backup repository name is populated, if populated
-				nothing more to do.
-			b) If not, iterate through existing BR that are not associated with any
-				BRCs and match the BRC (repo parameters and namespaces), update the
-				BR to reference the BRC.
-		4. If there are no pre-existing BRC, create one. Wait for it to be associated with
-			a BR
-	*/
-	var backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim
+
+	// The map holds all the BRCs that match the parameters.
+	// Any BR that references any of the BRC in the map can be returned.
+	brcMap := make(map[string]*backupdriverv1.BackupRepositoryClaim)
+
 	brcList, err := backupdriverV1Client.BackupRepositoryClaims(ns).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Errorf("Failed to list backup repository claims from the %v namespace", ns)
@@ -55,62 +46,38 @@ func ClaimBackupRepository(ctx context.Context,
 	if len(brcList.Items) > 0 {
 		logger.Infof("Found %d BackupRepositoryClaims", len(brcList.Items))
 		// Pre-existing BackupRepositoryClaims found.
-		// Assuming only the first one, in theory multiple backup repo claim could exist.
-		repositoryClaimFound := brcList.Items[0]
-		if repositoryClaimFound.BackupRepository != "" {
-			// The BackupRepositoryClaim is not associated with any BackupRepository
-			// Search and assign or create a new BR and assign.
-			foundBackupRepo, err := SearchAndClaimUnclaimedBackupRepository(ctx, repositoryDriver, repositoryParameters,
-				allowedNamespaces, repositoryClaimFound.Name, backupdriverV1Client, logger)
-			if err != nil {
-				return nil, err
-			}
-			if foundBackupRepo != nil {
-				logger.Infof("Found and claimed a pre-existing BackupRepository successfully")
-				// Patch the BRC with the BR name.
-				err = patchBackupRepositoryClaim(&repositoryClaimFound,
-					foundBackupRepo.Name, ns, backupdriverV1Client)
-				if err != nil {
-					logger.Errorf("Failed to patch the BRC with BR reference")
-					return nil, err
+		for _, repositoryClaimItem := range brcList.Items {
+			// Process the BRC only if its they match all the params.
+			repoMatch := compareBackupRepositoryClaim(repositoryDriver, repositoryParameters, allowedNamespaces, &repositoryClaimItem, logger)
+			if repoMatch {
+				if repositoryClaimItem.BackupRepository == "" {
+					logger.Infof("Found matching BRC for the parameters with no BR reference, BRC: %s", repositoryClaimItem.Name)
+					logger.Infof("Continuing processing other BRC, the backupdriver is expected to process this BRC later")
+					brcMap[repositoryClaimItem.Name] = &repositoryClaimItem
+				} else {
+					logger.Infof("Found matching BRC for the parameters, BRC: %s", repositoryClaimItem.Name)
+					// Retrieve the BackupRepository and return.
+					backupRepositoryNameFound := repositoryClaimItem.BackupRepository
+					backupRepositoryFound, err := backupdriverV1Client.BackupRepositories().
+						Get(backupRepositoryNameFound, metav1.GetOptions{})
+					if err != nil {
+						if apierrors.IsNotFound(err) {
+							// BR was deleted before access.
+							logger.Infof("The BR: %s for the BRC: %s was deleted prior to access",
+								backupRepositoryNameFound, repositoryClaimItem.Name)
+							// TODO: Trigger a new BR creation and cross reference the BR and BRC?.
+						}
+						return nil, errors.Errorf("Failed to retrieve backup repository %v", err)
+					}
+					return backupRepositoryFound, nil
 				}
-				return foundBackupRepo, nil
 			}
-			// The BRC found no matching BR. Explicitly create one.
-			brNew, err := CreateBackupRepository(ctx, repositoryDriver, repositoryParameters, allowedNamespaces,
-				repositoryClaimFound.Name, backupdriverV1Client, logger)
-			if err != nil {
-				logger.Errorf("Failed to create BackupRepository")
-			}
-			if brNew == nil {
-				return nil, errors.Errorf("Unexpected, the BackupRepository was not created and no errors were found")
-			}
-			// Patch the BRC with the BR name.
-			err = patchBackupRepositoryClaim(&repositoryClaimFound,
-				brNew.Name, ns, backupdriverV1Client)
-			if err != nil {
-				logger.Errorf("Failed to patch the BRC with BR reference")
-				return nil, err
-			}
-			// Return the BackupRepository
-			return brNew, nil
-		} else {
-			// Retrieve the BackupRepository and return.
-			backupRepositoryNameFound := repositoryClaimFound.BackupRepository
-			backupRepositoryFound, err := backupdriverV1Client.BackupRepositories().
-				Get(backupRepositoryNameFound, metav1.GetOptions{})
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					// BR was deleted before access.
-					// TODO: Trigger a new BR creation and cross reference the BR and BRC?.
-				}
-				return nil, errors.Errorf("Failed to retrieve backup repository %v", err)
-			}
-			return backupRepositoryFound, nil
 		}
-	} else {
-		// No existing BackupRepositoryClaim in the specified guest cluster namespace.
-		// Create a new BackupRepositoryClaim.
+	}
+	if len(brcMap) == 0 {
+		// No existing BackupRepositoryClaim in the specified guest cluster namespace,
+		// Or no matching BackupRepositoryClaim among them.
+		// Create a new BackupRepositoryClaim to indicate the params.
 		backupRepoClaimUUID, err := uuid.NewRandom()
 		if err != nil {
 			return nil, errors.Errorf("Failed to generate backup repository claim name")
@@ -119,77 +86,114 @@ func ClaimBackupRepository(ctx context.Context,
 		backupRepositoryClaimReq := builder.ForBackupRepositoryClaim(ns, backupRepoClaimName).
 			RepositoryParameters(repositoryParameters).RepositoryDriver().
 			AllowedNamespaces(allowedNamespaces).Result()
-		backupRepositoryClaim, err = backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
+		backupRepositoryClaim, err := backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
 		if err != nil {
 			return nil, errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
 		}
-		// Wait here till a BR is assigned or created for the BRC.
-		results := make(chan waitBRResult)
-		watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
-			"backuprepositories", metav1.NamespaceNone, fields.Everything())
-		_, controller := cache.NewInformer(
-			watchlist,
-			&backupdriverv1.BackupRepository{},
-			time.Second*0,
-			cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					backupRepo := obj.(*backupdriverv1.BackupRepository)
-					fmt.Printf("Backup Repository added: %v", backupRepo)
-					checkIfBackupRepositoryIsClaimed(backupRepositoryClaim, backupRepo, results)
-				},
-				UpdateFunc: func(oldObj, newObj interface{}) {
-					backupRepoNew := newObj.(*backupdriverv1.BackupRepository)
-					fmt.Printf("Backup Repository updated to: %v", backupRepoNew)
-					checkIfBackupRepositoryIsClaimed(backupRepositoryClaim, backupRepoNew, results)
-				},
-			})
-		stop := make(chan struct{})
-		go controller.Run(stop)
-		// TODO: Remove anon function once the backup driver is able to create BR.
-		go func() {
+		brcMap[backupRepoClaimName] = backupRepositoryClaim
+	}
+	results := make(chan waitBRResult)
+	watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
+		"backuprepositories", metav1.NamespaceNone, fields.Everything())
+	_, controller := cache.NewInformer(
+		watchlist,
+		&backupdriverv1.BackupRepository{},
+		time.Second*0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				backupRepo := obj.(*backupdriverv1.BackupRepository)
+				logger.Debugf("Backup Repository added: %s", backupRepo.Name)
+				checkIfBackupRepositoryIsClaimed(brcMap, backupRepo, results, logger)
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				backupRepoNew := newObj.(*backupdriverv1.BackupRepository)
+				logger.Debugf("Backup Repository:%s updated", backupRepoNew.Name)
+				checkIfBackupRepositoryIsClaimed(brcMap, backupRepoNew, results, logger)
+			},
+		})
+	stop := make(chan struct{})
+	go controller.Run(stop)
+
+	// TODO: Remove anon function once the backup driver is able to create BR.
+	go func() {
+		// Picking any brc name from the map.
+		for brcName := range brcMap {
 			_, err = CreateBackupRepository(ctx, repositoryDriver, repositoryParameters, allowedNamespaces,
-				backupRepoClaimName, backupdriverV1Client, logger)
+				brcName, backupdriverV1Client, logger)
 			if err != nil {
 				logger.Errorf("Failed to create BackupRepository")
 			}
-		}()
-		select {
-		case <-ctx.Done():
-			stop <- struct{}{}
-			return nil, ctx.Err()
-		case result := <-results:
-			err := patchBackupRepositoryClaim(backupRepositoryClaim,
-				result.backupRepository.Name, ns, backupdriverV1Client)
-			if err != nil {
-				return nil, err
-			}
-			return result.backupRepository, nil
+			break
 		}
+	}()
+
+	// Wait here till a BR is assigned or created for the BRC.
+	select {
+	case <-ctx.Done():
+		stop <- struct{}{}
+		return nil, ctx.Err()
+	case result := <-results:
+		brcClaimName := result.backupRepository.BackupRepositoryClaim
+		err := patchBackupRepositoryClaim(brcMap[brcClaimName],
+			result.backupRepository.Name, ns, backupdriverV1Client)
+		if err != nil {
+			return nil, err
+		}
+		return result.backupRepository, nil
 	}
+}
+
+// Creates a BackupRepository with the parameters.
+func CreateBackupRepository(ctx context.Context,
+	repositoryDriver string,
+	repositoryParameters map[string]string,
+	allowedNamespaces []string,
+	backupRepositoryClaimName string,
+	backupdriverV1Client *v1.BackupdriverV1Client,
+	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
+
+	logger.Infof("Creating BackupRepository for the BackupRepositoryClaim %s", backupRepositoryClaimName)
+	backupRepoUUID, err := uuid.NewRandom()
+	if err != nil {
+		return nil, errors.Errorf("Failed to generate backup repository name")
+	}
+	backupRepoName := "br-" + backupRepoUUID.String()
+	backupRepoReq := builder.ForBackupRepository(backupRepoName).
+		BackupRepositoryClaim(backupRepositoryClaimName).
+		AllowedNamespaces(allowedNamespaces).
+		RepositoryParameters(repositoryParameters).
+		RepositoryDriver().Result()
+	br, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
+	if err != nil {
+		logger.Errorf("Failed to created the BackupRepository CRD")
+		return nil, err
+	}
+	logger.Infof("Successfully created BackupRepository %s for the BackupRepositoryClaim %s",
+		backupRepoName, backupRepositoryClaimName)
+	return br, nil
 }
 
 // checkIfBackupRepositoryIsClaimed checks if the the BackupRepository is associated with
 // a specific claim, if so it writes the BackupRepository into the result channel
 func checkIfBackupRepositoryIsClaimed(
-	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
+	brcMap map[string]*backupdriverv1.BackupRepositoryClaim,
 	backupRepository *backupdriverv1.BackupRepository,
-	result chan waitBRResult) {
-	if backupRepository.BackupRepositoryClaim == backupRepositoryClaim.Name {
-		// If the BR was created explicitly with the claim name return it.
-		result <- waitBRResult{
-			backupRepository: backupRepository,
-			err:              nil,
+	result chan waitBRResult,
+	logger logrus.FieldLogger) {
+	brcRefName := backupRepository.BackupRepositoryClaim
+	if brcRefName != "" {
+		// Check if the BR's BRC reference is any of the BRC we are interested in.
+		if backupRepositoryClaim, ok := brcMap[brcRefName]; ok {
+			// If the BR was created explicitly with the claim name return it.
+			logger.Infof("Found matching BackupRepository: %s for the BackupRepositoryClaim: %s",
+				backupRepository.Name, backupRepositoryClaim.Name)
+			result <- waitBRResult{
+				backupRepository: backupRepository,
+				err:              nil,
+			}
 		}
-	} else if backupRepository.BackupRepositoryClaim == "" {
-		// Unclaimed BackupRepository.
-		match := compareBackupRepository(backupRepositoryClaim.RepositoryDriver, backupRepositoryClaim.RepositoryParameters, backupRepositoryClaim.AllowedNamespaces, backupRepository)
-		if !match {
-			return
-		}
-		result <- waitBRResult{
-			backupRepository: backupRepository,
-			err:              nil,
-		}
+	} else {
+		logger.Infof("Found unclaimed BackupRepository: %v, this is unexpected, ignoring it", backupRepository)
 	}
 }
 
@@ -222,71 +226,6 @@ func patchBackupRepository(backupRepository *backupdriverv1.BackupRepository,
 	return nil
 }
 
-// Creates a BackupRepository with the parameters.
-func CreateBackupRepository(ctx context.Context,
-	repositoryDriver string,
-	repositoryParameters map[string]string,
-	allowedNamespaces []string,
-	backupRepositoryClaimName string,
-	backupdriverV1Client *v1.BackupdriverV1Client,
-	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
-
-	logger.Infof("Creating BackupRepository for the BackupRepositoryClaim %s", backupRepositoryClaimName)
-	backupRepoUUID, err := uuid.NewRandom()
-	if err != nil {
-		return nil, errors.Errorf("Failed to generate backup repository name")
-	}
-	backupRepoName := "br-" + backupRepoUUID.String()
-	backupRepoReq := builder.ForBackupRepository(backupRepoName).
-		BackupRepositoryClaim(backupRepositoryClaimName).
-		AllowedNamespaces(allowedNamespaces).
-		RepositoryParameters(repositoryParameters).
-		RepositoryDriver().Result()
-	br, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
-	if err != nil {
-		logger.Errorf("Failed to created the BackupRepository CRD")
-		return nil, err
-	}
-	logger.Infof("Successfully created BackupRepository %s for the BackupRepositoryClaim %s", backupRepoName, backupRepositoryClaimName)
-	return br, nil
-}
-
-// Search for unclaimed BackupRepository with the parameters.
-// TODO: Handle race conditions with creates.
-func SearchAndClaimUnclaimedBackupRepository(ctx context.Context,
-	repositoryDriver string,
-	repositoryParameters map[string]string,
-	allowedNamespaces []string,
-	backupRepositoryClaimName string,
-	backupdriverV1Client *v1.BackupdriverV1Client,
-	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
-	backupRepositoryList, err := backupdriverV1Client.BackupRepositories().List(metav1.ListOptions{})
-	if err != nil {
-		logger.Errorf("Failed to retrieve existing BackupRepositories")
-		return nil, err
-	}
-	if len(backupRepositoryList.Items) > 0 {
-		for _, backupRepository := range backupRepositoryList.Items {
-			if backupRepository.BackupRepositoryClaim == "" {
-				// Consider only unclaimed BackupRepository
-				match := compareBackupRepository(repositoryDriver, repositoryParameters, allowedNamespaces, &backupRepository)
-				if match {
-					logger.Infof("Found unclaimed matching BackupRepository %s for BackupRepositoryClaim %s", backupRepository.Name, backupRepositoryClaimName)
-					// Patch the BR.
-					err := patchBackupRepository(&backupRepository, backupRepositoryClaimName, backupdriverV1Client)
-					if err != nil {
-						return nil, err
-					}
-					return &backupRepository, nil
-				}
-			}
-		}
-	} else {
-		logger.Infof("No pre existing BackupRepositories found.")
-	}
-	return nil, nil
-}
-
 func compareBackupRepository(repositoryDriver string,
 	repositoryParameters map[string]string,
 	allowedNamespaces []string,
@@ -301,6 +240,30 @@ func compareBackupRepository(repositoryDriver string,
 		return false
 	}
 	equal = reflect.DeepEqual(allowedNamespaces, backupRepository.AllowedNamespaces)
+	if !equal {
+		return false
+	}
+	return true
+}
+
+func compareBackupRepositoryClaim(repositoryDriver string,
+	repositoryParameters map[string]string,
+	allowedNamespaces []string,
+	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
+	logger logrus.FieldLogger) bool {
+	// Compare the params. RepositoryDriver is always same.
+	logger.Infof("Comparing BRC: %v", backupRepositoryClaim)
+	equal := reflect.DeepEqual(repositoryParameters, backupRepositoryClaim.RepositoryParameters)
+	if !equal {
+		logger.Infof("repositoryParameters not matched")
+		return false
+	}
+	equal = reflect.DeepEqual(repositoryDriver, backupRepositoryClaim.RepositoryDriver)
+	if !equal {
+		logger.Infof("repositoryDriver not matched")
+		return false
+	}
+	equal = reflect.DeepEqual(allowedNamespaces, backupRepositoryClaim.AllowedNamespaces)
 	if !equal {
 		return false
 	}
