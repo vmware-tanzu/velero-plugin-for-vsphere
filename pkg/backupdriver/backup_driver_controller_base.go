@@ -22,8 +22,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	backupdriverinformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -46,6 +48,8 @@ type backupDriverController struct {
 	kubeClient kubernetes.Interface
 	// Supervisor Cluster KubeClient from Guest Cluster
 	svcKubeClient kubernetes.Interface
+
+	backupdriverClient *backupdriverclientset.BackupdriverV1Client
 
 	// Supervisor Cluster namespace
 	supervisorNamespace string
@@ -107,6 +111,9 @@ type backupDriverController struct {
 	svcCloneFromSnapshotLister backupdriverlisters.CloneFromSnapshotLister
 	// Supervisor Cluster CloneFromSnapshot Synced
 	svcCloneFromSnapshotSynced cache.InformerSynced
+
+	// Snapshot manager
+	snapManager *snapshotmgr.SnapshotManager
 }
 
 // NewBackupDriverController returns a BackupDriverController.
@@ -115,9 +122,11 @@ func NewBackupDriverController(
 	logger logrus.FieldLogger,
 	// Kubernetes Cluster KubeClient
 	kubeClient kubernetes.Interface,
+	backupdriverClient *backupdriverclientset.BackupdriverV1Client,
 	resyncPeriod time.Duration,
 	informerFactory informers.SharedInformerFactory,
 	backupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
+	snapManager *snapshotmgr.SnapshotManager,
 	rateLimiter workqueue.RateLimiter) BackupDriverController {
 	var supervisorNamespace string
 	// Supervisor Cluster KubeClient
@@ -154,6 +163,8 @@ func NewBackupDriverController(
 		logger:                         logger.WithField("controller", name),
 		kubeClient:                     kubeClient,
 		svcKubeClient:                  svcKubeClient,
+		backupdriverClient:             backupdriverClient,
+		snapManager:                    snapManager,
 		pvLister:                       pvInformer.Lister(),
 		pvSynced:                       pvInformer.Informer().HasSynced,
 		pvcLister:                      pvcInformer.Lister(),
@@ -322,7 +333,7 @@ func (rc *backupDriverController) Run(
 
 // snapshotWorker is the main worker for snapshot request.
 func (rc *backupDriverController) snapshotWorker() {
-	rc.logger.Debugf("snapshotWorkder: Enter snapshotWorker")
+	rc.logger.Infof("snapshotWorker: Enter snapshotWorker")
 
 	key, quit := rc.snapshotQueue.Get()
 	if quit {
@@ -348,8 +359,7 @@ func (rc *backupDriverController) syncSnapshot(key string) error {
 		return err
 	}
 
-	// TODO: Replace _ with snapshot when we start to use it
-	_, err = rc.snapshotLister.Snapshots(namespace).Get(name)
+	snapshot, err := rc.snapshotLister.Snapshots(namespace).Get(name)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			rc.logger.Infof("Snapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -359,7 +369,11 @@ func (rc *backupDriverController) syncSnapshot(key string) error {
 		return err
 	}
 
-	// TODO: Call other function to process create snapshot request
+	err = rc.CreateSnapshot(snapshot)
+	if err != nil {
+		rc.logger.Errorf("Create snapshot %s/%s failed: %v", namespace, name, err)
+		return err
+	}
 
 	return nil
 }

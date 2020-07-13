@@ -35,6 +35,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriver_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -140,7 +141,7 @@ type server struct {
 	metricsAddress        string
 	kubeClientConfig      *rest.Config
 	kubeClient            kubernetes.Interface
-	pluginClient          plugin_clientset.Interface
+	backupdriverClient    *backupdriver_clientset.BackupdriverV1Client
 	pluginInformerFactory pluginInformers.SharedInformerFactory
 	kubeInformerFactory   kubeinformers.SharedInformerFactory
 	ctx                   context.Context
@@ -179,6 +180,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	clientConfig, err := cmd.BuildConfig(config.master, config.kubeConfig, f)
 	if err != nil {
+		logger.Errorf("Failed to get client config")
 		return nil, err
 	}
 
@@ -186,16 +188,24 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	// (vanilla, guest, or supervisor)
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
+		logger.Errorf("Failed to get client to the current kubernetes cluster")
 		return nil, err
 	}
 
-	backupdriverClient, err := plugin_clientset.NewForConfig(clientConfig)
+	pluginClient, err := plugin_clientset.NewForConfig(clientConfig)
 	if err != nil {
+		logger.Errorf("Failed to get the plugin client for the current kubernetes cluster")
+		return nil, err
+	}
+
+	backupdriverClient, err := backupdriver_clientset.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Errorf("Failed to get the backupdriver client for the current kubernetes cluster")
 		return nil, err
 	}
 
 	// backup driver watches all namespaces so do not specify any one
-	backupdriverInformerFactory := pluginInformers.NewSharedInformerFactoryWithOptions(backupdriverClient, config.resyncPeriod)
+	backupdriverInformerFactory := pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, config.resyncPeriod)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, config.resyncPeriod)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -216,7 +226,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		namespace:             f.Namespace(),
 		metricsAddress:        config.metricsAddress,
 		kubeClient:            kubeClient,
-		pluginClient:          backupdriverClient,
+		backupdriverClient:    backupdriverClient,
 		pluginInformerFactory: backupdriverInformerFactory,
 		kubeInformerFactory:   kubeInformerFactory,
 		ctx:                   ctx,
@@ -267,9 +277,11 @@ func (s *server) runControllers() error {
 		"BackupDriverController",
 		s.logger,
 		s.kubeClient,
+		s.backupdriverClient,
 		s.config.resyncPeriod,
 		s.kubeInformerFactory,
 		s.pluginInformerFactory,
+		s.snapManager,
 		workqueue.NewItemExponentialFailureRateLimiter(s.config.retryIntervalStart, s.config.retryIntervalMax))
 
 	wg.Add(1)
