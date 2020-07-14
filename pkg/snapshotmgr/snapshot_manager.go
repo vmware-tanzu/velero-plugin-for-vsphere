@@ -118,11 +118,6 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 
 	// Initialize dummy s3 config.
 	s3Config := astrolabe.S3Config{
-		Port:      0,
-		Host:      nil,
-		AccessKey: "",
-		Secret:    "",
-		Prefix:    "",
 		URLBase:   "VOID_URL",
 	}
 
