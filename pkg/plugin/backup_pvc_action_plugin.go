@@ -75,7 +75,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	ctx := context.Background()
 
 	backupRepositoryCR, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
-		[]string{pvc.Namespace}, veleroNs, backupdriverClient)
+		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to claim backup repository: %v", err)
 		return nil, nil, errors.WithStack(err)
