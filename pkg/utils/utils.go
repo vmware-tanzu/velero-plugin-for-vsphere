@@ -19,9 +19,13 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"os"
 	"strconv"
 	"strings"
+
+	"k8s.io/klog"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -43,6 +47,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	certutil "k8s.io/client-go/util/cert"
 )
 
 /*
@@ -504,4 +509,54 @@ func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupR
 		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, S3RepositoryDriver)
 		return nil, errors.New(errMsg)
 	}
+}
+
+/*
+ * In the guest cluster, the credentials to access the Supervisor Cluster
+ * namespace are mounted as a volume. Return all the parameters to access the
+ * Supervisor Cluster namespace.
+ */
+func RetrievePvCredentials(params map[string]string, logger logrus.FieldLogger) error {
+	token, err := ioutil.ReadFile(PvTokenLocation)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to read the Para Virtual token from the credentials file %s", PvTokenLocation)
+		return err
+	}
+	params[PvTokenParamKey] = string(token)
+
+	ns, err := ioutil.ReadFile(PvNamespaceLocation)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to read the Para Virtual namespace from the credentials file %s", PvNamespaceLocation)
+		return err
+	}
+	params[PvNamespaceParamKey] = string(ns)
+
+	params[PvCrtFileParamKey] = PvCrtLocation
+	params[PvApiEndpointParamKey] = PvApiEndpoint
+	params[PvPortParamKey] = PvPort
+
+	return nil
+}
+
+func SupervisorConfig() (*rest.Config, error) {
+	token, err := ioutil.ReadFile(PvTokenLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsClientConfig := rest.TLSClientConfig{}
+
+	if _, err := certutil.NewPool(PvCrtLocation); err != nil {
+		klog.Errorf("Expected to load root CA config from %s, but got err: %v", PvCrtLocation, err)
+	} else {
+		tlsClientConfig.CAFile = PvCrtLocation
+	}
+
+	return &rest.Config{
+		// TODO: switch to using cluster DNS.
+		Host:            "https://" + net.JoinHostPort(PvApiEndpoint, PvPort),
+		TLSClientConfig: tlsClientConfig,
+		BearerToken:     string(token),
+		BearerTokenFile: PvTokenLocation,
+	}, nil
 }

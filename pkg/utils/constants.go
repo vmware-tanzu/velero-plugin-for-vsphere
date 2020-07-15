@@ -132,3 +132,22 @@ const (
 	// VSphereItemActionPluginFlag is the feature flag string that defines whether or not vSphere ItemActionPlugin features are being used.
 	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
 )
+
+// Keys for Para Virtual Cluster access for Guest Cluster
+// TODO: Move to ivd/constants.go
+const (
+	PvApiEndpointParamKey = "PvEndPoint"
+	PvPortParamKey        = "PvPort"
+	PvNamespaceParamKey   = "PvNamespace"
+	PvTokenParamKey       = "PvToken"
+	PvCrtFileParamKey     = "PvCrtFile"
+)
+
+// Para Virtual Cluster access for Guest Cluster
+const (
+	PvApiEndpoint       = "supervisor.default.svc" // TODO: get it from "kubectl get cm -n vmware-system-csi pvcsi-config"
+	PvPort              = "6443"
+	PvNamespaceLocation = "/credentials/namespace"
+	PvTokenLocation     = "/credentials/token"
+	PvCrtLocation       = "/credentials/ca.crt"
+)
