@@ -31,6 +31,10 @@ type UploadSpec struct {
 
 	// UploadCancel indicates request to cancel ongoing upload.
 	UploadCancel bool `json:"uploadCancel,omitempty"`
+
+	// BackupRepository provides backup repository info for upload. Used for
+	// multiple backup repository.
+	BackupRepositoryName string `json:"backupRepository,omitempty"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.

@@ -491,3 +491,17 @@ func GetClusterFlavor(clientset *kubernetes.Clientset) (ClusterFlavor, error) {
 	// Did not match any search criteria. Unknown cluster flavor.
 	return Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
 }
+
+func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupRepository, logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
+	switch backupRepository.RepositoryDriver {
+	case S3RepositoryDriver:
+		params := make(map[string]interface{})
+		for k, v := range backupRepository.RepositoryParameters {
+			params[k] = v
+		}
+		return GetS3PETMFromParamsMap(params, logger)
+	default:
+		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, S3RepositoryDriver)
+		return nil, errors.New(errMsg)
+	}
+}
