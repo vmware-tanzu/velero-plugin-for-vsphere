@@ -32,6 +32,7 @@ import (
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
+	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"io/ioutil"
@@ -661,4 +662,22 @@ func SupervisorConfig(logger logrus.FieldLogger) (*rest.Config, string, error) {
 		BearerToken:     string(token),
 		BearerTokenFile: PvTokenLocation,
 	}, string(ns), nil
+}
+
+func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*backupdriverapi.BackupRepository, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get k8s inClusterConfig")
+	}
+	pluginClient, err := plugin_clientset.NewForConfig(config)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
+		return nil, errors.Wrapf(err, errMsg)
+	}
+	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
+		return nil, errors.Wrapf(err, errMsg)
+	}
+	return backupRepositoryCR, nil
 }

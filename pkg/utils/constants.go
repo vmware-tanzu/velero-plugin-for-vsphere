@@ -155,3 +155,7 @@ const (
 	PvTokenLocation     = "/credentials/token"
 	PvCrtLocation       = "/credentials/ca.crt"
 )
+
+const (
+	WithoutBackupRepository = "without-backup-repository"
+)

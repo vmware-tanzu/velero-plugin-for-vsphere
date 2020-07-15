@@ -354,6 +354,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 			backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
 			if err != nil {
 				log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
+				return err
 			}
 			err = this.DeleteRemoteSnapshotFromRepo(peID, backupRepositoryCR)
 		} else {
