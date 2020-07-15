@@ -33,11 +33,8 @@ func TestClaimBackupRepository(t *testing.T) {
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
 
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
-	if !exist {
-		errMsg := "Failed to lookup the ENV variable for velero namespace"
-		t.Fatalf(errMsg)
-	}
+	// using velero ns for testing.
+	veleroNs := "velero"
 
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(config)
 	if err != nil {
