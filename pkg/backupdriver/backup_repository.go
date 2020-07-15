@@ -9,7 +9,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -17,9 +16,9 @@ import (
 	"time"
 )
 
-type waitBRResult struct {
-	backupRepository *backupdriverv1.BackupRepository
-	err              error
+type waitBRCResult struct {
+	backupRepositoryName string
+	err                  error
 }
 
 /*
@@ -33,7 +32,7 @@ func ClaimBackupRepository(ctx context.Context,
 	allowedNamespaces []string,
 	ns string,
 	backupdriverV1Client *v1.BackupdriverV1Client,
-	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
+	logger logrus.FieldLogger) (string, error) {
 
 	// The map holds all the BRCs that match the parameters.
 	// Any BR that references any of the BRC in the map can be returned.
@@ -41,7 +40,7 @@ func ClaimBackupRepository(ctx context.Context,
 
 	brcList, err := backupdriverV1Client.BackupRepositoryClaims(ns).List(metav1.ListOptions{})
 	if err != nil {
-		return nil, errors.Errorf("Failed to list backup repository claims from the %v namespace", ns)
+		return "", errors.Errorf("Failed to list backup repository claims from the %v namespace", ns)
 	}
 	logger.Infof("Found %d BackupRepositoryClaims", len(brcList.Items))
 	// Pre-existing BackupRepositoryClaims found.
@@ -57,17 +56,7 @@ func ClaimBackupRepository(ctx context.Context,
 				logger.Infof("Found matching BRC for the parameters, BRC: %s", repositoryClaimItem.Name)
 				// Retrieve the BackupRepository and return.
 				backupRepositoryNameFound := repositoryClaimItem.BackupRepository
-				backupRepositoryFound, err := backupdriverV1Client.BackupRepositories().
-					Get(backupRepositoryNameFound, metav1.GetOptions{})
-				if err != nil {
-					if apierrors.IsNotFound(err) {
-						// BR was deleted before access.
-						logger.Errorf("The BR: %s for the BRC: %s was deleted prior to access",
-							backupRepositoryNameFound, repositoryClaimItem.Name)
-					}
-					return nil, errors.Errorf("Failed to retrieve backup repository %v", err)
-				}
-				return backupRepositoryFound, nil
+				return backupRepositoryNameFound, nil
 			}
 		}
 	}
@@ -78,7 +67,7 @@ func ClaimBackupRepository(ctx context.Context,
 		// Create a new BackupRepositoryClaim to indicate the params.
 		backupRepoClaimUUID, err := uuid.NewRandom()
 		if err != nil {
-			return nil, errors.Errorf("Failed to generate backup repository claim name")
+			return "", errors.Errorf("Failed to generate backup repository claim name")
 		}
 		backupRepoClaimName := "brc-" + backupRepoClaimUUID.String()
 		backupRepositoryClaimReq := builder.ForBackupRepositoryClaim(ns, backupRepoClaimName).
@@ -86,27 +75,27 @@ func ClaimBackupRepository(ctx context.Context,
 			AllowedNamespaces(allowedNamespaces).Result()
 		backupRepositoryClaim, err := backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
 		if err != nil {
-			return nil, errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
+			return "", errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
 		}
 		brcMap[backupRepoClaimName] = backupRepositoryClaim
 	}
-	results := make(chan waitBRResult)
+	results := make(chan waitBRCResult)
 	watchlist := cache.NewListWatchFromClient(backupdriverV1Client.RESTClient(),
-		"backuprepositories", metav1.NamespaceNone, fields.Everything())
+		"backuprepositoryclaims", ns, fields.Everything())
 	_, controller := cache.NewInformer(
 		watchlist,
-		&backupdriverv1.BackupRepository{},
+		&backupdriverv1.BackupRepositoryClaim{},
 		time.Second*0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				backupRepo := obj.(*backupdriverv1.BackupRepository)
-				logger.Debugf("Backup Repository added: %s", backupRepo.Name)
-				checkIfBackupRepositoryIsClaimed(brcMap, backupRepo, results, logger)
+				backupRepoClaim := obj.(*backupdriverv1.BackupRepositoryClaim)
+				logger.Debugf("Backup Repository Claim added: %s", backupRepoClaim.Name)
+				checkIfBackupRepositoryClaimIsReferenced(brcMap, backupRepoClaim, results, logger)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				backupRepoNew := newObj.(*backupdriverv1.BackupRepository)
-				logger.Debugf("Backup Repository:%s updated", backupRepoNew.Name)
-				checkIfBackupRepositoryIsClaimed(brcMap, backupRepoNew, results, logger)
+				backupRepoClaimNew := newObj.(*backupdriverv1.BackupRepositoryClaim)
+				logger.Debugf("Backup Repository Claim: %s updated", backupRepoClaimNew.Name)
+				checkIfBackupRepositoryClaimIsReferenced(brcMap, backupRepoClaimNew, results, logger)
 			},
 		})
 	stop := make(chan struct{})
@@ -116,15 +105,9 @@ func ClaimBackupRepository(ctx context.Context,
 	select {
 	case <-ctx.Done():
 		stop <- struct{}{}
-		return nil, ctx.Err()
+		return "", ctx.Err()
 	case result := <-results:
-		brcClaimName := result.backupRepository.BackupRepositoryClaim
-		err := PatchBackupRepositoryClaim(brcMap[brcClaimName],
-			result.backupRepository.Name, ns, backupdriverV1Client)
-		if err != nil {
-			return nil, err
-		}
-		return result.backupRepository, nil
+		return result.backupRepositoryName, nil
 	}
 }
 
@@ -158,27 +141,26 @@ func CreateBackupRepository(ctx context.Context,
 	return br, nil
 }
 
-// checkIfBackupRepositoryIsClaimed checks if the the BackupRepository is associated with
-// a specific claim, if so it writes the BackupRepository into the result channel
-func checkIfBackupRepositoryIsClaimed(
+func checkIfBackupRepositoryClaimIsReferenced(
 	brcMap map[string]*backupdriverv1.BackupRepositoryClaim,
-	backupRepository *backupdriverv1.BackupRepository,
-	result chan waitBRResult,
+	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
+	result chan waitBRCResult,
 	logger logrus.FieldLogger) {
-	brcRefName := backupRepository.BackupRepositoryClaim
-	if brcRefName != "" {
-		// Check if the BR's BRC reference is any of the BRC we are interested in.
-		if backupRepositoryClaim, ok := brcMap[brcRefName]; ok {
-			// If the BR was created explicitly with the claim name return it.
-			logger.Infof("Found matching BackupRepository: %s for the BackupRepositoryClaim: %s",
-				backupRepository.Name, backupRepositoryClaim.Name)
-			result <- waitBRResult{
-				backupRepository: backupRepository,
-				err:              nil,
+	brcName := backupRepositoryClaim.Name
+	brRefName := backupRepositoryClaim.BackupRepository
+	if brRefName != "" {
+		// Check if the BRC is among any of the ones we are interested in.
+		if _, ok := brcMap[brcName]; ok {
+			logger.Infof("Found matching BackupRepositoryClaim: %s with referenced BackupRepository: %s",
+				brcName, brRefName)
+			result <- waitBRCResult{
+				backupRepositoryName: brRefName,
+				err:                  nil,
 			}
 		}
 	} else {
-		logger.Infof("Found unclaimed BackupRepository: %v, this is unexpected, ignoring it", backupRepository)
+		logger.Infof("Received BackupRepositoryClaim with no BackupRepository reference, ignoring it now, as it" +
+			"is expected to be patched later, BackupRepositoryClaim: %v", backupRepositoryClaim)
 	}
 }
 
