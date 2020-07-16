@@ -25,10 +25,10 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/astrolabe/pkg/server"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -46,32 +46,66 @@ type SnapshotManager struct {
 	s3PETM *s3repository.ProtectedEntityTypeManager
 }
 
+// TODO - remove in favor of NewSnapshotManagerFromConfig when callers have been converted
 func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[string]string, logger logrus.FieldLogger) (*SnapshotManager, error) {
-	// TODO: For now, do not proceed with snapshot manager creation for guest cluster
+
+	// Split incoming params out into configInfo and s3RepoParams
+
+	s3RepoParams := make(map[string]interface{})
+	s3RepoParams["region"] = params["region"]
+	s3RepoParams["bucket"] = params["bucket"]
+	s3RepoParams["s3ForcePathStyle"] = params["s3ForcePathStyle"]
+	s3RepoParams["s3Url"] = params["s3Url"]
+
+	ivdParams := make(map[string]interface{})
+	ivdParams[ivd.HostVcParamKey] = params[ivd.HostVcParamKey]
+	ivdParams[ivd.UserVcParamKey] = params[ivd.UserVcParamKey]
+	ivdParams[ivd.PasswordVcParamKey] = params[ivd.PasswordVcParamKey]
+	ivdParams[ivd.PortVcParamKey] = params[ivd.PortVcParamKey]
+	ivdParams[ivd.DatacenterVcParamKey] = params[ivd.DatacenterVcParamKey]
+	ivdParams[ivd.InsecureFlagVcParamKey] = params[ivd.InsecureFlagVcParamKey]
+	ivdParams[ivd.ClusterVcParamKey] = params[ivd.ClusterVcParamKey]
+
+	peConfigs := make(map[string]map[string]interface{})
+	peConfigs["ivd"] = ivdParams	// Even an empty map here will force NewSnapshotManagerFromConfig to use the default VC config
+	// Initialize dummy s3 config.
+	s3Config := astrolabe.S3Config{
+		URLBase:   "VOID_URL",
+	}
+	configInfo := server.NewConfigInfo(peConfigs, s3Config)
+
+	return NewSnapshotManagerFromConfig(configInfo, s3RepoParams, config, nil, logger)
+}
+
+func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map[string]interface{},
+	config map[string]string, k8sRestConfig *rest.Config, logger logrus.FieldLogger) (*SnapshotManager, error) {
 	// TEMP change for this sprint. Causes install to fails as secret is not present
 	// Do not use BackupStorageLocation, but the BackupRepositories
 	// For guest:
 	// 1. Params can contain supervisor API server endpoint, Token, namespace and crt file location
 	// 2. Initialize pvIVD
+
+	// TODO - remove this, we need to initialize snapshot manager for guest, supervisor and vanilla.
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
 	if clusterFlavor == utils.TkgGuest {
 		logger.Infof("SnapshotManager: Skipping for cluster flavor %s", clusterFlavor)
 		return nil, nil
 	}
 
-	// Retrieve VC configuration from the cluster only if it has not been passed by the caller
-	if _, ok := params[ivd.HostVcParamKey]; !ok {
-		err := utils.RetrieveVcConfigSecret(params, logger)
-		if err != nil {
-			logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret")
-			return nil, err
+	// Retrieve VC configuration from the cluster only if it has not been set by the caller
+	// An empty ivd map must be passed to use the IVD
+	// TODO - Move this code out to the caller - this assumes we always want IVD
+	if ivdParams, ok := configInfo.PEConfigs["ivd"]; ok {
+		if _, ok := ivdParams[ivd.HostVcParamKey]; !ok {
+			err := utils.RetrieveVcConfigSecret(ivdParams, k8sRestConfig, logger)
+			if err != nil {
+				logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret")
+				return nil, err
+			}
+			logger.Infof("SnapshotManager: vSphere VC credential is retrieved")
 		}
-		logger.Infof("SnapshotManager: vSphere VC credential is retrieved")
 	}
-
 	var s3PETM *s3repository.ProtectedEntityTypeManager
-	var ivdPETM *ivd.IVDProtectedEntityTypeManager
-	// TODO: initialize other ProtectedEntityTypeManager
 
 	// firstly, check whether local mode is disabled or not.
 	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
@@ -83,45 +117,31 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 		bucket, isBucketExist := config["bucket"]
 
 		if isRegionExist && isBucketExist {
-			params["region"] = region
-			params["bucket"] = bucket
+			s3RepoParams["region"] = region
+			s3RepoParams["bucket"] = bucket
 		} else {
-			err = utils.RetrieveVSLFromVeleroBSLs(params, logger)
+			err = utils.RetrieveVSLFromVeleroBSLs(s3RepoParams, k8sRestConfig, logger)
 			if err != nil {
 				logger.WithError(err).Errorf("Could not retrieve velero default backup location")
 				return nil, err
 			}
 		}
 
-		logger.Infof("SnapshotManager: Velero Backup Storage Location is retrieved, region=%v, bucket=%v", params["region"], params["bucket"])
+		logger.Infof("SnapshotManager: Velero Backup Storage Location is retrieved, region=%v, bucket=%v", s3RepoParams["region"], s3RepoParams["bucket"])
 
-		s3PETM, err = utils.GetS3PETMFromParamsMap(params, logger)
+		s3PETM, err = utils.GetS3PETMFromParamsMap(s3RepoParams, logger)
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get s3PETM from params map: region=%v, bucket=%v",
-				params["region"], params["bucket"])
+				s3RepoParams["region"], s3RepoParams["bucket"])
 			return nil, err
 		}
 		logger.Infof("SnapshotManager: Get s3PETM from the params map")
 	}
 
-	// Initializing IVD ProtectedEntityTypeManager
-	ivdPETM, err = utils.GetIVDPETMFromParamsMap(params, logger)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to get ivdPETM from params map: VirtualCenter=%v, port=%v",
-			params["VirtualCenter"], params["port"])
-		return nil, err
-	}
-	logger.Infof("SnapshotManager: Get ivdPETM from the params map, VirtualCenter=%v, port=%v", params["VirtualCenter"], params["port"])
-
-	// TODO: Initialize PVC PETM.
-
-	// Initialize dummy s3 config.
-	s3Config := astrolabe.S3Config{
-		URLBase:   "VOID_URL",
-	}
-
 	// Initialize the DirectProtectedEntityManager
-	depm := server.NewDirectProtectedEntityManager([]astrolabe.ProtectedEntityTypeManager{ivdPETM}, s3Config)
+	depm := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
+
+	// TODO - initialize and add Para Virtual PE to depm
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
 		config:      config,
