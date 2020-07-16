@@ -37,30 +37,8 @@ func (ctrl *backupDriverController) CreateSnapshot(snapshot *backupdriverapi.Sna
 		return errors.New(errMsg)
 	}
 
-	pvc, err := ctrl.pvcLister.PersistentVolumeClaims(snapshot.Namespace).Get(objName)
-	if err != nil {
-		errMsg := fmt.Sprintf("pvc %s/%s not found in the informer cache: %v", snapshot.Namespace, objName, err)
-		ctrl.logger.Error(errMsg)
-		return err
-	}
-
-	pv, err := ctrl.pvLister.Get(pvc.Spec.VolumeName)
-	if err != nil {
-		errMsg := fmt.Sprintf("pv %s not found in the informer cache: %v", pvc.Spec.VolumeName, err)
-		ctrl.logger.Error(errMsg)
-		return err
-	}
-
-	if nil == pv.Spec.PersistentVolumeSource.CSI {
-		errMsg := fmt.Sprintf("the CSI PersistentVolumeSource cannot be nil in PV %s", pv.Name)
-		ctrl.logger.Error(errMsg)
-		return errors.New(errMsg)
-	}
-
-	volumeID := pv.Spec.PersistentVolumeSource.CSI.VolumeHandle
-
 	// call SnapshotMgr CreateSnapshot API
-	peID := astrolabe.NewProtectedEntityID("ivd", volumeID)
+	peID := astrolabe.NewProtectedEntityIDWithNamespace(objKind, objName, snapshot.Namespace)
 	ctrl.logger.Infof("CreateSnapshot: The initial Astrolabe PE ID: %s", peID)
 	if ctrl.snapManager == nil {
 		errMsg := fmt.Sprintf("snapManager is not initialized.")
@@ -72,7 +50,7 @@ func (ctrl *backupDriverController) CreateSnapshot(snapshot *backupdriverapi.Sna
 	// but it is not really used
 	var tags map[string]string
 
-	peID, err = ctrl.snapManager.CreateSnapshot(peID, tags)
+	peID, err := ctrl.snapManager.CreateSnapshot(peID, tags)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
 		ctrl.logger.Error(errMsg)

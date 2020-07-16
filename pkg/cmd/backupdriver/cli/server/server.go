@@ -19,8 +19,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -29,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/pkg/errors"
@@ -220,14 +220,14 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
 
 	peConfigs := make(map[string]map[string]interface{})
-	peConfigs["ivd"] = make(map[string]interface{})	// Empty ivd configs causes NewSnapshotManagerFromConfig to fill in the blanks.  TODO - externalize that functionality for clarity
+	peConfigs["ivd"] = make(map[string]interface{}) // Empty ivd configs causes NewSnapshotManagerFromConfig to fill in the blanks.  TODO - externalize that functionality for clarity
 
 	pvcConfig := make(map[string]interface{})
 	pvcConfig["restConfig"] = config
-	peConfigs["pvd"] = pvcConfig
+	peConfigs[astrolabe.PvcPEType] = pvcConfig
 	// Initialize dummy s3 config.
 	s3Config := astrolabe.S3Config{
-		URLBase:   "VOID_URL",
+		URLBase: "VOID_URL",
 	}
 
 	s3RepoParams := make(map[string]interface{})
