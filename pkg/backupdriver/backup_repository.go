@@ -130,32 +130,50 @@ func ClaimBackupRepository(ctx context.Context,
 
 // Creates a BackupRepository with the parameters.
 func CreateBackupRepository(ctx context.Context,
-	repositoryDriver string,
-	repositoryParameters map[string]string,
-	allowedNamespaces []string,
-	backupRepositoryClaimName string,
+	brc *backupdriverv1.BackupRepositoryClaim,
 	backupdriverV1Client *v1.BackupdriverV1Client,
 	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
 
-	logger.Infof("Creating BackupRepository for the BackupRepositoryClaim %s", backupRepositoryClaimName)
-	backupRepoUUID, err := uuid.NewRandom()
+	logger.Infof("Creating BackupRepository for the BackupRepositoryClaim %s", brc.Name)
+	backupRepoName := GetBackupRepositoryNameForBackupRepositoryClaim(brc)
+	var backupRepoReq *backupdriverv1.BackupRepository
+	// Check if the BackupRepository already exists.
+	backupRepoReq, err := backupdriverV1Client.BackupRepositories().
+		Get(backupRepoName, metav1.GetOptions{})
 	if err != nil {
-		return nil, errors.Errorf("Failed to generate backup repository name")
+		if !apierrors.IsNotFound(err) {
+			logger.Errorf("Error occurred trying to retrieve BackupRepository API object %s: %v",
+				backupRepoName, err)
+			return nil, errors.Errorf("failed to retrieve BackupRepository API object %s: %v", backupRepoName, err)
+		}
+		backupRepoReq = nil
 	}
-	backupRepoName := "br-" + backupRepoUUID.String()
-	backupRepoReq := builder.ForBackupRepository(backupRepoName).
-		BackupRepositoryClaim(backupRepositoryClaimName).
-		AllowedNamespaces(allowedNamespaces).
-		RepositoryParameters(repositoryParameters).
-		RepositoryDriver().Result()
-	br, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
-	if err != nil {
-		logger.Errorf("Failed to created the BackupRepository CRD")
-		return nil, err
+
+	// BackupRepository not found. Create a new one
+	if backupRepoReq == nil {
+		backupRepoReq = builder.ForBackupRepository(backupRepoName).
+			BackupRepositoryClaim(brc.Name).
+			AllowedNamespaces(brc.AllowedNamespaces).
+			RepositoryParameters(brc.RepositoryParameters).
+			RepositoryDriver().Result()
+		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
+		if err != nil {
+			logger.Errorf("Failed to create the BackupRepository API object: %v", err)
+			return nil, err
+		}
+		logger.Infof("Successfully created BackupRepository API object %s for the BackupRepositoryClaim %s",
+			backupRepoName, brc.Name)
+
+		return newBackupRepo, nil
 	}
-	logger.Infof("Successfully created BackupRepository %s for the BackupRepositoryClaim %s",
-		backupRepoName, backupRepositoryClaimName)
-	return br, nil
+	logger.Infof("Found BackupRepository %s for the BackupRepositoryClaim %s", backupRepoReq.Name, brc.Name)
+
+	return backupRepoReq, nil
+}
+
+// Construct a unique name for BackupRepository based on UID of BackupRepositoryClaim
+func GetBackupRepositoryNameForBackupRepositoryClaim(brc *backupdriverv1.BackupRepositoryClaim) string {
+	return "br-" + string(brc.UID)
 }
 
 // checkIfBackupRepositoryIsClaimed checks if the the BackupRepository is associated with
