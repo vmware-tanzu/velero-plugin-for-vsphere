@@ -30,7 +30,6 @@ const (
 	DefaultInsecureFlag       bool = true
 	DefaultVCConfigFromSecret bool = true
 
-	DefaultControllerWorkers  = 1
 	DefaultBackupWorkers      = 1
 	DefaultRetryIntervalStart = time.Second
 	DefaultRetryIntervalMax   = 5 * time.Minute
