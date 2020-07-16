@@ -49,13 +49,15 @@ import (
  * In the CSI setup, VC credential is stored as a secret
  * under the kube-system namespace.
  */
-func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLogger) error {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-		return err
+func RetrieveVcConfigSecret(params map[string]interface{}, config * rest.Config, logger logrus.FieldLogger) error {
+	var err error  // Declare here to avoid shadowing on config using := with rest.InClusterConfig
+	if config == nil {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+			return errors.Wrap(err, "Could not retrieve in-cluster config")
+		}
 	}
-
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v", config)
@@ -127,10 +129,13 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
  * for the data manager component in plugin from the Backup Storage Locations(BSLs)
  * of Velero. It will always pick up the first available one.
  */
-func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, logger logrus.FieldLogger) error {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return err
+func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
+	var err error  // Declare here to avoid shadowing on config using := with rest.InClusterConfig
+	if config == nil {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return errors.Wrap(err, "Could not retrieve in-cluster config")
+		}
 	}
 
 	veleroClient, err := versioned.NewForConfig(config)

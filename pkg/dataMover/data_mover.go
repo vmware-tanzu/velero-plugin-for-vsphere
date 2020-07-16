@@ -37,7 +37,7 @@ type DataMover struct {
 func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
 	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
 	if _, ok := params[ivd.HostVcParamKey]; !ok {
-		err := utils.RetrieveVcConfigSecret(params, logger)
+		err := utils.RetrieveVcConfigSecret(params, nil, logger)
 
 		if err != nil {
 			logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret.")
@@ -46,7 +46,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 		logger.Infof("DataMover: vSphere VC credential is retrieved")
 	}
 
-	err := utils.RetrieveVSLFromVeleroBSLs(params, logger)
+	err := utils.RetrieveVSLFromVeleroBSLs(params, nil, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
 		return nil, err
