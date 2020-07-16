@@ -92,9 +92,7 @@ func handleNewBackupRepositoryClaim(ctx context.Context,
 	ns string,
 	backupdriverClient *backupdriverTypedV1.BackupdriverV1Client,
 	logger logrus.FieldLogger) error {
-	backupRepository, err := CreateBackupRepository(ctx, backupRepositoryClaim.RepositoryDriver,
-		backupRepositoryClaim.RepositoryParameters, backupRepositoryClaim.AllowedNamespaces, backupRepositoryClaim.Name,
-		backupdriverClient, logger)
+	backupRepository, err := CreateBackupRepository(ctx, backupRepositoryClaim, backupdriverClient, logger)
 	if err != nil {
 		logger.Errorf("Failed to create the BackupRepository")
 		return err
