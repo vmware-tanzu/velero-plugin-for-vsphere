@@ -214,11 +214,14 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.deletePV,
 	}, resyncPeriod)
 
-	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc:    ctrl.addSnapshot,
-		UpdateFunc: ctrl.updateSnapshot,
-		DeleteFunc: ctrl.deleteSnapshot,
-	}, resyncPeriod)
+	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
+			//UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueSnapshot(newObj) },
+			DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddSnapshot,
@@ -259,16 +262,6 @@ func NewBackupDriverController(
 	return ctrl
 }
 
-func (ctrl *backupDriverController) addSnapshot(obj interface{}) {
-	ctrl.logger.Debugf("addSnapshot: %+v", obj)
-	objKey, err := ctrl.getKey(obj)
-	if err != nil {
-		return
-	}
-	ctrl.logger.Infof("addSnapshot: add %s to Snapshot queue", objKey)
-	ctrl.snapshotQueue.Add(objKey)
-}
-
 // getKey helps to get the resource name from resource object
 func (ctrl *backupDriverController) getKey(obj interface{}) (string, error) {
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
@@ -281,26 +274,6 @@ func (ctrl *backupDriverController) getKey(obj interface{}) (string, error) {
 	}
 	ctrl.logger.Debugf("getKey: key %s", objKey)
 	return objKey, nil
-}
-
-func (ctrl *backupDriverController) updateSnapshot(oldObj, newObj interface{}) {
-	ctrl.logger.Debugf("updateSnapshot: old [%+v] new [%+v]", oldObj, newObj)
-	oldSnapshot, ok := oldObj.(*backupdriverapi.Snapshot)
-	if !ok || oldSnapshot == nil {
-		return
-	}
-	ctrl.logger.Debugf("updateSnapshot: old Snapshot %+v", oldSnapshot)
-
-	newSnapshot, ok := newObj.(*backupdriverapi.Snapshot)
-	if !ok || newSnapshot == nil {
-		return
-	}
-	ctrl.logger.Debugf("updateSnapshot: new Snapshot %+v", newSnapshot)
-
-	ctrl.addSnapshot(newObj)
-}
-
-func (ctrl *backupDriverController) deleteSnapshot(obj interface{}) {
 }
 
 // Run starts the controller.
@@ -346,7 +319,7 @@ func (ctrl *backupDriverController) snapshotWorker() {
 	}
 	defer ctrl.snapshotQueue.Done(key)
 
-	if err := ctrl.syncSnapshot(key.(string)); err != nil {
+	if err := ctrl.syncSnapshotByKey(key.(string)); err != nil {
 		// Put snapshot back to the queue so that we can retry later.
 		ctrl.snapshotQueue.AddRateLimited(key)
 	} else {
@@ -354,9 +327,9 @@ func (ctrl *backupDriverController) snapshotWorker() {
 	}
 }
 
-// syncSnapshot processes one Snapshot CRD
-func (ctrl *backupDriverController) syncSnapshot(key string) error {
-	ctrl.logger.Debugf("syncSnapshot: Started Snapshot processing %s", key)
+// syncSnapshotByKey processes one Snapshot CRD
+func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
+	ctrl.logger.Infof("syncSnapshotByKey: Started Snapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -374,13 +347,55 @@ func (ctrl *backupDriverController) syncSnapshot(key string) error {
 		return err
 	}
 
-	err = ctrl.CreateSnapshot(snapshot)
-	if err != nil {
-		ctrl.logger.Errorf("Create snapshot %s/%s failed: %v", namespace, name, err)
-		return err
+	if snapshot.ObjectMeta.DeletionTimestamp == nil {
+		ctrl.logger.Infof("syncSnapshotByKey: calling CreateSnapshot %s/%s", snapshot.Namespace, snapshot.Name)
+		return ctrl.createSnapshot(snapshot)
 	}
 
 	return nil
+}
+
+// enqueueSnapshot adds Snapshotto given work queue.
+func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
+	ctrl.logger.Infof("enqueueSnapshot: %+v", obj)
+
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
+	}
+	if brc, ok := obj.(*backupdriverapi.Snapshot); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(brc)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
+			return
+		}
+		ctrl.logger.Infof("enqueueSnapshot: enqueued %q for sync", objName)
+		ctrl.snapshotQueue.Add(objName)
+	}
+}
+
+func (ctrl *backupDriverController) delSnapshot(obj interface{}) {
+	ctrl.logger.Infof("delSnapshot: delete snapshot %v", obj)
+
+	var key string
+	var err error
+	if key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj); err != nil {
+		return
+	}
+
+	snapshot, ok := obj.(*backupdriverapi.Snapshot)
+	if !ok || snapshot == nil {
+		return
+	}
+
+	err = ctrl.deleteSnapshot(snapshot)
+	if err != nil {
+		ctrl.logger.Errorf("Delete snapshot %s/%s failed: %v", snapshot.Namespace, snapshot.Name, err)
+		return
+	}
+
+	ctrl.snapshotQueue.Forget(key)
+	ctrl.snapshotQueue.Done(key)
 }
 
 func (ctrl *backupDriverController) pvcWorker() {
