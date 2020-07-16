@@ -74,7 +74,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	repositoryParameters := make(map[string]string) // TODO: retrieve the real object store config from velero storage location
 	ctx := context.Background()
 
-	backupRepositoryCR, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
+	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
 		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to claim backup repository: %v", err)
@@ -88,7 +88,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	p.Log.Info("Creating a snapshot CR")
-	backupRepository := backupdriver.NewBackupRepository(backupRepositoryCR.Name)
+	backupRepository := backupdriver.NewBackupRepository(backupRepositoryName)
 	_, err = backupdriver.SnapshopRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a snapshot CR: %v", err)
