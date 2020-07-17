@@ -176,7 +176,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	var peSnapID astrolabe.ProtectedEntitySnapshotID
 	this.Infof("Ready to call astrolabe Snapshot API. Will retry on InvalidState error once per second for an hour at maximum")
 	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
-		peSnapID, err = pe.Snapshot(ctx)
+		peSnapID, err = pe.Snapshot(ctx, make(map[string]map[string]interface{}))
 
 		if err != nil {
 			if strings.Contains(err.Error(), "The operation is not allowed in the current state") {
