@@ -20,6 +20,8 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/sirupsen/logrus"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	backupdriverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
@@ -30,7 +32,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -45,10 +46,9 @@ type BackupDriverController interface {
 type backupDriverController struct {
 	name   string
 	logger logrus.FieldLogger
-	// KubeClient of the current cluster
-	kubeClient kubernetes.Interface
-	// Supervisor Cluster KubeClient from Guest Cluster
-	svcKubeClient kubernetes.Interface
+
+	// Supervisor Cluster KubeClient for Guest Cluster
+	svcKubeConfig *rest.Config
 
 	backupdriverClient *backupdriverclientset.BackupdriverV1Client
 
@@ -123,17 +123,14 @@ type backupDriverController struct {
 func NewBackupDriverController(
 	name string,
 	logger logrus.FieldLogger,
-	// Kubernetes Cluster KubeClient
-	kubeClient kubernetes.Interface,
 	backupdriverClient *backupdriverclientset.BackupdriverV1Client,
+	svcKubeConfig *rest.Config,
+	supervisorNamespace string,
 	resyncPeriod time.Duration,
 	informerFactory informers.SharedInformerFactory,
 	backupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
 	snapManager *snapshotmgr.SnapshotManager,
 	rateLimiter workqueue.RateLimiter) BackupDriverController {
-	var supervisorNamespace string
-	// Supervisor Cluster KubeClient
-	var svcKubeClient kubernetes.Interface
 	// TODO: Fix svcPVCInformer to use svcInformerFactory
 	svcPVCInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	//svcPVCInformer := svcInformerFactory.Core().V1().PersistentVolumeClaims()
@@ -166,8 +163,7 @@ func NewBackupDriverController(
 	ctrl := &backupDriverController{
 		name:                           name,
 		logger:                         logger.WithField("controller", name),
-		kubeClient:                     kubeClient,
-		svcKubeClient:                  svcKubeClient,
+		svcKubeConfig:                  svcKubeConfig,
 		backupdriverClient:             backupdriverClient,
 		snapManager:                    snapManager,
 		pvLister:                       pvInformer.Lister(),
@@ -459,8 +455,20 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 	}
 
 	if brc.ObjectMeta.DeletionTimestamp == nil {
-		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
 		ctx := context.Background()
+		// In case of guest clusters, create BackupRepositoryClaim in the supervisor namespace
+		if ctrl.svcKubeConfig != nil {
+			// TODO: Save the svcBr to be passes to pvcPE fro snapshot
+			svcBr, err := ClaimSVBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.supervisorNamespace, ctrl.logger)
+			if err != nil {
+				ctrl.logger.Errorf("Failed to create Supervisor BackupRepositoryClaim")
+				return err
+			}
+			ctrl.logger.Infof("Created Supervisor BackupRepositoryClaim with BackupRepository %s", svcBr)
+		}
+
+		// Create BackupRepository when a new BackupRepositoryClaim is added
+		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
 		// Create BackupRepository when a new BackupRepositoryClaim is added and if the BackupRepository is not already created
 		br, err := CreateBackupRepository(ctx, brc, ctrl.backupdriverClient, ctrl.logger)
 		if err != nil {

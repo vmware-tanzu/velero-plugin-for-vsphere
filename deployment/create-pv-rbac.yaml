@@ -1,0 +1,24 @@
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: velero-rbac-role
+rules:
+  - apiGroups: ["backupdriver.io"]
+    resources: ["backuprepositoryclaims", "snapshots", "clonefromsnapshots"]
+    verbs: ["get", "list", "watch", "update", "create", "delete"]
+  - apiGroups: ["backupdriver.io"]
+    resources: ["snapshots/status", "clonefromsnapshots/status"]
+    verbs: ["get", "update", "patch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: velero-rbac-binding
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: vmware-system-tkg
+roleRef:
+  kind: ClusterRole
+  name: velero-rbac-role
+  apiGroup: rbac.authorization.k8s.io
