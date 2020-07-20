@@ -27,6 +27,7 @@ import (
 	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -247,11 +248,14 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.deleteBackupRepository,
 	}, resyncPeriod)
 
-	backupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc:    ctrl.addBackupRepositoryClaim,
-		UpdateFunc: ctrl.updateBackupRepositoryClaim,
-		DeleteFunc: ctrl.deleteBackupRepositoryClaim,
-	}, resyncPeriod)
+	backupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) { ctrl.enqueueBackupRepositoryClaim(obj) },
+			//UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueBackupRepositoryClaim(newObj) },
+			DeleteFunc: func(obj interface{}) { ctrl.dequeBackupRepositoryClaim(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcBackupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddBackupRepositoryClaim,
@@ -425,7 +429,7 @@ func (ctrl *backupDriverController) backupRepositoryClaimWorker() {
 	}
 	defer ctrl.backupRepositoryClaimQueue.Done(key)
 
-	if err := ctrl.syncBackupRepositoryClaim(key.(string)); err != nil {
+	if err := ctrl.syncBackupRepositoryClaimByKey(key.(string)); err != nil {
 		// Put backuprepositoryclaim back to the queue so that we can retry later.
 		ctrl.backupRepositoryClaimQueue.AddRateLimited(key)
 	} else {
@@ -435,8 +439,8 @@ func (ctrl *backupDriverController) backupRepositoryClaimWorker() {
 }
 
 // syncBackupRepositoryClaim processes one BackupRepositoryClaim CRD
-func (ctrl *backupDriverController) syncBackupRepositoryClaim(key string) error {
-	ctrl.logger.Infof("syncBackupRepositoryClaim: Started BackupRepositoryClaim processing %s", key)
+func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) error {
+	ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Started BackupRepositoryClaim processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -447,54 +451,75 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaim(key string) error 
 	brc, err := ctrl.backupRepositoryClaimLister.BackupRepositoryClaims(namespace).Get(name)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			ctrl.logger.Infof("BackupRepositoryClaim %s/%s is deleted, no need to process it", namespace, name)
+			ctrl.logger.Infof("syncBackupRepositoryClaimByKey: BackupRepositoryClaim %s/%s is deleted, no need to process it", namespace, name)
 			return nil
 		}
 		ctrl.logger.Errorf("Get BackupRepositoryClaim %s/%s failed: %v", namespace, name, err)
 		return err
 	}
 
-	ctx := context.Background()
-	// Create BackupRepository when a new BackupRepositoryClaim is added
-	br, err := CreateBackupRepository(ctx, brc, ctrl.backupdriverClient, ctrl.logger)
-	if err != nil {
-		ctrl.logger.Errorf("Failed to create BackupRepository")
-		return err
-	}
+	if brc.ObjectMeta.DeletionTimestamp == nil {
+		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
+		ctx := context.Background()
+		// Create BackupRepository when a new BackupRepositoryClaim is added and if the BackupRepository is not already created
+		br, err := CreateBackupRepository(ctx, brc, ctrl.backupdriverClient, ctrl.logger)
+		if err != nil {
+			ctrl.logger.Errorf("Failed to create BackupRepository")
+			return err
+		}
 
-	err = PatchBackupRepositoryClaim(brc, br.Name, brc.Namespace, ctrl.backupdriverClient)
-	if err != nil {
-		return err
+		err = PatchBackupRepositoryClaim(brc, br.Name, brc.Namespace, ctrl.backupdriverClient)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	return nil
 }
 
-func (ctrl *backupDriverController) addBackupRepositoryClaim(obj interface{}) {
-	ctrl.logger.Debugf("addBackupRepositoryClaim: %+v", obj)
-	objKey, err := ctrl.getKey(obj)
-	if err != nil {
-		return
+// enqueueBackupRepositoryClaimWork adds BackupRepositoryClaim to given work queue.
+func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}) {
+	ctrl.logger.Debugf("enqueueBackupRepositoryClaim: %+v", obj)
+
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
 	}
-	ctrl.logger.Infof("addBackupRepositoryClaim: add %s to BackupRepositoryClaim queue", objKey)
-	ctrl.backupRepositoryClaimQueue.Add(objKey)
+	if brc, ok := obj.(*backupdriverapi.BackupRepositoryClaim); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(brc)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
+			return
+		}
+		ctrl.logger.Infof("enqueueBackupRepositoryClaim: enqueued %q for sync", objName)
+		ctrl.backupRepositoryClaimQueue.Add(objName)
+	}
 }
 
-func (ctrl *backupDriverController) updateBackupRepositoryClaim(oldObj, newObj interface{}) {
-	ctrl.logger.Debugf("updateBackupRepositoryClaim: old [%+v] new [%+v]", oldObj, newObj)
-	oldBackupRepositoryClaim, ok := oldObj.(*backupdriverapi.BackupRepositoryClaim)
-	if !ok || oldBackupRepositoryClaim == nil {
+func (ctrl *backupDriverController) dequeBackupRepositoryClaim(obj interface{}) {
+	ctrl.logger.Debugf("dequeBackupRepositoryClaim: Remove BackupRepositoryClaim %v from queue", obj)
+
+	var key string
+	var err error
+	if key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj); err != nil {
 		return
 	}
 
-	newBackupRepositoryClaim, ok := newObj.(*backupdriverapi.BackupRepositoryClaim)
-	if !ok || newBackupRepositoryClaim == nil {
+	brc, ok := obj.(*backupdriverapi.BackupRepositoryClaim)
+	if !ok || brc == nil {
 		return
 	}
-	ctrl.logger.Debugf("updateBackupRepositoryClaim: new BackupRepositoryClaim %+v", newBackupRepositoryClaim)
+	// Delete BackupRepository from API server
+	if brc.BackupRepository != "" {
+		ctrl.logger.Infof("dequeBackupRepositoryClaim: Delete BackupRepository %s for BackupRepositoryClaim %s/%s", brc.BackupRepository, brc.Namespace, brc.Name)
+		err = ctrl.backupdriverClient.BackupRepositories().Delete(brc.BackupRepository, &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			ctrl.logger.Errorf("Delete BackupRepository %s failed: %v", brc.BackupRepository, err)
+			return
+		}
+	}
 
-	ctrl.addBackupRepositoryClaim(newObj)
-}
-
-func (ctrl *backupDriverController) deleteBackupRepositoryClaim(obj interface{}) {
+	ctrl.backupRepositoryClaimQueue.Forget(key)
+	ctrl.backupRepositoryClaimQueue.Done(key)
 }
