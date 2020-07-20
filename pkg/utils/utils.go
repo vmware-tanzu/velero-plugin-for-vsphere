@@ -124,12 +124,30 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config * rest.Config,
 	return nil
 }
 
+func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, config *rest.Config,
+	logger logrus.FieldLogger) error {
+	s3RepoParams := make(map[string]interface{})
+	err := RetrieveVSLFromVeleroBSLs(s3RepoParams, bslName, config, logger)
+	if err != nil {
+		return err
+	}
+	//Translate s3RepoParams to repositoryParams.
+	for key, val := range s3RepoParams {
+		paramValue, ok := val.(string)
+		if !ok {
+			return errors.Errorf("Failed to translate s3 repository parameter value: %v", val)
+		}
+		repositoryParams[key] = paramValue
+	}
+	return nil
+}
+
 /*
  * Retrieve the Volume Snapshot Location(VSL) as the remote storage location
  * for the data manager component in plugin from the Backup Storage Locations(BSLs)
  * of Velero. It will always pick up the first available one.
  */
-func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
+func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, config *rest.Config, logger logrus.FieldLogger) error {
 	var err error  // Declare here to avoid shadowing on config using := with rest.InClusterConfig
 	if config == nil {
 		config, err = rest.InClusterConfig()
@@ -149,13 +167,13 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Confi
 		return err
 	}
 
-	defaultBackupLocation := "default"
 	var backupStorageLocation *v1.BackupStorageLocation
 	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations(veleroNs).
-		Get(defaultBackupLocation, metav1.GetOptions{})
+		Get(bslName, metav1.GetOptions{})
 
 	if err != nil {
-		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero default backup storage location")
+		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero %s backup storage location," +
+			" attempting to find available BSL", bslName)
 		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
 		if err != nil || len(backupStorageLocationList.Items) <= 0 {
 			logger.WithError(err).Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")

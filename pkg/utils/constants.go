@@ -71,6 +71,7 @@ const (
 // configuration constants for the S3 repository
 const (
 	DefaultS3RepoPrefix = "plugins/vsphere-astrolabe-repo"
+	DefaultS3BackupLocation = "default"
 )
 const (
 	// Minimum velero version number to meet velero plugin requirement

@@ -70,8 +70,17 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
+
+
 	p.Log.Info("Claiming backup repository for snapshot")
+	bslName := backup.Spec.StorageLocation
 	repositoryParameters := make(map[string]string) // TODO: retrieve the real object store config from velero storage location
+
+	err = utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, p.Log)
+	if err != nil {
+		p.Log.Errorf("Failed to translate BSL to repository parameters: %v", err)
+		return nil, nil, errors.WithStack(err)
+	}
 	ctx := context.Background()
 
 	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
