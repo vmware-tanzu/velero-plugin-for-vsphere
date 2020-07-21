@@ -22,6 +22,7 @@ import (
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // createSnapshot creates a snapshot of the specified volume, and applies any provided
@@ -50,7 +51,24 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	// but it is not really used
 	var tags map[string]string
 
-	peID, err := ctrl.snapManager.CreateSnapshot(peID, tags)
+	brName := snapshot.Spec.BackupRepository
+	if ctrl.backupdriverClient == nil {
+		errMsg := fmt.Sprintf("backupdriverClient is not initialized")
+		ctrl.logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	if ctrl.svcKubeConfig != nil {
+		// For guest cluster, get the supervisor backup repository name
+		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
+		if err != nil {
+			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
+		}
+		// Update the backup repository name with the Supervisor BR name
+		brName = br.SvcBackupRepositoryName
+	}
+
+	peID, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
 		ctrl.logger.Error(errMsg)
@@ -77,11 +95,6 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	snapshotClone.Status.SnapshotID = snapshotID
 	// NOTE: snapshotClone.Status.Metadata is not populated yet
 
-	if ctrl.backupdriverClient == nil {
-		errMsg := fmt.Sprintf("backupdriverClient is not initialized")
-		ctrl.logger.Error(errMsg)
-		return errors.New(errMsg)
-	}
 	snapshot, err = ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 	if err != nil {
 		return err

@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -64,6 +65,7 @@ type serverConfig struct {
 	workers            int
 	retryIntervalStart time.Duration
 	retryIntervalMax   time.Duration
+	localMode          bool
 }
 
 func NewCommand(f client.Factory) *cobra.Command {
@@ -81,6 +83,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			workers:            cmd.DefaultBackupWorkers,
 			retryIntervalStart: cmd.DefaultRetryIntervalStart,
 			retryIntervalMax:   cmd.DefaultRetryIntervalMax,
+			localMode:          false,
 		}
 	)
 
@@ -134,6 +137,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().IntVar(&config.workers, "backup-workers", config.workers, "Concurrency to process multiple backup requests")
 	command.Flags().DurationVar(&config.retryIntervalStart, "backup-retry-int-start", config.retryIntervalStart, "Initial retry interval of failed backup request. It exponentially increases with each failure, up to retry-interval-max.")
 	command.Flags().DurationVar(&config.retryIntervalMax, "backup-retry-int-max", config.retryIntervalMax, "Maximum retry interval of failed backup request.")
+	command.Flags().BoolVar(&config.localMode, "local-mode", config.localMode, "Run backup driver in local mode. Optional.")
 
 	return command
 }
@@ -215,23 +219,28 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	pvcConfig := make(map[string]interface{})
 	pvcConfig["restConfig"] = config
 
+	// Set snapshot manager configuration information
+	snapshotMgrConfig := make(map[string]string)
+	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
+	snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(kubeClient)
 	var svcConfig *rest.Config
-	var svcNS string
+	var svcNamespace string
 	if clusterFlavor == utils.TkgGuest {
-		svcConfig, svcNS, err = utils.SupervisorConfig(logger)
+		svcConfig, svcNamespace, err = utils.SupervisorConfig(logger)
 		if err != nil {
 			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
 			return nil, err
 		}
 		pvcConfig["svcConfig"] = svcConfig
-		pvcConfig["svcNamespace"] = svcNS
-	}
+		pvcConfig["svcNamespace"] = svcNamespace
 
-	snapshotMgrConfig := make(map[string]string)
-	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
+		// Set the mode to local as the data movement job is assigned to the supervisor cluster
+		snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = "true"
+	}
 
 	peConfigs := make(map[string]map[string]interface{})
 	peConfigs["ivd"] = make(map[string]interface{}) // Empty ivd configs causes NewSnapshotManagerFromConfig to fill in the blanks.  TODO - externalize that functionality for clarity
@@ -256,7 +265,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		kubeClient:            kubeClient,
 		backupdriverClient:    backupdriverClient,
 		svcConfig:             svcConfig,
-		svcNamespace:          svcNS,
+		svcNamespace:          svcNamespace,
 		pluginInformerFactory: backupdriverInformerFactory,
 		kubeInformerFactory:   kubeInformerFactory,
 		ctx:                   ctx,

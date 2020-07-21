@@ -53,6 +53,7 @@ type InstallOptions struct {
 	PVSecret       bool
 	MasterAffinity bool
 	HostNetwork    bool
+	LocalMode      bool
 	Features       string
 }
 
@@ -93,6 +94,7 @@ func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error)
 		SecretAdd:      o.PVSecret,
 		MasterAffinity: o.MasterAffinity,
 		HostNetwork:    o.HostNetwork,
+		LocalMode:      o.LocalMode,
 	}, nil
 }
 
@@ -124,6 +126,9 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		fmt.Printf("Feature %s is not enabled. Skipping backup-driver installation", utils.VSphereItemActionPluginFlag)
 		return nil
 	}
+
+	// Check local mode
+	o.LocalMode = utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
 
 	var resources *unstructured.UnstructuredList
 

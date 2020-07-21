@@ -456,21 +456,22 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 
 	if brc.ObjectMeta.DeletionTimestamp == nil {
 		ctx := context.Background()
+		var svcBackupRepositoryName string
 		// In case of guest clusters, create BackupRepositoryClaim in the supervisor namespace
 		if ctrl.svcKubeConfig != nil {
-			// TODO: Save the svcBr to be passes to pvcPE fro snapshot
-			svcBr, err := ClaimSVBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.supervisorNamespace, ctrl.logger)
+			svcBackupRepositoryName, err = ClaimSvcBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.supervisorNamespace, ctrl.logger)
 			if err != nil {
 				ctrl.logger.Errorf("Failed to create Supervisor BackupRepositoryClaim")
 				return err
 			}
-			ctrl.logger.Infof("Created Supervisor BackupRepositoryClaim with BackupRepository %s", svcBr)
+			ctrl.logger.Infof("Created Supervisor BackupRepositoryClaim with BackupRepository %s", svcBackupRepositoryName)
 		}
 
 		// Create BackupRepository when a new BackupRepositoryClaim is added
+		// Save the supervisor backup repository name to be passed to snapshot manager
 		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
 		// Create BackupRepository when a new BackupRepositoryClaim is added and if the BackupRepository is not already created
-		br, err := CreateBackupRepository(ctx, brc, ctrl.backupdriverClient, ctrl.logger)
+		br, err := CreateBackupRepository(ctx, brc, svcBackupRepositoryName, ctrl.backupdriverClient, ctrl.logger)
 		if err != nil {
 			ctrl.logger.Errorf("Failed to create BackupRepository")
 			return err
@@ -480,7 +481,6 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 		if err != nil {
 			return err
 		}
-		return nil
 	}
 
 	return nil

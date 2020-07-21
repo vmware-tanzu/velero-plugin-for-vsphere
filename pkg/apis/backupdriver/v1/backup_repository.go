@@ -27,6 +27,9 @@ type BackupRepository struct {
 	RepositoryDriver      string            `json:"repositoryDriver"`
 	RepositoryParameters  map[string]string `json:"repopsitoryParameters"`
 	BackupRepositoryClaim string            `json:"backupRepositoryClaim"`
+
+	// +optional
+	SvcBackupRepositoryName string `json:"svcBackupRepositoryName"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
