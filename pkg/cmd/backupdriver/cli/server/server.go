@@ -141,9 +141,10 @@ func NewCommand(f client.Factory) *cobra.Command {
 type server struct {
 	namespace             string
 	metricsAddress        string
-	kubeClientConfig      *rest.Config
 	kubeClient            kubernetes.Interface
 	backupdriverClient    *backupdriver_clientset.BackupdriverV1Client
+	svcConfig             *rest.Config
+	svcNamespace          string
 	pluginInformerFactory pluginInformers.SharedInformerFactory
 	kubeInformerFactory   kubeinformers.SharedInformerFactory
 	ctx                   context.Context
@@ -210,21 +211,32 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	backupdriverInformerFactory := pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, config.resyncPeriod)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, config.resyncPeriod)
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	// Set the ProtectedEntity configuration
+	pvcConfig := make(map[string]interface{})
+	pvcConfig["restConfig"] = config
 
-	// TODO: If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeClient to communicate with the Supervisor Cluster
-	// If CLUSTER_FLAVOR is WORKLOAD, it is a Supervisor Cluster.
-	// By default we are in the Vanilla Cluster
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
+	clusterFlavor, _ := utils.GetClusterFlavor(kubeClient)
+	var svcConfig *rest.Config
+	var svcNS string
+	if clusterFlavor == utils.TkgGuest {
+		svcConfig, svcNS, err = utils.SupervisorConfig(logger)
+		if err != nil {
+			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
+			return nil, err
+		}
+		pvcConfig["svcConfig"] = svcConfig
+		pvcConfig["svcNamespace"] = svcNS
+	}
 
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
 
 	peConfigs := make(map[string]map[string]interface{})
 	peConfigs["ivd"] = make(map[string]interface{}) // Empty ivd configs causes NewSnapshotManagerFromConfig to fill in the blanks.  TODO - externalize that functionality for clarity
-
-	pvcConfig := make(map[string]interface{})
-	pvcConfig["restConfig"] = config
 	peConfigs[astrolabe.PvcPEType] = pvcConfig
+
 	// Initialize dummy s3 config.
 	s3Config := astrolabe.S3Config{
 		URLBase: "VOID_URL",
@@ -243,6 +255,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		metricsAddress:        config.metricsAddress,
 		kubeClient:            kubeClient,
 		backupdriverClient:    backupdriverClient,
+		svcConfig:             svcConfig,
+		svcNamespace:          svcNS,
 		pluginInformerFactory: backupdriverInformerFactory,
 		kubeInformerFactory:   kubeInformerFactory,
 		ctx:                   ctx,
@@ -292,8 +306,9 @@ func (s *server) runControllers() error {
 	backupDriverController := backupdriver.NewBackupDriverController(
 		"BackupDriverController",
 		s.logger,
-		s.kubeClient,
 		s.backupdriverClient,
+		s.svcConfig,
+		s.svcNamespace,
 		s.config.resyncPeriod,
 		s.kubeInformerFactory,
 		s.pluginInformerFactory,

@@ -2,19 +2,23 @@ package backupdriver
 
 import (
 	"context"
+	"reflect"
+	"time"
+
+	"k8s.io/client-go/rest"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
-	"time"
 )
 
 type waitBRCResult struct {
@@ -160,6 +164,25 @@ func GetBackupRepositoryNameForBackupRepositoryClaim(brc *backupdriverv1.BackupR
 	return "br-" + string(brc.UID)
 }
 
+/*
+ * Only called from Guest Cluster. This will either create a new
+ * BackupRepositoryClaim record or update/use an existing BackupRepositoryClaim
+ * record in the Supervisor namespace. In either case, it does not return until
+ * the BackupRepository is assigned in the supervisor cluster.
+ */
+func ClaimSVBackupRepository(ctx context.Context,
+	brc *backupdriverv1.BackupRepositoryClaim,
+	svcConfig *rest.Config,
+	svcNS string,
+	logger logrus.FieldLogger) (string, error) {
+
+	svcBackupdriverClient, err := backupdriverTypedV1.NewForConfig(svcConfig)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return ClaimBackupRepository(ctx, brc.RepositoryDriver, brc.RepositoryParameters, []string{svcNS}, svcNS, svcBackupdriverClient, logger)
+}
+
 func checkIfBackupRepositoryClaimIsReferenced(
 	brcMap map[string]*backupdriverv1.BackupRepositoryClaim,
 	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
@@ -178,7 +201,7 @@ func checkIfBackupRepositoryClaimIsReferenced(
 			}
 		}
 	} else {
-		logger.Infof("Received BackupRepositoryClaim with no BackupRepository reference, ignoring it now, as it" +
+		logger.Infof("Received BackupRepositoryClaim with no BackupRepository reference, ignoring it now, as it"+
 			"is expected to be patched later, BackupRepositoryClaim: %v", backupRepositoryClaim)
 	}
 }

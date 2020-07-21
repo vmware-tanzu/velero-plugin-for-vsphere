@@ -18,6 +18,10 @@ package snapshotmgr
 
 import (
 	"context"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -34,9 +38,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
-	"os"
-	"strings"
-	"time"
 )
 
 type SnapshotManager struct {
@@ -52,25 +53,32 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 	// Split incoming params out into configInfo and s3RepoParams
 
 	s3RepoParams := make(map[string]interface{})
-	s3RepoParams["region"] = params["region"]
-	s3RepoParams["bucket"] = params["bucket"]
-	s3RepoParams["s3ForcePathStyle"] = params["s3ForcePathStyle"]
-	s3RepoParams["s3Url"] = params["s3Url"]
-
 	ivdParams := make(map[string]interface{})
-	ivdParams[ivd.HostVcParamKey] = params[ivd.HostVcParamKey]
-	ivdParams[ivd.UserVcParamKey] = params[ivd.UserVcParamKey]
-	ivdParams[ivd.PasswordVcParamKey] = params[ivd.PasswordVcParamKey]
-	ivdParams[ivd.PortVcParamKey] = params[ivd.PortVcParamKey]
-	ivdParams[ivd.DatacenterVcParamKey] = params[ivd.DatacenterVcParamKey]
-	ivdParams[ivd.InsecureFlagVcParamKey] = params[ivd.InsecureFlagVcParamKey]
-	ivdParams[ivd.ClusterVcParamKey] = params[ivd.ClusterVcParamKey]
+
+	_, isRegionExist := params["region"]
+	if isRegionExist {
+		s3RepoParams["region"] = params["region"]
+		s3RepoParams["bucket"] = params["bucket"]
+		s3RepoParams["s3ForcePathStyle"] = params["s3ForcePathStyle"]
+		s3RepoParams["s3Url"] = params["s3Url"]
+	}
+
+	_, isVcHostExist := params[ivd.HostVcParamKey]
+	if isVcHostExist {
+		ivdParams[ivd.HostVcParamKey] = params[ivd.HostVcParamKey]
+		ivdParams[ivd.UserVcParamKey] = params[ivd.UserVcParamKey]
+		ivdParams[ivd.PasswordVcParamKey] = params[ivd.PasswordVcParamKey]
+		ivdParams[ivd.PortVcParamKey] = params[ivd.PortVcParamKey]
+		ivdParams[ivd.DatacenterVcParamKey] = params[ivd.DatacenterVcParamKey]
+		ivdParams[ivd.InsecureFlagVcParamKey] = params[ivd.InsecureFlagVcParamKey]
+		ivdParams[ivd.ClusterVcParamKey] = params[ivd.ClusterVcParamKey]
+	}
 
 	peConfigs := make(map[string]map[string]interface{})
-	peConfigs["ivd"] = ivdParams	// Even an empty map here will force NewSnapshotManagerFromConfig to use the default VC config
+	peConfigs["ivd"] = ivdParams // Even an empty map here will force NewSnapshotManagerFromConfig to use the default VC config
 	// Initialize dummy s3 config.
 	s3Config := astrolabe.S3Config{
-		URLBase:   "VOID_URL",
+		URLBase: "VOID_URL",
 	}
 	configInfo := server.NewConfigInfo(peConfigs, s3Config)
 
