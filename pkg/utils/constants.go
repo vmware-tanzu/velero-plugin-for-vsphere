@@ -87,8 +87,8 @@ const (
 const (
 	// DefaultNamespace is the Kubernetes namespace that is used by default for
 	// the Velero server and API objects.
-	DefaultNamespace  = "velero"
-	DefaultSecretName = "cloud-credentials"
+	DefaultNamespace          = "velero"
+	CloudCredentialSecretName = "cloud-credentials"
 )
 
 const (

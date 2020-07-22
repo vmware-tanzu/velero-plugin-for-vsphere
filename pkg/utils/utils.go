@@ -161,9 +161,9 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 	}
 
 	secretsClient := clientset.CoreV1().Secrets(veleroNs)
-	secret, err := secretsClient.Get(DefaultSecretName, metav1.GetOptions{})
+	secret, err := secretsClient.Get(CloudCredentialSecretName, metav1.GetOptions{})
 	if err != nil {
-		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", DefaultSecretName)
+		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", CloudCredentialSecretName)
 		return err
 	}
 
