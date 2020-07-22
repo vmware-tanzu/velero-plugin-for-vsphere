@@ -74,7 +74,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	p.Log.Info("Claiming backup repository for snapshot")
 	bslName := backup.Spec.StorageLocation
-	repositoryParameters := make(map[string]string) // TODO: retrieve the real object store config from velero storage location
+	repositoryParameters := make(map[string]string)
 
 	err = utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, p.Log)
 	if err != nil {

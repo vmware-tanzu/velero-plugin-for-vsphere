@@ -70,9 +70,12 @@ const (
 
 // configuration constants for the S3 repository
 const (
-	DefaultS3RepoPrefix = "plugins/vsphere-astrolabe-repo"
+	DefaultS3RepoPrefix     = "plugins/vsphere-astrolabe-repo"
 	DefaultS3BackupLocation = "default"
+	AWS_ACCESS_KEY_ID       = "aws_access_key_id"
+	AWS_SECRET_ACCESS_KEY   = "aws_secret_access_key"
 )
+
 const (
 	// Minimum velero version number to meet velero plugin requirement
 	VeleroMinVersion = "v1.3.2"
@@ -84,7 +87,8 @@ const (
 const (
 	// DefaultNamespace is the Kubernetes namespace that is used by default for
 	// the Velero server and API objects.
-	DefaultNamespace = "velero"
+	DefaultNamespace  = "velero"
+	DefaultSecretName = "cloud-credentials"
 )
 
 const (
