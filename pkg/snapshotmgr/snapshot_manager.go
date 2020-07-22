@@ -163,15 +163,16 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
-	return this.createSnapshot(peID, tags, nil)
+	return this.createSnapshot(peID, tags, "")
 }
 
-func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
-	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v", peID.String(), tags)
-	return this.createSnapshot(peID, tags, backupRepository)
+func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string) (astrolabe.ProtectedEntityID, error) {
+	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v, BackupRepository %s",
+		peID.String(), tags, backupRepositoryName)
+	return this.createSnapshot(peID, tags, backupRepositoryName)
 }
 
-func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
@@ -181,10 +182,18 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
+	// Snapshot params
+	snapshotParams := make(map[string]map[string]interface{})
+	guestSnapshotParams := make(map[string]interface{})
+	// Pass the backup repository name as snapshot param.
+	guestSnapshotParams["BackupRepositoryName"] = backupRepositoryName
+
+	snapshotParams[peID.GetPeType()] = guestSnapshotParams
+
 	var peSnapID astrolabe.ProtectedEntitySnapshotID
 	this.Infof("Ready to call astrolabe Snapshot API. Will retry on InvalidState error once per second for an hour at maximum")
 	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
-		peSnapID, err = pe.Snapshot(ctx, make(map[string]map[string]interface{}))
+		peSnapID, err = pe.Snapshot(ctx, snapshotParams)
 
 		if err != nil {
 			if strings.Contains(err.Error(), "The operation is not allowed in the current state") {
@@ -208,8 +217,8 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 	this.Infof("Local IVD snapshot is created, %s", updatedPeID.String())
 
+	// This is set for Guest Cluster or if the local mode flag is set
 	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
-
 	if isLocalMode {
 		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
 		return updatedPeID, nil
@@ -235,9 +244,9 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	}
 
 	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(updatedPeID.String()).Phase(v1api.UploadPhaseNew)
-	if backupRepository != nil {
-		this.Infof("Create upload CR with backup repository %s", backupRepository.Name)
-		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepository.Name)
+	if backupRepositoryName != "" {
+		this.Infof("Create upload CR with backup repository %s", backupRepositoryName)
+		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepositoryName)
 	}
 	upload := uploadBuilder.Result()
 	_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)

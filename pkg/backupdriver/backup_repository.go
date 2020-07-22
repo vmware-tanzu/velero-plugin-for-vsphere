@@ -119,6 +119,7 @@ func ClaimBackupRepository(ctx context.Context,
 // Creates a BackupRepository with the parameters.
 func CreateBackupRepository(ctx context.Context,
 	brc *backupdriverv1.BackupRepositoryClaim,
+	svcBrName string,
 	backupdriverV1Client *v1.BackupdriverV1Client,
 	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
 
@@ -143,7 +144,8 @@ func CreateBackupRepository(ctx context.Context,
 			BackupRepositoryClaim(brc.Name).
 			AllowedNamespaces(brc.AllowedNamespaces).
 			RepositoryParameters(brc.RepositoryParameters).
-			RepositoryDriver().Result()
+			RepositoryDriver().
+			SvcBackupRepositoryName(svcBrName).Result()
 		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
 		if err != nil {
 			logger.Errorf("Failed to create the BackupRepository API object: %v", err)
@@ -170,17 +172,17 @@ func GetBackupRepositoryNameForBackupRepositoryClaim(brc *backupdriverv1.BackupR
  * record in the Supervisor namespace. In either case, it does not return until
  * the BackupRepository is assigned in the supervisor cluster.
  */
-func ClaimSVBackupRepository(ctx context.Context,
+func ClaimSvcBackupRepository(ctx context.Context,
 	brc *backupdriverv1.BackupRepositoryClaim,
 	svcConfig *rest.Config,
-	svcNS string,
+	svcNamespace string,
 	logger logrus.FieldLogger) (string, error) {
 
 	svcBackupdriverClient, err := backupdriverTypedV1.NewForConfig(svcConfig)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	return ClaimBackupRepository(ctx, brc.RepositoryDriver, brc.RepositoryParameters, []string{svcNS}, svcNS, svcBackupdriverClient, logger)
+	return ClaimBackupRepository(ctx, brc.RepositoryDriver, brc.RepositoryParameters, []string{svcNamespace}, svcNamespace, svcBackupdriverClient, logger)
 }
 
 func checkIfBackupRepositoryClaimIsReferenced(

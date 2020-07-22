@@ -55,3 +55,13 @@ func (b *BackupRepositoryBuilder) BackupRepositoryClaim(backupRepositoryClaimNam
 	b.object.BackupRepositoryClaim = backupRepositoryClaimName
 	return b
 }
+
+// SvcBackupRepositoryName sets the name of the supervisor backup repository
+// corresponding to this specific backup repository, if it is not empty.
+// This is available only for guest clusters.
+func (b *BackupRepositoryBuilder) SvcBackupRepositoryName(svcBackupRepositoryName string) *BackupRepositoryBuilder {
+	if svcBackupRepositoryName != "" {
+		b.object.SvcBackupRepositoryName = svcBackupRepositoryName
+	}
+	return b
+}
