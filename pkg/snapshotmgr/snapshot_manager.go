@@ -18,6 +18,7 @@ package snapshotmgr
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
 	"os"
 	"strings"
 	"time"
@@ -93,11 +94,14 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	// 1. Params can contain supervisor API server endpoint, Token, namespace and crt file location
 	// 2. Initialize pvIVD
 
-	// TODO - remove this, we need to initialize snapshot manager for guest, supervisor and vanilla.
+	var err error
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
-	if clusterFlavor == utils.TkgGuest {
-		logger.Infof("SnapshotManager: Skipping for cluster flavor %s", clusterFlavor)
-		return nil, nil
+	if err != nil {
+		logger.Errorf("Failed to get cluster flavor")
+		return nil, err
+	}
+	if clusterFlavor != utils.TkgGuest {
+		configInfo.PEConfigs["ivd"] = make(map[string]interface{})
 	}
 
 	// Retrieve VC configuration from the cluster only if it has not been set by the caller
@@ -147,13 +151,27 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	}
 
 	// Initialize the DirectProtectedEntityManager
-	depm := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
+	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
 
-	// TODO - initialize and add Para Virtual PE to depm
+	// Register external PETMs if any
+	if clusterFlavor == utils.TkgGuest {
+		paravirtParams := make(map[string]interface{})
+		paravirtParams["restConfig"] = configInfo.PEConfigs[astrolabe.PvcPEType]["restConfig"]
+		paravirtParams["entityType"] = paravirt.ParaVirtEntityTypePersistentVolume
+		paravirtParams["svcConfig"] = configInfo.PEConfigs[astrolabe.PvcPEType]["svcConfig"]
+		paravirtParams["svcNamespace"] = configInfo.PEConfigs[astrolabe.PvcPEType]["svcNamespace"]
+		paraVirtPETM, err := paravirt.NewParaVirtProtectedEntityTypeManagerFromConfig(paravirtParams, configInfo.S3Config, logger)
+		if err != nil {
+			logger.Errorf("Failed to initialize paravirtualized PETM: %v", err)
+			return nil, err
+		}
+		dpem.RegisterExternalProtectedEntityTypeManagers([]astrolabe.ProtectedEntityTypeManager{paraVirtPETM})
+	}
+
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
 		config:      config,
-		pem:         depm,
+		pem:         dpem,
 		s3PETM:      s3PETM,
 	}
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)

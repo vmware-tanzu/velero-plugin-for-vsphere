@@ -1,4 +1,4 @@
-package backupdriver
+package snapshotUtils
 
 import (
 	"context"
@@ -82,11 +82,11 @@ func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, object
 	}
 	logger.Infof("Snapshot record, %s, status updated to %s", writtenSnapshot.Name, writtenSnapshot.Status.Phase)
 
-	_, err = WaitForPhases(ctx, clientSet, writtenSnapshot, waitForPhases, namespace, logger)
+	_, err = WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases, namespace, logger)
 	return *writtenSnapshot, err
 }
 
-func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait *backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
+func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
 	results := make(chan waitResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", namespace,
 		fields.Everything())
