@@ -190,6 +190,10 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 		deployment.Spec.Template.Spec.HostNetwork = true
 	}
 
+	if c.localMode {
+		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--local-mode")
+	}
+
 	deployment.Spec.Template.Spec.Containers[0].Env = append(deployment.Spec.Template.Spec.Containers[0].Env, c.envVars...)
 
 	return deployment

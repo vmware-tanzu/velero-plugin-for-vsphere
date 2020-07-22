@@ -2,6 +2,10 @@ package backupdriver
 
 import (
 	"context"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
@@ -9,9 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestClaimBackupRepository(t *testing.T) {
@@ -56,7 +57,6 @@ func TestClaimBackupRepository(t *testing.T) {
 		testDoneStatus <- true
 	}()
 
-
 	// Wait for the BRC to be created and create corresponding BR.
 	watchlist := cache.NewListWatchFromClient(backupdriverClient.RESTClient(),
 		"backuprepositoryclaims", veleroNs, fields.Everything())
@@ -92,7 +92,7 @@ func handleNewBackupRepositoryClaim(ctx context.Context,
 	ns string,
 	backupdriverClient *backupdriverTypedV1.BackupdriverV1Client,
 	logger logrus.FieldLogger) error {
-	backupRepository, err := CreateBackupRepository(ctx, backupRepositoryClaim, backupdriverClient, logger)
+	backupRepository, err := CreateBackupRepository(ctx, backupRepositoryClaim, "", backupdriverClient, logger)
 	if err != nil {
 		logger.Errorf("Failed to create the BackupRepository")
 		return err

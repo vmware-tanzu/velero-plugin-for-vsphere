@@ -94,6 +94,7 @@ type PodOptions struct {
 	SecretAdd      bool
 	MasterAffinity bool
 	HostNetwork    bool
+	LocalMode      bool
 }
 
 // Use "latest" if the build process didn't supply a version
@@ -409,6 +410,7 @@ func AllBackupDriverResources(o *PodOptions, withCRDs bool) (*unstructured.Unstr
 		WithSecret(o.SecretAdd),
 		WithMasterNodeAffinity(o.MasterAffinity),
 		WithHostNetwork(o.HostNetwork),
+		WithLocalMode(o.LocalMode),
 	)
 	appendUnstructured(resources, deploy)
 
