@@ -1,4 +1,4 @@
-package backupdriver
+package snapshotUtils
 
 import (
 	"context"
@@ -86,7 +86,7 @@ func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, object
 	return *writtenSnapshot, err
 }
 
-func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshot backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
+func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
 	results := make(chan waitResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", namespace,
 		fields.Everything())
@@ -97,11 +97,18 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				snapshot := obj.(*backupdriverv1.Snapshot)
+				if snapshot.Name != snapshotToWait.Name {
+					return
+				}
 				logger.Infof("snapshot added: %v", snapshot)
 				logger.Infof("phase = %s", snapshot.Status.Phase)
 				checkPhasesAndSendResult(waitForPhases, snapshot, results)
 			},
 			DeleteFunc: func(obj interface{}) {
+				snapshot := obj.(*backupdriverv1.Snapshot)
+				if snapshot.Name != snapshotToWait.Name {
+					return
+				}
 				logger.Infof("snapshot deleted: %s", obj)
 				results <- waitResult{
 					phase: "",
@@ -110,6 +117,9 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				snapshot := newObj.(*backupdriverv1.Snapshot)
+				if snapshot.Name != snapshotToWait.Name {
+					return
+				}
 				logger.Infof("snapshot changed: %v", snapshot)
 				logger.Infof("phase = %s", snapshot.Status.Phase)
 				checkPhasesAndSendResult(waitForPhases, snapshot, results)

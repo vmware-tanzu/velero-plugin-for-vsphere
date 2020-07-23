@@ -217,7 +217,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	// Set the ProtectedEntity configuration
 	pvcConfig := make(map[string]interface{})
-	pvcConfig["restConfig"] = config
+	pvcConfig["restConfig"] = clientConfig
 
 	// Set snapshot manager configuration information
 	snapshotMgrConfig := make(map[string]string)
@@ -243,7 +243,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 
 	peConfigs := make(map[string]map[string]interface{})
-	peConfigs["ivd"] = make(map[string]interface{}) // Empty ivd configs causes NewSnapshotManagerFromConfig to fill in the blanks.  TODO - externalize that functionality for clarity
 	peConfigs[astrolabe.PvcPEType] = pvcConfig
 
 	// Initialize dummy s3 config.
