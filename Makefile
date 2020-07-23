@@ -204,7 +204,7 @@ push-backup-driver: backup-driver-container
 push: push-datamgr push-plugin push-backup-driver
 
 push-pp:
-	$(MAKE) push-plugin LOCALMODE=true VERSION=$(VERSION)-pp
+	$(MAKE) push LOCALMODE=true VERSION=$(VERSION)-pp
 
 QUALIFIED_TAG ?=
 RELEASE_TAG ?= latest

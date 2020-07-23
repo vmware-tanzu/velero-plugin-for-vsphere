@@ -2,13 +2,14 @@ package paravirt
 
 import (
 	"context"
+	"io"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
-	"io"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -77,7 +78,7 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 
 	this.logger.Info("Creating a snapshot CR")
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
-	snapshot, err := snapshotUtils.SnapshopRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
+	snapshot, err := snapshotUtils.SnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
 	if err != nil {
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err

@@ -2,6 +2,10 @@ package snapshotUtils
 
 import (
 	"context"
+	"time"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -11,7 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-	"time"
 )
 
 /*
@@ -48,42 +51,56 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 	}
 }
 
-func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, objectToSnapshot core_v1.TypedLocalObjectReference, namespace string, repository BackupRepository, waitForPhases []backupdriverv1.SnapshotPhase, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
-	snapshotUUID, err := uuid.NewRandom()
+/*
+ * Create a Snapshot record in the specified namespace. The snapshot is created
+ * only if another one does not already exist.
+ */
+func SnapshotRef(ctx context.Context,
+	clientSet *v1.BackupdriverV1Client,
+	objectToSnapshot core_v1.TypedLocalObjectReference,
+	namespace string,
+	repository BackupRepository,
+	waitForPhases []backupdriverv1.SnapshotPhase,
+	logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
 
+	// Check if the snapshot record had already been created
+	var snapshotCR *backupdriverv1.Snapshot
+
+	snapshotList, err := clientSet.Snapshots(namespace).List(metav1.ListOptions{})
 	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Could not create snapshot UUID")
+		return backupdriverv1.Snapshot{}, errors.Errorf("Failed to list snapshots from the %v namespace", namespace)
 	}
-	snapshotCR := backupdriverv1.Snapshot{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Snapshot",
-			APIVersion: "backupdriver.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: snapshotUUID.String(),
-		},
-		Spec: backupdriverv1.SnapshotSpec{
-			TypedLocalObjectReference: objectToSnapshot,
-			BackupRepository:          repository.backupRepository,
-			SnapshotCancel:            false,
-		},
+	logger.Infof("Found %d snapshots in namespace %s", len(snapshotList.Items), namespace)
+	for _, snapItem := range snapshotList.Items {
+		match := compareSnapshot(objectToSnapshot.Kind, objectToSnapshot.Name, &snapItem, logger)
+		if match {
+			// Pre-existing snapshots found.
+			snapshotCR = &snapItem
+			break
+		}
 	}
 
-	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(&snapshotCR)
-	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to create snapshot record")
-	}
-	logger.Infof("Snapshot record, %s, created", writtenSnapshot.Name)
+	if snapshotCR == nil {
+		snapshotUUID, err := uuid.NewRandom()
+		if err != nil {
+			return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Could not create snapshot UUID")
+		}
+		snapshotName := "snap-" + snapshotUUID.String()
+		snapshotReq := builder.ForSnapshot(namespace, snapshotName).
+			BackupRepository(repository.backupRepository).
+			ObjectReference(objectToSnapshot).
+			CancelState(false).
+			StatusPhase(backupdriverv1.SnapshotPhaseNew).Result()
 
-	writtenSnapshot.Status.Phase = backupdriverv1.SnapshotPhaseNew
-	writtenSnapshot, err = clientSet.Snapshots(namespace).UpdateStatus(writtenSnapshot)
-	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to update status of snapshot record")
+		snapshotCR, err = clientSet.Snapshots(namespace).Create(snapshotReq)
+		if err != nil {
+			return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to create snapshot record")
+		}
+		logger.Infof("Snapshot record, %s, created with status %s", snapshotCR.Name, snapshotCR.Status.Phase)
 	}
-	logger.Infof("Snapshot record, %s, status updated to %s", writtenSnapshot.Name, writtenSnapshot.Status.Phase)
 
-	_, err = WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases, namespace, logger)
-	return *writtenSnapshot, err
+	_, err = WaitForPhases(ctx, clientSet, *snapshotCR, waitForPhases, namespace, logger)
+	return *snapshotCR, err
 }
 
 func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
@@ -136,4 +153,32 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 	case result := <-results:
 		return result.phase, result.err
 	}
+}
+
+/*
+ * Compare the parameters to check if they match an existing snapshot.
+ */
+func compareSnapshot(objKind string,
+	objName string,
+	snapshot *backupdriverv1.Snapshot,
+	logger logrus.FieldLogger) bool {
+	// Compare the params.
+	logger.Infof("Comparing Snapshot: %s", snapshot.Name)
+	// Skip the snapshot CRs where snapshot is already complete
+	if snapshot.Status.Phase != backupdriverv1.SnapshotPhaseNew ||
+		snapshot.Status.Phase != backupdriverv1.SnapshotPhaseInProgress {
+		logger.Infof("Skipping snapshot CR % as it is already complete", snapshot.Name)
+		return false
+	}
+	equal := objKind == snapshot.Spec.Kind
+	if !equal {
+		logger.Infof("Object kind not matched")
+		return false
+	}
+	equal = objName == snapshot.Spec.Name
+	if !equal {
+		logger.Infof("Object name not matched")
+		return false
+	}
+	return true
 }
