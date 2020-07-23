@@ -444,11 +444,8 @@ github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyC
 github.com/valyala/fasttemplate v1.0.1 h1:tY9CJiPnMXf1ERmG2EyK7gNUd+c6RKGD0IfU8WdUSz8=
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
-github.com/vmware-tanzu/astrolabe v0.1.1-0.20200716003722-ce1e0477a553/go.mod h1:hgUcdPy7lXeCTMUxHkYY9wCJnzFcB7dNw38+qXdIi9Q=
-github.com/vmware-tanzu/astrolabe v0.1.1-0.20200716163713-4a95556210e0 h1:uCdRskzn+qs4ShYeQZk6kRdIWwNlS9/rfkgs4jWQeLs=
-github.com/vmware-tanzu/astrolabe v0.1.1-0.20200716163713-4a95556210e0/go.mod h1:hgUcdPy7lXeCTMUxHkYY9wCJnzFcB7dNw38+qXdIi9Q=
-github.com/vmware-tanzu/astrolabe v0.1.1-0.20200717162845-8df0ce21edb8 h1:CPGyQD6WOb2NcgajRbnu7qfD5oT1tVlPHt3aPrCr+ps=
-github.com/vmware-tanzu/astrolabe v0.1.1-0.20200717162845-8df0ce21edb8/go.mod h1:hgUcdPy7lXeCTMUxHkYY9wCJnzFcB7dNw38+qXdIi9Q=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200723051124-31a004b864ae h1:Ei7vSzMuiLnJMVNJ0EsgvDFNn4YrncaNwhsY9Rl7Zio=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200723051124-31a004b864ae/go.mod h1:hgUcdPy7lXeCTMUxHkYY9wCJnzFcB7dNw38+qXdIi9Q=
 github.com/vmware-tanzu/velero v1.3.2 h1:Rhn37gjxn6Hwg6OFZUsW1CTuRaVuHEL8p/eiXrcKNGw=
 github.com/vmware-tanzu/velero v1.3.2/go.mod h1:s+8IqUKWcprcMVOfZKNC+jFY3tr/ElJfaMCcAfhThts=
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f h1:6LIYlihC1/LDUhZ7zYVp1WOEY5owzsvogiaHBqvBzPU=
