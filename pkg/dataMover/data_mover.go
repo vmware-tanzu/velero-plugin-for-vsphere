@@ -132,7 +132,7 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 }
 
 func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
-	backupRepository := builder.ForBackupRepository("Not use").Result()
+	backupRepository := builder.ForBackupRepository(utils.WithoutBackupRepository).Result()
 	return this.copyFromRepo(peID, backupRepository)
 }
 
