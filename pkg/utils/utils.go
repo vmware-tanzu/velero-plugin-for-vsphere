@@ -143,12 +143,6 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 		repositoryParams[key] = paramValue
 	}
 
-	// Extract credentials
-	config, err = rest.InClusterConfig()
-	if err != nil {
-		return errors.Wrap(err, "Could not retrieve in-cluster config")
-	}
-
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return errors.Wrap(err, "Failed to retrieve the k8s clientset")
