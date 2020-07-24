@@ -7,6 +7,7 @@ import (
 	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -36,6 +37,7 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	// Do nothing if volume snapshots have not been requested in this backup
 	//if utils.IsSetToFalse(backup.Spec.SnapshotVolumes) {
+	ctx := context.Background()
 	if backup.Spec.SnapshotVolumes != nil && *backup.Spec.SnapshotVolumes == false {
 		p.Log.Infof("Volume snapshotting not requested for backup %s/%s", backup.Namespace, backup.Name)
 		return item, nil, nil
@@ -72,8 +74,18 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	p.Log.Info("Claiming backup repository for snapshot")
-	repositoryParameters := make(map[string]string) // TODO: retrieve the real object store config from velero storage location
-	ctx := context.Background()
+	bslName := backup.Spec.StorageLocation
+	repositoryParameters := make(map[string]string)
+
+	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
+	// The repository parameters are irrelevant in local mode.
+	if !isLocalMode {
+		err = utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, p.Log)
+		if err != nil {
+			p.Log.Errorf("Failed to translate BSL to repository parameters: %v", err)
+			return nil, nil, errors.WithStack(err)
+		}
+	}
 
 	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
 		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)

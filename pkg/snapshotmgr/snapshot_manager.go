@@ -132,7 +132,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 			s3RepoParams["region"] = region
 			s3RepoParams["bucket"] = bucket
 		} else {
-			err = utils.RetrieveVSLFromVeleroBSLs(s3RepoParams, k8sRestConfig, logger)
+			err = utils.RetrieveVSLFromVeleroBSLs(s3RepoParams, utils.DefaultS3BackupLocation, k8sRestConfig, logger)
 			if err != nil {
 				logger.WithError(err).Errorf("Could not retrieve velero default backup location")
 				return nil, err

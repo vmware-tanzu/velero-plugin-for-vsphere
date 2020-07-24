@@ -46,7 +46,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 		logger.Infof("DataMover: vSphere VC credential is retrieved")
 	}
 
-	err := utils.RetrieveVSLFromVeleroBSLs(params, nil, logger)
+	err := utils.RetrieveVSLFromVeleroBSLs(params, utils.DefaultS3BackupLocation, nil, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
 		return nil, err

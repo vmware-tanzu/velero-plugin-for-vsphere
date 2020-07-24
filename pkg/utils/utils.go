@@ -19,35 +19,33 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net"
-	"os"
-	"strconv"
-	"strings"
-
-	"k8s.io/klog"
-
-	jsonpatch "github.com/evanphx/json-patch"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
-	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	"io/ioutil"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
+	"k8s.io/klog"
+	"net"
+	"os"
+	"strconv"
+	"strings"
 )
 
 /*
@@ -129,12 +127,79 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	return nil
 }
 
+func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, config *rest.Config,
+	logger logrus.FieldLogger) error {
+	s3RepoParams := make(map[string]interface{})
+	err := RetrieveVSLFromVeleroBSLs(s3RepoParams, bslName, config, logger)
+	if err != nil {
+		return err
+	}
+	//Translate s3RepoParams to repositoryParams.
+	for key, val := range s3RepoParams {
+		paramValue, ok := val.(string)
+		if !ok {
+			return errors.Errorf("Failed to translate s3 repository parameter value: %v", val)
+		}
+		repositoryParams[key] = paramValue
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return errors.Wrap(err, "Failed to retrieve the k8s clientset")
+	}
+
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		logger.Errorf("RetrieveParamsFromBSL: Failed to lookup the env variable for velero namespace")
+		return err
+	}
+
+	secretsClient := clientset.CoreV1().Secrets(veleroNs)
+	secret, err := secretsClient.Get(CloudCredentialSecretName, metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", CloudCredentialSecretName)
+		return err
+	}
+
+	for _, value := range secret.Data {
+		tmpfile, err := ioutil.TempFile("", "temp-aws-cred")
+		if err != nil {
+			return errors.Wrap(err, "Failed to create temp file to extract aws credentials")
+		}
+		// Cleanup
+		defer os.Remove(tmpfile.Name())
+
+		// Writing the encoded value into into a temporary file.
+		// The file is in a non-standard format, aws APIs recognize the format.
+		if _, err := tmpfile.Write(value); err != nil {
+			return errors.Wrap(err, "Failed to write aws credentials into temp file.")
+		}
+		if err := tmpfile.Close(); err != nil {
+			return errors.Wrap(err, "Failed to close into temp file.")
+		}
+		// Extract the right set of credentials based on the profile extracted from BSL.
+		awsCredentials := credentials.NewSharedCredentials(tmpfile.Name(), repositoryParams["profile"])
+		awsPlainCred, err := awsCredentials.Get()
+		if err != nil {
+			logger.Errorf("RetrieveParamsFromBSL: Failed to extract credentials for profile :%s", repositoryParams["profile"])
+			return err
+		}
+		repositoryParams[AWS_ACCESS_KEY_ID] = awsPlainCred.AccessKeyID
+		repositoryParams[AWS_SECRET_ACCESS_KEY] = awsPlainCred.SecretAccessKey
+		logger.Infof("Successfully retrieved AWS credentials for the BackupStorageLocation.")
+		//Breaking since its expected to have only one kv pair for the secret data.
+		break
+	}
+
+	return nil
+}
+
 /*
  * Retrieve the Volume Snapshot Location(VSL) as the remote storage location
  * for the data manager component in plugin from the Backup Storage Locations(BSLs)
  * of Velero. It will always pick up the first available one.
  */
-func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
+func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, config *rest.Config, logger logrus.FieldLogger) error {
 	var err error // Declare here to avoid shadowing on config using := with rest.InClusterConfig
 	if config == nil {
 		config, err = rest.InClusterConfig()
@@ -154,13 +219,13 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Confi
 		return err
 	}
 
-	defaultBackupLocation := "default"
 	var backupStorageLocation *v1.BackupStorageLocation
 	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations(veleroNs).
-		Get(defaultBackupLocation, metav1.GetOptions{})
+		Get(bslName, metav1.GetOptions{})
 
 	if err != nil {
-		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero default backup storage location")
+		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero %s backup storage location,"+
+			" attempting to find available BSL", bslName)
 		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
 		if err != nil || len(backupStorageLocationList.Items) <= 0 {
 			logger.WithError(err).Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
@@ -191,6 +256,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, config *rest.Confi
 	params["bucket"] = backupStorageLocation.Spec.ObjectStorage.Bucket
 	params["s3ForcePathStyle"] = backupStorageLocation.Spec.Config["s3ForcePathStyle"]
 	params["s3Url"] = backupStorageLocation.Spec.Config["s3Url"]
+	params["profile"] = backupStorageLocation.Spec.Config["profile"]
 
 	return nil
 }
@@ -229,9 +295,28 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 		return nil, errors.New("Missing bucket param, cannot initialize S3 PETM")
 	}
 
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	}))
+	// If the credentials are explicitly provided in params, use it.
+	// else let aws API pick the default credential provider.
+	var sess *session.Session
+	if _, ok := params[AWS_ACCESS_KEY_ID]; ok {
+		s3AccessKeyId, ok := GetStringFromParamsMap(params, AWS_ACCESS_KEY_ID, logger)
+		if !ok {
+			return nil, errors.New("Failed to retrieve S3 Access Key.")
+		}
+		s3SecretAccessKey, ok := GetStringFromParamsMap(params, AWS_SECRET_ACCESS_KEY, logger)
+		if !ok {
+			return nil, errors.New("Failed to retrieve S3 Secret Access Key.")
+		}
+		logger.Infof("Using explicitly found credentials for S3 repository access.")
+		sess = session.Must(session.NewSession(&aws.Config{
+			Region:      aws.String(region),
+			Credentials: credentials.NewStaticCredentials(s3AccessKeyId, s3SecretAccessKey, ""),
+		}))
+	} else {
+		sess = session.Must(session.NewSession(&aws.Config{
+			Region: aws.String(region),
+		}))
+	}
 
 	s3Url, ok := GetStringFromParamsMap(params, "s3Url", logger)
 	if ok {

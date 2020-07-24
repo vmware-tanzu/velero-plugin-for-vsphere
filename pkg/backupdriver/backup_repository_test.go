@@ -2,6 +2,8 @@ package backupdriver
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"testing"
 	"time"
@@ -84,6 +86,63 @@ func TestClaimBackupRepository(t *testing.T) {
 		logger.Infof("Test completed successfully")
 	}
 }
+
+func TestBackupRepositoryCreationFromBSL(t *testing.T) {
+	path := os.Getenv("KUBECONFIG")
+	ctx := context.Background()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skipf("The KubeConfig file, %v, is not exist", path)
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", path)
+	if err != nil {
+		t.Fatalf("Failed to build k8s config from kubeconfig file: %+v ", err)
+	}
+
+	// Setup Logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339Nano
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+	logger.SetLevel(logrus.DebugLevel)
+
+	// using velero ns for testing.
+	veleroNs := "velero"
+
+	veleroClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		t.Fatalf("Failed to retrieve veleroClient")
+	}
+
+	backupdriverClient, err := backupdriverTypedV1.NewForConfig(config)
+	if err != nil {
+		t.Fatalf("Failed to retrieve backupdriverClient from config: %v", config)
+	}
+
+	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
+	if err != nil || len(backupStorageLocationList.Items) <= 0 {
+		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
+	}
+	for _, item := range backupStorageLocationList.Items {
+		repositoryParameters := make(map[string]string)
+		bslName := item.Name
+		err := utils.RetrieveParamsFromBSL(repositoryParameters, bslName, config, logger)
+		if err != nil {
+			logger.Errorf("RetrieveParamsFromBSL Failed %v", err)
+			t.Fatalf("RetrieveParamsFromBSL failed!")
+		}
+		logger.Infof("Repository Parameters: %v", repositoryParameters)
+		backupRepositoryName, err := ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
+			[]string{"test"}, veleroNs, backupdriverClient, logger)
+		if err != nil {
+			t.Fatalf("Failed to retrieve the BackupRepository name.")
+		}
+		logger.Infof("Successfully retrieved the BackupRepository name: %s", backupRepositoryName)
+		// TODO: Manually verify in supervisor cluster for the corresponding BR.
+	}
+}
+
 
 // This function creates a new BR in response to the BRC.
 // Patches the BRC with the BR
