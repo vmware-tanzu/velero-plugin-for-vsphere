@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"os"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -16,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"os"
 )
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
@@ -96,13 +97,13 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	objectToSnapshot := corev1.TypedLocalObjectReference{
 		APIGroup: &corev1.SchemeGroupVersion.Group,
-		Kind: pvc.Kind,
-		Name: pvc.Name,
+		Kind:     pvc.Kind,
+		Name:     pvc.Name,
 	}
 
 	p.Log.Info("Creating a snapshot CR")
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
-	_, err = snapshotUtils.SnapshopRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, p.Log)
+	_, err = snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a snapshot CR: %v", err)
 		return nil, nil, errors.WithStack(err)

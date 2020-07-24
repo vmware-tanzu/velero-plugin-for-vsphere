@@ -3,6 +3,9 @@ package snapshotUtils
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -10,8 +13,6 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
-	"testing"
-	"time"
 )
 
 func TestWaitForPhases(t *testing.T) {
@@ -109,7 +110,7 @@ func TestSnapshotRef(t *testing.T) {
 		backupRepository: "test-repo",
 	}
 
-	snapshot, err := SnapshopRef(context.Background(), clientSet, objectToSnapshot, "backup-driver", backupRepository,
+	snapshot, err := SnapshotRef(context.Background(), clientSet, objectToSnapshot, "backup-driver", backupRepository,
 		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted})
 	if err != nil {
 		t.Fatal(err)
