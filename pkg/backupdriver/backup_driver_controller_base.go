@@ -214,7 +214,7 @@ func NewBackupDriverController(
 	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
-			//UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueSnapshot(newObj) },
+			UpdateFunc: func(_, obj interface{}) { ctrl.enqueueSnapshot(obj) },
 			DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
 		},
 		resyncPeriod,
@@ -337,7 +337,8 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 		return err
 	}
 
-	snapshot, err := ctrl.snapshotLister.Snapshots(namespace).Get(name)
+	// Always retrieve up-to-date snapshot CR from API server
+	snapshot, err := ctrl.backupdriverClient.Snapshots(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("Snapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -345,6 +346,11 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 		}
 		ctrl.logger.Errorf("Get Snapshot %s/%s failed: %v", namespace, name, err)
 		return err
+	}
+
+	if snapshot.Status.Phase != backupdriverapi.SnapshotPhaseNew {
+		ctrl.logger.Debugf("Skipping snapshot, %v, which is not in New phase. Current phase: %v", key, snapshot.Status.Phase)
+		return nil
 	}
 
 	if snapshot.ObjectMeta.DeletionTimestamp == nil {

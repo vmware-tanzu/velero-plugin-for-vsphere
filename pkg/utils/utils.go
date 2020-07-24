@@ -109,15 +109,17 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 			parts := strings.Split(line, "\"")
 			params["VirtualCenter"] = parts[1]
 		} else if strings.Contains(line, "=") {
-			parts := strings.Split(line, "=")
+			parts := strings.SplitN(line, "=", 2)
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
 			// Skip the quotes in the value if present
-			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
-				params[key] = value[1 : len(value)-1]
-			} else {
-				params[key] = value
+			unquotedValue, err := strconv.Unquote(string(value))
+			if err != nil {
+				logger.WithError(err).Errorf("Failed to unquote value %v for key %v. Just store the original value string", value, key)
+				params[key] = string(value)
+				continue
 			}
+			params[key] = unquotedValue
 		}
 	}
 
