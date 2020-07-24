@@ -2,16 +2,18 @@ package snapshotUtils
 
 import (
 	"context"
+	"time"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	core_v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-	"time"
 )
 
 /*
@@ -48,28 +50,26 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 	}
 }
 
-func SnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, objectToSnapshot core_v1.TypedLocalObjectReference, namespace string, repository BackupRepository, waitForPhases []backupdriverv1.SnapshotPhase, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
-	snapshotUUID, err := uuid.NewRandom()
+// Create a Snapshot record in the specified namespace.
+func SnapshotRef(ctx context.Context,
+	clientSet *v1.BackupdriverV1Client,
+	objectToSnapshot core_v1.TypedLocalObjectReference,
+	namespace string,
+	repository BackupRepository,
+	waitForPhases []backupdriverv1.SnapshotPhase,
+	logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
 
+	snapshotUUID, err := uuid.NewRandom()
 	if err != nil {
 		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Could not create snapshot UUID")
 	}
-	snapshotCR := backupdriverv1.Snapshot{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Snapshot",
-			APIVersion: "backupdriver.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: snapshotUUID.String(),
-		},
-		Spec: backupdriverv1.SnapshotSpec{
-			TypedLocalObjectReference: objectToSnapshot,
-			BackupRepository:          repository.backupRepository,
-			SnapshotCancel:            false,
-		},
-	}
+	snapshotName := "snap-" + snapshotUUID.String()
+	snapshotReq := builder.ForSnapshot(namespace, snapshotName).
+		BackupRepository(repository.backupRepository).
+		ObjectReference(objectToSnapshot).
+		CancelState(false).Result()
 
-	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(&snapshotCR)
+	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(snapshotReq)
 	if err != nil {
 		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to create snapshot record")
 	}
