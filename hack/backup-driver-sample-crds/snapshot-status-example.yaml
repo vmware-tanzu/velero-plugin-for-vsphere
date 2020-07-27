@@ -1,0 +1,12 @@
+apiVersion: backupdriver.io/v1
+kind: Snapshot
+metadata:
+  name: dave-test-2
+spec:
+  backupRepository: "test-repo"
+  resourceHandle:
+    apiGroup: xyzzy
+    kind: volume
+    name: dave-volume1
+status:
+  phase: "SnapshotFailed"

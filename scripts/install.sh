@@ -15,5 +15,5 @@
 # limitations under the License.
 
 cp /plugins/* /target/.
+/backup-driver install --features EnableVSphereItemActionPlugin
 /data-manager-for-plugin install
-

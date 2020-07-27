@@ -1,4 +1,4 @@
-# Copyright 2017, 2019 the Velero contributors.
+# Copyright 2020 the Velero contributors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian:stretch-slim
-RUN mkdir /plugins
-RUN mkdir /scripts
-ADD /bin/linux/amd64/velero-* /plugins/
-ADD /bin/linux/amd64/data-* /
-ADD /bin/linux/amd64/backup-driver* /
-COPY /bin/linux/amd64/install.sh /scripts/
-COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
-ENV LD_LIBRARY_PATH=/plugins
-RUN ["chmod", "+x", "/scripts/install.sh"]
+FROM ubuntu:bionic
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates wget bzip2 && \
+    apt-get remove -y wget bzip2 && \
+    rm -rf /var/lib/apt/lists/*
+RUN mkdir /vddkLibs
+COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
+ADD /bin/linux/amd64/backup-driver* /backup-driver
 USER nobody:nogroup
-ENTRYPOINT ["/scripts/install.sh"]
+ENTRYPOINT ["/backup-driver"]

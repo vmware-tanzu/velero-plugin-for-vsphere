@@ -23,7 +23,9 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"sync"
 )
 
@@ -37,7 +39,7 @@ type DataMover struct {
 func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
 	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
 	if _, ok := params[ivd.HostVcParamKey]; !ok {
-		err := utils.RetrieveVcConfigSecret(params, logger)
+		err := utils.RetrieveVcConfigSecret(params, nil, logger)
 
 		if err != nil {
 			logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret.")
@@ -46,7 +48,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 		logger.Infof("DataMover: vSphere VC credential is retrieved")
 	}
 
-	err := utils.RetrieveVSLFromVeleroBSLs(params, logger)
+	err := utils.RetrieveVSLFromVeleroBSLs(params, utils.DefaultS3BackupLocation, nil, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
 		return nil, err
@@ -87,6 +89,15 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 }
 
 func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+	backupRepository := builder.ForBackupRepository(utils.WithoutBackupRepository).Result()
+	return this.copyToRepo(peID, backupRepository)
+}
+
+func (this *DataMover) CopyToRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+	return this.copyToRepo(peID, backupRepository)
+}
+
+func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
 	log := this.WithField("Local PEID", peID.String())
 	log.Infof("Copying the snapshot from local to remote repository")
 	ctx := context.Background()
@@ -101,6 +112,14 @@ func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.P
 	this.RegisterOngoingUpload(peID, cancelFunc)
 
 	log.Debugf("Ready to call s3 PETM copy API for local PE")
+	if backupRepository.Name != utils.WithoutBackupRepository {
+		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
+			return astrolabe.ProtectedEntityID{}, err
+		}
+		this.s3PETM = repoPETM
+	}
 	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, astrolabe.AllocateNewObject)
 	log.Debugf("Return from the call of s3 PETM copy API for local PE")
 	if err != nil {
@@ -113,8 +132,25 @@ func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.P
 }
 
 func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+	backupRepository := builder.ForBackupRepository("Not use").Result()
+	return this.copyFromRepo(peID, backupRepository)
+}
+
+func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+	return this.copyFromRepo(peID, backupRepository)
+}
+
+func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
 	log := this.WithField("Remote PEID", peID.String())
 	log.Infof("Copying the snapshot from remote repository to local.")
+	if backupRepository.Name != utils.WithoutBackupRepository {
+		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
+			return astrolabe.ProtectedEntityID{}, err
+		}
+		this.s3PETM = repoPETM
+	}
 	ctx := context.Background()
 	pe, err := this.s3PETM.GetProtectedEntity(ctx, peID)
 	if err != nil {

@@ -28,22 +28,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/controller"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	backupdriver_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
-	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,55 +53,44 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const (
-	// the port where prometheus metrics are exposed
-	defaultMetricsAddress = ":8085"
-	// server's client default qps and burst
-	defaultClientQPS   float32 = 20.0
-	defaultClientBurst int     = 30
-
-	defaultProfilerAddress         = "localhost:6060"
-	defaultInsecureFlag       bool = true
-	defaultVCConfigFromSecret bool = true
-
-	defaultControllerWorkers = 1
-	// the default TTL for a backup
-	//defaultBackupTTL = 30 * 24 * time.Hour
-)
-
 type serverConfig struct {
 	metricsAddress     string
 	clientQPS          float32
 	clientBurst        int
 	profilerAddress    string
 	formatFlag         *logging.FormatFlag
-	vCenter            string
-	port               string
-	user               string
-	clusterId          string
-	insecureFlag       bool
-	vcConfigFromSecret bool
+	master             string
+	kubeConfig         string
+	resyncPeriod       time.Duration
+	workers            int
+	retryIntervalStart time.Duration
+	retryIntervalMax   time.Duration
+	localMode          bool
 }
 
 func NewCommand(f client.Factory) *cobra.Command {
 	var (
 		logLevelFlag = logging.LogLevelFlag(logrus.InfoLevel)
 		config       = serverConfig{
-			metricsAddress:     defaultMetricsAddress,
-			clientQPS:          defaultClientQPS,
-			clientBurst:        defaultClientBurst,
-			profilerAddress:    defaultProfilerAddress,
+			metricsAddress:     cmd.DefaultMetricsAddress,
+			clientQPS:          cmd.DefaultClientQPS,
+			clientBurst:        cmd.DefaultClientBurst,
+			profilerAddress:    cmd.DefaultProfilerAddress,
 			formatFlag:         logging.NewFormatFlag(),
-			port:               utils.DefaultVCenterPort,
-			insecureFlag:       defaultInsecureFlag,
-			vcConfigFromSecret: defaultVCConfigFromSecret,
+			master:             "",
+			kubeConfig:         "",
+			resyncPeriod:       utils.ResyncPeriod,
+			workers:            cmd.DefaultBackupWorkers,
+			retryIntervalStart: cmd.DefaultRetryIntervalStart,
+			retryIntervalMax:   cmd.DefaultRetryIntervalMax,
+			localMode:          false,
 		}
 	)
 
 	var command = &cobra.Command{
 		Use:    "server",
-		Short:  "Run the data manager server",
-		Long:   "Run the data manager server",
+		Short:  "Run the backup-driver server",
+		Long:   "Run the backup-driver server",
 		Hidden: true,
 		Run: func(c *cobra.Command, args []string) {
 			// go-plugin uses log.Println to log when it's waiting for all plugin processes to complete so we need to
@@ -123,7 +113,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 
 			logger.Debugf("setting log-level to %s", strings.ToUpper(logLevel.String()))
 
-			logger.Infof("Starting data manager server %s (%s)", buildinfo.Version, buildinfo.FormattedGitSHA())
+			logger.Infof("Starting backup-driver server %s (%s)", buildinfo.Version, buildinfo.FormattedGitSHA())
 
 			f.SetBasename(fmt.Sprintf("%s-%s", c.Parent().Name(), c.Name()))
 
@@ -134,18 +124,20 @@ func NewCommand(f client.Factory) *cobra.Command {
 		},
 	}
 
+	// Common flags
 	command.Flags().Var(logLevelFlag, "log-level", fmt.Sprintf("the level at which to log. Valid values are %s.", strings.Join(logLevelFlag.AllowedValues(), ", ")))
 	command.Flags().Var(config.formatFlag, "log-format", fmt.Sprintf("the format for log output. Valid values are %s.", strings.Join(config.formatFlag.AllowedValues(), ", ")))
 	command.Flags().StringVar(&config.metricsAddress, "metrics-address", config.metricsAddress, "the address to expose prometheus metrics")
 	command.Flags().Float32Var(&config.clientQPS, "client-qps", config.clientQPS, "maximum number of requests per second by the server to the Kubernetes API once the burst limit has been reached")
 	command.Flags().IntVar(&config.clientBurst, "client-burst", config.clientBurst, "maximum number of requests by the server to the Kubernetes API in a short period of time")
 	command.Flags().StringVar(&config.profilerAddress, "profiler-address", config.profilerAddress, "the address to expose the pprof profiler")
-	command.Flags().StringVar(&config.vCenter, "vcenter-address", config.vCenter, "VirtualCenter address. If specified, --use-secret should be set to False.")
-	command.Flags().StringVar(&config.port, "vcenter-port", config.port, "VirtualCenter port. If specified, --use-secret should be set to False.")
-	command.Flags().StringVar(&config.user, "vcenter-user", config.user, "VirtualCenter user. If specified, --use-secret should be set to False.")
-	command.Flags().StringVar(&config.clusterId, "cluster-id", config.clusterId, "kubernetes cluster id. If specified, --use-secret should be set to False.")
-	command.Flags().BoolVar(&config.insecureFlag, "insecure-Flag", config.insecureFlag, "insecure flag. If specified, --use-secret should be set to False.")
-	command.Flags().BoolVar(&config.vcConfigFromSecret, "use-secret", config.vcConfigFromSecret, "retrieve VirtualCenter configuration from secret")
+	command.Flags().StringVar(&config.master, "master", config.master, "Master URL to build a client config from. Either this or kubeconfig needs to be set if the pod is being run out of cluster.")
+	command.Flags().StringVar(&config.kubeConfig, "kubeconfig", config.kubeConfig, "Absolute path to the kubeconfig. Either this or master needs to be set if the pod is being run out of cluster.")
+	command.Flags().DurationVar(&config.resyncPeriod, "resync-period", config.resyncPeriod, "Resync period for cache")
+	command.Flags().IntVar(&config.workers, "backup-workers", config.workers, "Concurrency to process multiple backup requests")
+	command.Flags().DurationVar(&config.retryIntervalStart, "backup-retry-int-start", config.retryIntervalStart, "Initial retry interval of failed backup request. It exponentially increases with each failure, up to retry-interval-max.")
+	command.Flags().DurationVar(&config.retryIntervalMax, "backup-retry-int-max", config.retryIntervalMax, "Maximum retry interval of failed backup request.")
+	command.Flags().BoolVar(&config.localMode, "local-mode", config.localMode, "Run backup driver in local mode. Optional.")
 
 	return command
 }
@@ -153,10 +145,10 @@ func NewCommand(f client.Factory) *cobra.Command {
 type server struct {
 	namespace             string
 	metricsAddress        string
-	kubeClientConfig      *rest.Config
 	kubeClient            kubernetes.Interface
-	veleroClient          velero_clientset.Interface
-	pluginClient          plugin_clientset.Interface
+	backupdriverClient    *backupdriver_clientset.BackupdriverV1Client
+	svcConfig             *rest.Config
+	svcNamespace          string
 	pluginInformerFactory pluginInformers.SharedInformerFactory
 	kubeInformerFactory   kubeinformers.SharedInformerFactory
 	ctx                   context.Context
@@ -165,12 +157,11 @@ type server struct {
 	logLevel              logrus.Level
 	metrics               *metrics.ServerMetrics
 	config                serverConfig
-	dataMover             *dataMover.DataMover
 	snapManager           *snapshotmgr.SnapshotManager
 }
 
 func (s *server) run() error {
-	s.logger.Infof("data manager server is up and running")
+	s.logger.Infof("backup-driver server is up and running")
 	signals.CancelOnShutdown(s.cancelFunc, s.logger)
 
 	if s.config.profilerAddress != "" {
@@ -191,102 +182,98 @@ func (s *server) run() error {
 	return nil
 }
 
-// Assign vSphere VC credentials and configuration parameters
-func getVCConfigParams(config serverConfig, params map[string]interface{}, logger logrus.FieldLogger) error {
-
-	if config.vCenter == "" {
-		return errors.New("getVCConfigParams: parameter vcenter-address not provided")
-	}
-	params[ivd.HostVcParamKey] = config.vCenter
-
-	if config.user == "" {
-		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
-	}
-	params[ivd.UserVcParamKey] = config.user
-
-	passwd := os.Getenv("VC_PASSWORD")
-	if passwd == "" {
-		logger.Warnf("getVCConfigParams: Environment variable VC_PASSWORD not set or empty")
-	}
-	params[ivd.PasswordVcParamKey] = passwd
-
-	if config.clusterId == "" {
-		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
-	}
-	params[ivd.ClusterVcParamKey] = config.clusterId
-
-	// Below vc configuration params are optional
-	params[ivd.PortVcParamKey] = config.port
-	params[ivd.InsecureFlagVcParamKey] = strconv.FormatBool(config.insecureFlag)
-
-	return nil
-}
-
 func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*server, error) {
-	logger.Infof("data manager server is started")
-	kubeClient, err := f.KubeClient()
+	logger.Infof("backup-driver server is started")
+
+	clientConfig, err := cmd.BuildConfig(config.master, config.kubeConfig, f)
 	if err != nil {
+		logger.Errorf("Failed to get client config")
 		return nil, err
 	}
 
-	veleroClient, err := f.Client()
+	// kubeClient is the client to the current cluster
+	// (vanilla, guest, or supervisor)
+	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
-		return nil, err
-	}
-
-	clientConfig, err := f.ClientConfig()
-	if err != nil {
+		logger.Errorf("Failed to get client to the current kubernetes cluster")
 		return nil, err
 	}
 
 	pluginClient, err := plugin_clientset.NewForConfig(clientConfig)
 	if err != nil {
+		logger.Errorf("Failed to get the plugin client for the current kubernetes cluster")
 		return nil, err
 	}
 
-	configParams := make(map[string]interface{})
-	if config.vcConfigFromSecret == true {
-		logger.Infof("VC Configuration will be retrieved from cluster secret")
-	} else {
-		err := getVCConfigParams(config, configParams, logger)
-		if err != nil {
-			return nil, err
-		}
-
-		logger.Infof("VC configuration provided by user for :%s", configParams[ivd.HostVcParamKey])
-	}
-
-	dataMover, err := dataMover.NewDataMoverFromCluster(configParams, logger)
+	backupdriverClient, err := backupdriver_clientset.NewForConfig(clientConfig)
 	if err != nil {
+		logger.Errorf("Failed to get the backupdriver client for the current kubernetes cluster")
 		return nil, err
 	}
 
+	// backup driver watches all namespaces so do not specify any one
+	backupdriverInformerFactory := pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, config.resyncPeriod)
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, config.resyncPeriod)
+
+	// Set the ProtectedEntity configuration
+	pvcConfig := make(map[string]interface{})
+	pvcConfig["restConfig"] = clientConfig
+
+	// Set snapshot manager configuration information
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(configParams, snapshotMgrConfig, logger)
+	snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
+	clusterFlavor, _ := utils.GetClusterFlavor(kubeClient)
+	var svcConfig *rest.Config
+	var svcNamespace string
+	if clusterFlavor == utils.TkgGuest {
+		svcConfig, svcNamespace, err = utils.SupervisorConfig(logger)
+		if err != nil {
+			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
+			return nil, err
+		}
+		pvcConfig["svcConfig"] = svcConfig
+		pvcConfig["svcNamespace"] = svcNamespace
+
+		// Set the mode to local as the data movement job is assigned to the supervisor cluster
+		snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = "true"
+	}
+
+	peConfigs := make(map[string]map[string]interface{})
+	peConfigs[astrolabe.PvcPEType] = pvcConfig
+
+	// Initialize dummy s3 config.
+	s3Config := astrolabe.S3Config{
+		URLBase: "VOID_URL",
+	}
+
+	s3RepoParams := make(map[string]interface{})
+	configInfo := server2.NewConfigInfo(peConfigs, s3Config)
+	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
+		clientConfig, logger)
 	if err != nil {
 		return nil, err
 	}
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	s := &server{
 		namespace:             f.Namespace(),
 		metricsAddress:        config.metricsAddress,
 		kubeClient:            kubeClient,
-		veleroClient:          veleroClient,
-		pluginClient:          pluginClient,
-		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, utils.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
-		kubeInformerFactory:   kubeinformers.NewSharedInformerFactory(kubeClient, 0),
+		backupdriverClient:    backupdriverClient,
+		svcConfig:             svcConfig,
+		svcNamespace:          svcNamespace,
+		pluginInformerFactory: backupdriverInformerFactory,
+		kubeInformerFactory:   kubeInformerFactory,
 		ctx:                   ctx,
 		cancelFunc:            cancelFunc,
 		logger:                logger,
 		logLevel:              logger.Level,
 		config:                config,
-		dataMover:             dataMover,
 		snapManager:           snapshotmgr,
 	}
-
 	return s, nil
 }
 
@@ -317,42 +304,29 @@ func (s *server) runProfiler() {
 }
 
 func (s *server) runControllers() error {
-	s.logger.Info("Starting data manager controllers")
+	s.logger.Info("Starting backup-driver controllers")
 
 	ctx := s.ctx
 	var wg sync.WaitGroup
 	// Register controllers
 	s.logger.Info("Registering controllers")
 
-	uploadController := controller.NewUploadController(
+	backupDriverController := backupdriver.NewBackupDriverController(
+		"BackupDriverController",
 		s.logger,
-		s.pluginInformerFactory.Veleroplugin().V1().Uploads(),
-		s.pluginClient.VeleropluginV1(),
-		s.kubeClient,
-		s.dataMover,
+		s.backupdriverClient,
+		s.svcConfig,
+		s.svcNamespace,
+		s.config.resyncPeriod,
+		s.kubeInformerFactory,
+		s.pluginInformerFactory,
 		s.snapManager,
-		os.Getenv("NODE_NAME"),
-	)
-
-	downloadController := controller.NewDownloadController(
-		s.logger,
-		s.pluginInformerFactory.Veleroplugin().V1().Downloads(),
-		s.pluginClient.VeleropluginV1(),
-		s.kubeClient,
-		s.dataMover,
-		os.Getenv("NODE_NAME"),
-	)
+		workqueue.NewItemExponentialFailureRateLimiter(s.config.retryIntervalStart, s.config.retryIntervalMax))
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		uploadController.Run(s.ctx, 1)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		downloadController.Run(s.ctx, 1)
+		backupDriverController.Run(s.ctx, s.config.workers)
 	}()
 
 	// SHARED INFORMERS HAVE TO BE STARTED AFTER ALL CONTROLLERS

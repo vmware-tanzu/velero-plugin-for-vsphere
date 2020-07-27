@@ -20,14 +20,18 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/client-go/rest"
+
 	"github.com/sirupsen/logrus"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	backupdriverinformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -42,10 +46,11 @@ type BackupDriverController interface {
 type backupDriverController struct {
 	name   string
 	logger logrus.FieldLogger
-	// KubeClient of the current cluster
-	kubeClient kubernetes.Interface
-	// Supervisor Cluster KubeClient from Guest Cluster
-	svcKubeClient kubernetes.Interface
+
+	// Supervisor Cluster KubeClient for Guest Cluster
+	svcKubeConfig *rest.Config
+
+	backupdriverClient *backupdriverclientset.BackupdriverV1Client
 
 	// Supervisor Cluster namespace
 	supervisorNamespace string
@@ -73,6 +78,8 @@ type backupDriverController struct {
 	backupRepositoryClaimLister backupdriverlisters.BackupRepositoryClaimLister
 	// BackupRepositoryClaim Synced
 	backupRepositoryClaimSynced cache.InformerSynced
+	// backupRepositoryClaim queue
+	backupRepositoryClaimQueue workqueue.RateLimitingInterface
 
 	// Supervisor Cluster BackupRepositoryClaim Lister
 	svcBackupRepositoryClaimLister backupdriverlisters.BackupRepositoryClaimLister
@@ -107,21 +114,23 @@ type backupDriverController struct {
 	svcCloneFromSnapshotLister backupdriverlisters.CloneFromSnapshotLister
 	// Supervisor Cluster CloneFromSnapshot Synced
 	svcCloneFromSnapshotSynced cache.InformerSynced
+
+	// Snapshot manager
+	snapManager *snapshotmgr.SnapshotManager
 }
 
 // NewBackupDriverController returns a BackupDriverController.
 func NewBackupDriverController(
 	name string,
 	logger logrus.FieldLogger,
-	// Kubernetes Cluster KubeClient
-	kubeClient kubernetes.Interface,
+	backupdriverClient *backupdriverclientset.BackupdriverV1Client,
+	svcKubeConfig *rest.Config,
+	supervisorNamespace string,
 	resyncPeriod time.Duration,
 	informerFactory informers.SharedInformerFactory,
 	backupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
+	snapManager *snapshotmgr.SnapshotManager,
 	rateLimiter workqueue.RateLimiter) BackupDriverController {
-	var supervisorNamespace string
-	// Supervisor Cluster KubeClient
-	var svcKubeClient kubernetes.Interface
 	// TODO: Fix svcPVCInformer to use svcInformerFactory
 	svcPVCInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	//svcPVCInformer := svcInformerFactory.Core().V1().PersistentVolumeClaims()
@@ -143,17 +152,20 @@ func NewBackupDriverController(
 	svcCloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().CloneFromSnapshots()
 
 	claimQueue := workqueue.NewNamedRateLimitingQueue(
-		rateLimiter, "backup-driver")
+		rateLimiter, "backup-driver-claim-queue")
 	snapshotQueue := workqueue.NewNamedRateLimitingQueue(
-		rateLimiter, "backup-driver")
+		rateLimiter, "backup-driver-snapshot-queue")
 	cloneFromSnapshotQueue := workqueue.NewNamedRateLimitingQueue(
-		rateLimiter, "backup-driver")
+		rateLimiter, "backup-driver-clone-queue")
+	backupRepositoryClaimQueue := workqueue.NewNamedRateLimitingQueue(
+		rateLimiter, "backup-driver-brc-queue")
 
-	rc := &backupDriverController{
+	ctrl := &backupDriverController{
 		name:                           name,
 		logger:                         logger.WithField("controller", name),
-		kubeClient:                     kubeClient,
-		svcKubeClient:                  svcKubeClient,
+		svcKubeConfig:                  svcKubeConfig,
+		backupdriverClient:             backupdriverClient,
+		snapManager:                    snapManager,
 		pvLister:                       pvInformer.Lister(),
 		pvSynced:                       pvInformer.Informer().HasSynced,
 		pvcLister:                      pvcInformer.Lister(),
@@ -176,6 +188,7 @@ func NewBackupDriverController(
 		backupRepositorySynced:         backupRepositoryInformer.Informer().HasSynced,
 		backupRepositoryClaimLister:    backupRepositoryClaimInformer.Lister(),
 		backupRepositoryClaimSynced:    backupRepositoryClaimInformer.Informer().HasSynced,
+		backupRepositoryClaimQueue:     backupRepositoryClaimQueue,
 		svcBackupRepositoryClaimLister: svcBackupRepositoryClaimInformer.Lister(),
 		svcBackupRepositoryClaimSynced: svcBackupRepositoryClaimInformer.Informer().HasSynced,
 	}
@@ -198,11 +211,14 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.deletePV,
 	}, resyncPeriod)
 
-	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc:    rc.addSnapshot,
-		UpdateFunc: rc.updateSnapshot,
-		DeleteFunc: rc.deleteSnapshot,
-	}, resyncPeriod)
+	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
+			UpdateFunc: func(_, obj interface{}) { ctrl.enqueueSnapshot(obj) },
+			DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddSnapshot,
@@ -228,11 +244,14 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.deleteBackupRepository,
 	}, resyncPeriod)
 
-	backupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		//AddFunc:    rc.addBackupRepositoryClaim,
-		//UpdateFunc: rc.updateBackupRepositoryClaim,
-		//DeleteFunc: rc.deleteBackupRepositoryClaim,
-	}, resyncPeriod)
+	backupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) { ctrl.enqueueBackupRepositoryClaim(obj) },
+			//UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueBackupRepositoryClaim(newObj) },
+			DeleteFunc: func(obj interface{}) { ctrl.dequeBackupRepositoryClaim(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcBackupRepositoryClaimInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddBackupRepositoryClaim,
@@ -240,145 +259,281 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.svcDeleteBackupRepositoryClaim,
 	}, resyncPeriod)
 
-	return rc
-}
-
-func (rc *backupDriverController) addSnapshot(obj interface{}) {
-	rc.logger.Debugf("addSnapshot: %+v", obj)
-	objKey, err := rc.getKey(obj)
-	if err != nil {
-		return
-	}
-	rc.logger.Infof("addSnapshot: add %s to Snapshot queue", objKey)
-	rc.snapshotQueue.Add(objKey)
+	return ctrl
 }
 
 // getKey helps to get the resource name from resource object
-func (rc *backupDriverController) getKey(obj interface{}) (string, error) {
+func (ctrl *backupDriverController) getKey(obj interface{}) (string, error) {
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
 	}
 	objKey, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		rc.logger.Errorf("Failed to get key from object: %v", err)
+		ctrl.logger.Errorf("Failed to get key from object: %v", err)
 		return "", err
 	}
-	rc.logger.Infof("getKey: key %s", objKey)
+	ctrl.logger.Debugf("getKey: key %s", objKey)
 	return objKey, nil
 }
 
-func (rc *backupDriverController) updateSnapshot(oldObj, newObj interface{}) {
-	rc.logger.Debugf("updateSnapshot: old [%+v] new [%+v]", oldObj, newObj)
-	oldSnapshot, ok := oldObj.(*backupdriverapi.Snapshot)
-	if !ok || oldSnapshot == nil {
-		return
-	}
-	rc.logger.Debugf("updateSnapshot: old Snapshot %+v", oldSnapshot)
-
-	newSnapshot, ok := newObj.(*backupdriverapi.Snapshot)
-	if !ok || newSnapshot == nil {
-		return
-	}
-	rc.logger.Debugf("updateSnapshot: new Snapshot %+v", newSnapshot)
-
-	rc.addSnapshot(newObj)
-}
-
-func (rc *backupDriverController) deleteSnapshot(obj interface{}) {
-}
-
 // Run starts the controller.
-func (rc *backupDriverController) Run(
+func (ctrl *backupDriverController) Run(
 	ctx context.Context, workers int) {
-	defer rc.claimQueue.ShutDown()
-	defer rc.snapshotQueue.ShutDown()
-	defer rc.cloneFromSnapshotQueue.ShutDown()
+	defer ctrl.claimQueue.ShutDown()
+	defer ctrl.snapshotQueue.ShutDown()
+	defer ctrl.cloneFromSnapshotQueue.ShutDown()
 
-	rc.logger.Infof("Starting backup driver controller")
-	defer rc.logger.Infof("Shutting down backup driver controller")
+	ctrl.logger.Infof("Starting backup driver controller")
+	defer ctrl.logger.Infof("Shutting down backup driver controller")
 
 	stopCh := ctx.Done()
 
-	if !cache.WaitForCacheSync(stopCh, rc.pvSynced, rc.pvcSynced, rc.svcPVCSynced, rc.backupRepositorySynced, rc.backupRepositoryClaimSynced, rc.svcBackupRepositoryClaimSynced, rc.snapshotSynced, rc.svcSnapshotSynced, rc.cloneFromSnapshotSynced, rc.svcCloneFromSnapshotSynced) {
-		rc.logger.Errorf("Cannot sync caches")
+	ctrl.logger.Infof("Waiting for caches to sync")
+	if !cache.WaitForCacheSync(stopCh, ctrl.pvSynced, ctrl.pvcSynced, ctrl.svcPVCSynced, ctrl.backupRepositorySynced, ctrl.backupRepositoryClaimSynced, ctrl.svcBackupRepositoryClaimSynced, ctrl.snapshotSynced, ctrl.svcSnapshotSynced, ctrl.cloneFromSnapshotSynced, ctrl.svcCloneFromSnapshotSynced) {
+		ctrl.logger.Errorf("Cannot sync caches")
 		return
 	}
+	ctrl.logger.Infof("Caches are synced")
 
 	for i := 0; i < workers; i++ {
-		//go wait.Until(rc.pvcWorker, 0, stopCh)
-		//go wait.Until(rc.pvWorker, 0, stopCh)
-		//go wait.Until(rc.svcPvcWorker, 0, stopCh)
-		go wait.Until(rc.snapshotWorker, 0, stopCh)
-		//go wait.Until(rc.svcSnapshotWorker, 0, stopCh)
-		//go wait.Until(rc.cloneFromSnapshotWorker, 0, stopCh)
-		//go wait.Until(rc.svcCloneFromSnapshotWorker, 0, stopCh)
-		//go wait.Until(rc.backupRepositoryClaimWorker, 0, stopCh)
+		//go wait.Until(ctrl.pvcWorker, 0, stopCh)
+		//go wait.Until(ctrl.pvWorker, 0, stopCh)
+		//go wait.Until(ctrl.svcPvcWorker, 0, stopCh)
+		go wait.Until(ctrl.snapshotWorker, 0, stopCh)
+		//go wait.Until(ctrl.svcSnapshotWorker, 0, stopCh)
+		//go wait.Until(ctrl.cloneFromSnapshotWorker, 0, stopCh)
+		//go wait.Until(ctrl.svcCloneFromSnapshotWorker, 0, stopCh)
+		go wait.Until(ctrl.backupRepositoryClaimWorker, 0, stopCh)
 	}
 
 	<-stopCh
 }
 
 // snapshotWorker is the main worker for snapshot request.
-func (rc *backupDriverController) snapshotWorker() {
-	rc.logger.Debugf("snapshotWorkder: Enter snapshotWorker")
+func (ctrl *backupDriverController) snapshotWorker() {
+	ctrl.logger.Infof("snapshotWorker: Enter snapshotWorker")
 
-	key, quit := rc.snapshotQueue.Get()
+	key, quit := ctrl.snapshotQueue.Get()
 	if quit {
 		return
 	}
-	defer rc.snapshotQueue.Done(key)
+	defer ctrl.snapshotQueue.Done(key)
 
-	if err := rc.syncSnapshot(key.(string)); err != nil {
+	if err := ctrl.syncSnapshotByKey(key.(string)); err != nil {
 		// Put snapshot back to the queue so that we can retry later.
-		rc.snapshotQueue.AddRateLimited(key)
+		ctrl.snapshotQueue.AddRateLimited(key)
 	} else {
-		rc.snapshotQueue.Forget(key)
+		ctrl.snapshotQueue.Forget(key)
 	}
 }
 
-// syncSnapshot processes one Snapshot CRD
-func (rc *backupDriverController) syncSnapshot(key string) error {
-	rc.logger.Debugf("syncSnapshot: Started Snapshot processing %s", key)
+// syncSnapshotByKey processes one Snapshot CRD
+func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
+	ctrl.logger.Infof("syncSnapshotByKey: Started Snapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		rc.logger.Errorf("Split meta namespace key of snapshot %s failed: %v", key, err)
+		ctrl.logger.Errorf("Split meta namespace key of snapshot %s failed: %v", key, err)
 		return err
 	}
 
-	// TODO: Replace _ with snapshot when we start to use it
-	_, err = rc.snapshotLister.Snapshots(namespace).Get(name)
+	// Always retrieve up-to-date snapshot CR from API server
+	snapshot, err := ctrl.backupdriverClient.Snapshots(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			rc.logger.Infof("Snapshot %s/%s is deleted, no need to process it", namespace, name)
+			ctrl.logger.Infof("Snapshot %s/%s is deleted, no need to process it", namespace, name)
 			return nil
 		}
-		rc.logger.Errorf("Get Snapshot %s/%s failed: %v", namespace, name, err)
+		ctrl.logger.Errorf("Get Snapshot %s/%s failed: %v", namespace, name, err)
 		return err
 	}
 
-	// TODO: Call other function to process create snapshot request
+	if snapshot.Status.Phase != backupdriverapi.SnapshotPhaseNew {
+		ctrl.logger.Debugf("Skipping snapshot, %v, which is not in New phase. Current phase: %v", key, snapshot.Status.Phase)
+		return nil
+	}
+
+	if snapshot.ObjectMeta.DeletionTimestamp == nil {
+		ctrl.logger.Infof("syncSnapshotByKey: calling CreateSnapshot %s/%s", snapshot.Namespace, snapshot.Name)
+		return ctrl.createSnapshot(snapshot)
+	}
 
 	return nil
 }
 
-func (rc *backupDriverController) pvcWorker() {
+// enqueueSnapshot adds Snapshotto given work queue.
+func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
+	ctrl.logger.Infof("enqueueSnapshot: %+v", obj)
+
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
+	}
+	if brc, ok := obj.(*backupdriverapi.Snapshot); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(brc)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
+			return
+		}
+		ctrl.logger.Infof("enqueueSnapshot: enqueued %q for sync", objName)
+		ctrl.snapshotQueue.Add(objName)
+	}
 }
 
-func (rc *backupDriverController) svcPvcWorker() {
+func (ctrl *backupDriverController) delSnapshot(obj interface{}) {
+	ctrl.logger.Infof("delSnapshot: delete snapshot %v", obj)
+
+	var key string
+	var err error
+	if key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj); err != nil {
+		return
+	}
+
+	snapshot, ok := obj.(*backupdriverapi.Snapshot)
+	if !ok || snapshot == nil {
+		return
+	}
+
+	err = ctrl.deleteSnapshot(snapshot)
+	if err != nil {
+		ctrl.logger.Errorf("Delete snapshot %s/%s failed: %v", snapshot.Namespace, snapshot.Name, err)
+		return
+	}
+
+	ctrl.snapshotQueue.Forget(key)
+	ctrl.snapshotQueue.Done(key)
 }
 
-func (rc *backupDriverController) pvWorker() {
+func (ctrl *backupDriverController) pvcWorker() {
 }
 
-func (rc *backupDriverController) svcSnapshotWorker() {
+func (ctrl *backupDriverController) svcPvcWorker() {
 }
 
-func (rc *backupDriverController) cloneFromSnapshotWorker() {
+func (ctrl *backupDriverController) pvWorker() {
 }
 
-func (rc *backupDriverController) svcCloneFromSnapshotWorker() {
+func (ctrl *backupDriverController) svcSnapshotWorker() {
 }
 
-func (rc *backupDriverController) backupRepositoryClaimWorker() {
+func (ctrl *backupDriverController) cloneFromSnapshotWorker() {
+}
+
+func (ctrl *backupDriverController) svcCloneFromSnapshotWorker() {
+}
+
+func (ctrl *backupDriverController) backupRepositoryClaimWorker() {
+	ctrl.logger.Debugf("backupRepositoryClaim: Enter backupRepositoryClaimWorker")
+
+	key, quit := ctrl.backupRepositoryClaimQueue.Get()
+	if quit {
+		return
+	}
+	defer ctrl.backupRepositoryClaimQueue.Done(key)
+
+	if err := ctrl.syncBackupRepositoryClaimByKey(key.(string)); err != nil {
+		// Put backuprepositoryclaim back to the queue so that we can retry later.
+		ctrl.backupRepositoryClaimQueue.AddRateLimited(key)
+	} else {
+		ctrl.backupRepositoryClaimQueue.Forget(key)
+	}
+
+}
+
+// syncBackupRepositoryClaim processes one BackupRepositoryClaim CRD
+func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) error {
+	ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Started BackupRepositoryClaim processing %s", key)
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		ctrl.logger.Errorf("Split meta namespace key of backupRepositoryClaim %s failed: %v", key, err)
+		return err
+	}
+
+	brc, err := ctrl.backupRepositoryClaimLister.BackupRepositoryClaims(namespace).Get(name)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			ctrl.logger.Infof("syncBackupRepositoryClaimByKey: BackupRepositoryClaim %s/%s is deleted, no need to process it", namespace, name)
+			return nil
+		}
+		ctrl.logger.Errorf("Get BackupRepositoryClaim %s/%s failed: %v", namespace, name, err)
+		return err
+	}
+
+	if brc.ObjectMeta.DeletionTimestamp == nil {
+		ctx := context.Background()
+		var svcBackupRepositoryName string
+		// In case of guest clusters, create BackupRepositoryClaim in the supervisor namespace
+		if ctrl.svcKubeConfig != nil {
+			svcBackupRepositoryName, err = ClaimSvcBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.supervisorNamespace, ctrl.logger)
+			if err != nil {
+				ctrl.logger.Errorf("Failed to create Supervisor BackupRepositoryClaim")
+				return err
+			}
+			ctrl.logger.Infof("Created Supervisor BackupRepositoryClaim with BackupRepository %s", svcBackupRepositoryName)
+		}
+
+		// Create BackupRepository when a new BackupRepositoryClaim is added
+		// Save the supervisor backup repository name to be passed to snapshot manager
+		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
+		// Create BackupRepository when a new BackupRepositoryClaim is added and if the BackupRepository is not already created
+		br, err := CreateBackupRepository(ctx, brc, svcBackupRepositoryName, ctrl.backupdriverClient, ctrl.logger)
+		if err != nil {
+			ctrl.logger.Errorf("Failed to create BackupRepository")
+			return err
+		}
+
+		err = PatchBackupRepositoryClaim(brc, br.Name, brc.Namespace, ctrl.backupdriverClient)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// enqueueBackupRepositoryClaimWork adds BackupRepositoryClaim to given work queue.
+func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}) {
+	ctrl.logger.Debugf("enqueueBackupRepositoryClaim: %+v", obj)
+
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
+	}
+	if brc, ok := obj.(*backupdriverapi.BackupRepositoryClaim); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(brc)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
+			return
+		}
+		ctrl.logger.Infof("enqueueBackupRepositoryClaim: enqueued %q for sync", objName)
+		ctrl.backupRepositoryClaimQueue.Add(objName)
+	}
+}
+
+func (ctrl *backupDriverController) dequeBackupRepositoryClaim(obj interface{}) {
+	ctrl.logger.Debugf("dequeBackupRepositoryClaim: Remove BackupRepositoryClaim %v from queue", obj)
+
+	var key string
+	var err error
+	if key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj); err != nil {
+		return
+	}
+
+	brc, ok := obj.(*backupdriverapi.BackupRepositoryClaim)
+	if !ok || brc == nil {
+		return
+	}
+	// Delete BackupRepository from API server
+	if brc.BackupRepository != "" {
+		ctrl.logger.Infof("dequeBackupRepositoryClaim: Delete BackupRepository %s for BackupRepositoryClaim %s/%s", brc.BackupRepository, brc.Namespace, brc.Name)
+		err = ctrl.backupdriverClient.BackupRepositories().Delete(brc.BackupRepository, &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			ctrl.logger.Errorf("Delete BackupRepository %s failed: %v", brc.BackupRepository, err)
+			return
+		}
+	}
+
+	ctrl.backupRepositoryClaimQueue.Forget(key)
+	ctrl.backupRepositoryClaimQueue.Done(key)
 }

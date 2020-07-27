@@ -78,4 +78,4 @@ GO111MODULES=on go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
     -ldflags "${LDFLAGS}" \
-    ${PKG}/${BIN}
+    ${PKG}/cmd/${BIN}

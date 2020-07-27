@@ -14,22 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cmd
 
-import (
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr"
-	"os"
-	"path/filepath"
+import "time"
 
-	"k8s.io/klog"
+const (
+	// the port where prometheus metrics are exposed
+	DefaultMetricsAddress = ":8085"
+
+	// server's client default qps and burst
+	DefaultClientQPS   float32 = 20.0
+	DefaultClientBurst int     = 30
+
+	DefaultProfilerAddress         = "localhost:6060"
+	DefaultInsecureFlag       bool = true
+	DefaultVCConfigFromSecret bool = true
+
+	DefaultBackupWorkers      = 1
+	DefaultRetryIntervalStart = time.Second
+	DefaultRetryIntervalMax   = 5 * time.Minute
 )
-
-func main() {
-	defer klog.Flush()
-
-	baseName := filepath.Base(os.Args[0])
-
-	err := datamgr.NewCommand(baseName).Execute()
-	cmd.CheckError(err)
-}

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 the Velero contributors.
+Copyright 2020 the Velero contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,27 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+package main
 
 import (
-	"context"
-	"fmt"
 	"os"
+	"path/filepath"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/backupdriver"
 )
 
-// CheckError prints err to stderr and exits with code 1 if err is not nil. Otherwise, it is a
-// no-op.
-func CheckError(err error) {
-	if err != nil {
-		if err != context.Canceled {
-			fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err)
-		}
-		os.Exit(1)
-	}
-}
-
-// Exit prints msg (with optional args), plus a newline, to stderr and exits with code 1.
-func Exit(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg+"\n", args...)
-	os.Exit(1)
+func main() {
+	baseName := filepath.Base(os.Args[0])
+	err := backupdriver.NewCommand(baseName).Execute()
+	cmd.CheckError(err)
 }

@@ -70,8 +70,12 @@ const (
 
 // configuration constants for the S3 repository
 const (
-	DefaultS3RepoPrefix = "plugins/vsphere-astrolabe-repo"
+	DefaultS3RepoPrefix     = "plugins/vsphere-astrolabe-repo"
+	DefaultS3BackupLocation = "default"
+	AWS_ACCESS_KEY_ID       = "aws_access_key_id"
+	AWS_SECRET_ACCESS_KEY   = "aws_secret_access_key"
 )
+
 const (
 	// Minimum velero version number to meet velero plugin requirement
 	VeleroMinVersion = "v1.3.2"
@@ -83,7 +87,8 @@ const (
 const (
 	// DefaultNamespace is the Kubernetes namespace that is used by default for
 	// the Velero server and API objects.
-	DefaultNamespace = "velero"
+	DefaultNamespace          = "velero"
+	CloudCredentialSecretName = "cloud-credentials"
 )
 
 const (
@@ -92,9 +97,65 @@ const (
 )
 
 const (
-	DataManagerForPlugin string = "data-manager-for-plugin"
+	DataManagerForPlugin  string = "data-manager-for-plugin"
+	BackupDriverForPlugin string = "backup-driver"
 
 	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
 
 	VeleroDeployment string = "velero"
+)
+
+const (
+	S3RepositoryDriver string = "s3repository.astrolabe.vmware-tanzu.com"
+)
+
+const (
+	VCSecretNs             = "kube-system"
+	VCSecretNsSupervisor   = "vmware-system-csi"
+	VCSecret               = "vsphere-config-secret"
+	VCSecretTKG            = "csi-vsphere-config"
+	VCSecretData           = "csi-vsphere.conf"
+	VCSecretDataSupervisor = "vsphere-cloud-provider.conf"
+)
+
+const (
+	TkgSupervisorService = "supervisor"
+)
+
+// Indicates the type of cluster where Plugin is installed
+type ClusterFlavor string
+
+const (
+	Unknown    ClusterFlavor = "Unknown"
+	Supervisor               = "Supervisor Cluster"
+	TkgGuest                 = "TGK Guest Cluster"
+	VSphere                  = "vSphere Kubernetes Cluster"
+)
+
+// feature flog constants
+const (
+	// VSphereItemActionPluginFlag is the feature flag string that defines whether or not vSphere ItemActionPlugin features are being used.
+	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
+)
+
+// Keys for Para Virtual Cluster access for Guest Cluster
+const (
+	PvApiEndpointParamKey = "PvEndPoint"
+	PvPortParamKey        = "PvPort"
+	PvNamespaceParamKey   = "PvNamespace"
+	PvTokenParamKey       = "PvToken"
+	PvCrtFileParamKey     = "PvCrtFile"
+)
+
+// Para Virtual Cluster access for Guest Cluster
+const (
+	PvApiEndpoint       = "supervisor.default.svc" // TODO: get it from "kubectl get cm -n vmware-system-csi pvcsi-config"
+	PvPort              = "6443"
+	PvNamespaceLocation = "/credentials/namespace"
+	PvTokenLocation     = "/credentials/token"
+	PvCrtLocation       = "/credentials/ca.crt"
+)
+
+const (
+	WithoutBackupRepository = "without-backup-repository"
 )
