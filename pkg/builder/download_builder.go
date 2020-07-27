@@ -69,9 +69,22 @@ func (b *DownloadBuilder) Phase(phase velerov1api.DownloadPhase) *DownloadBuilde
 	return b
 }
 
-// VolumeID sets the identifier for the restored volume.
+// VolumeID sets the identifier for the restored volume in the Status.
 func (b *DownloadBuilder) VolumeID(id string) *DownloadBuilder {
 	b.object.Status.VolumeID = id
+	return b
+}
+
+// ProtectedEntityID sets the identifier for the to be restored
+// protected entity in the Spec.
+func (b *DownloadBuilder) ProtectedEntityID(id string) *DownloadBuilder {
+	b.object.Spec.ProtectedEntityID = id
+	return b
+}
+
+// BackupRepositoryName sets the backuprepository name for the to be restored volume.
+func (b *DownloadBuilder) BackupRepositoryName(brName string) *DownloadBuilder {
+	b.object.Spec.BackupRepositoryName = brName
 	return b
 }
 

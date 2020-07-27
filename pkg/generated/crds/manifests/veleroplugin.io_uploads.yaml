@@ -34,6 +34,10 @@ spec:
         spec:
           description: Spec is the custom resource spec
           properties:
+            backupRepository:
+              description: BackupRepository provides backup repository info for upload.
+                Used for multiple backup repository.
+              type: string
             backupTimestamp:
               description: BackupTimestamp records the time the backup was called.
                 The server's time is used for SnapshotTimestamp

@@ -49,6 +49,8 @@ spec:
           type: object
         repositoryDriver:
           type: string
+        svcBackupRepositoryName:
+          type: string
       required:
       - allowedNamespaces
       - backupRepositoryClaim

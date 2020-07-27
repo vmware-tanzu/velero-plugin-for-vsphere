@@ -29,6 +29,14 @@ type DownloadSpec struct {
 	// The server's time is used for SnapshotTimestamp
 	// +optional
 	RestoreTimestamp *meta_v1.Time `json:"restoreTimestamp,omitempty"`
+
+	// ProtectedEntityID is the identifier for the protected entity.
+	// This is needed to overwrite an existing volume.
+	ProtectedEntityID string `json:"protectedEntityID,omitempty"`
+
+	// BackupRepository provides backup repository info for download.
+	// BackupRepositoryName is the name of the BackupRepository.
+	BackupRepositoryName string `json:"backupRepositoryName,omitempty"`
 }
 
 // DownloadPhase represents the lifecycle phase of a Download.
