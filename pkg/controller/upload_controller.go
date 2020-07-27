@@ -304,7 +304,16 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		return errors.New(errMsg)
 	}
 
-	_, err = c.dataMover.CopyToRepo(peID)
+	if req.Spec.BackupRepositoryName != "" {
+		backupRepositoryCR, err := utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get BackupRepository from BackupRepositoryName %s", req.Spec.BackupRepositoryName)
+			return err
+		}
+		_, err = c.dataMover.CopyToRepoWithBackupRepository(peID, backupRepositoryCR)
+	} else {
+		_, err = c.dataMover.CopyToRepo(peID)
+	}
 	if err != nil {
 		log.Infof("CopyToRepo Error Received: %v", err.Error())
 		// Check if the request was canceled.
