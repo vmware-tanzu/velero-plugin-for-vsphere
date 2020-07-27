@@ -158,7 +158,7 @@ func TestProcessedUploadItem(t *testing.T) {
 					return astrolabe.ProtectedEntityID{}, nil
 				})
 				defer patches.Reset()
-				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) {
 				})
 				defer patches.Reset()
 				patches.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
@@ -168,7 +168,7 @@ func TestProcessedUploadItem(t *testing.T) {
 				patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 					return astrolabe.ProtectedEntityID{}, test.expectedErr
 				})
-				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+				patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) {
 				})
 				defer patches.Reset()
 				// UploadPhaseCompleted case
@@ -189,13 +189,13 @@ func TestProcessedUploadItem(t *testing.T) {
 }
 
 func TestPatchUploadByStatus(t *testing.T) {
-    tests := []struct {
-    	name     string
-    	key      string
-    	oldPhase v1.UploadPhase
-    	newPhase v1.UploadPhase
-    	upload   *v1.Upload
-    	msg      string
+	tests := []struct {
+		name     string
+		key      string
+		oldPhase v1.UploadPhase
+		newPhase v1.UploadPhase
+		upload   *v1.Upload
+		msg      string
 	}{
 		{
 			name:     "Test New to Inprogress",
@@ -247,10 +247,10 @@ func TestPatchUploadByStatus(t *testing.T) {
 		},
 	}
 
-    for _, test := range tests {
-    	t.Run(test.name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			var (
-				client       = fake.NewSimpleClientset(test.upload)
+				client          = fake.NewSimpleClientset(test.upload)
 				sharedInformers = informers.NewSharedInformerFactory(client, 0)
 				logger          = veleroplugintest.NewLogger()
 				kubeClient      = kubefake.NewSimpleClientset()
@@ -271,10 +271,10 @@ func TestPatchUploadByStatus(t *testing.T) {
 				require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
 				// this is necessary so the Patch() call returns the appropriate object
 				client.PrependReactor("patch", "uploads", func(action core.Action) (bool, runtime.Object, error) {
-                    var (
-						patch = action.(core.PatchAction).GetPatch()
+					var (
+						patch    = action.(core.PatchAction).GetPatch()
 						patchMap = make(map[string]interface{})
-						res = test.upload.DeepCopy()
+						res      = test.upload.DeepCopy()
 					)
 
 					if err := json.Unmarshal(patch, &patchMap); err != nil {
@@ -372,7 +372,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			}
 			if test.newPhase == v1.UploadPhaseUploadError {
 				newRetry := res.Status.RetryCount
-				require.Equal(t, oldRetry + 1, newRetry)
+				require.Equal(t, oldRetry+1, newRetry)
 				require.LessOrEqual(t, res.Status.CurrentBackOff, int32(utils.UPLOAD_MAX_BACKOFF))
 			}
 		})
@@ -401,7 +401,7 @@ func TestUploadErrorRetry(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				client       = fake.NewSimpleClientset(test.upload)
+				client          = fake.NewSimpleClientset(test.upload)
 				sharedInformers = informers.NewSharedInformerFactory(client, 0)
 				logger          = veleroplugintest.NewLogger()
 				kubeClient      = kubefake.NewSimpleClientset()
@@ -434,7 +434,7 @@ func TestUploadErrorRetry(t *testing.T) {
 				return astrolabe.ProtectedEntityID{}, nil
 			})
 
-			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) () {
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "UnregisterOngoingUpload", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) {
 			})
 
 			patches.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
@@ -446,7 +446,7 @@ func TestUploadErrorRetry(t *testing.T) {
 			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(test.upload.Name, metav1.GetOptions{})
 			require.Nil(t, err)
 			require.Equal(t, test.expectedPhase, res.Status.Phase)
-			require.Equal(t, test.retry + 1, res.Status.RetryCount)
+			require.Equal(t, test.retry+1, res.Status.RetryCount)
 		})
 	}
 }

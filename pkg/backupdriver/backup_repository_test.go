@@ -143,7 +143,6 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 	}
 }
 
-
 // This function creates a new BR in response to the BRC.
 // Patches the BRC with the BR
 func handleNewBackupRepositoryClaim(ctx context.Context,

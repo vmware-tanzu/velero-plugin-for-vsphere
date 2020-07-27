@@ -47,8 +47,8 @@ const (
 	UploadPhaseCompleted     UploadPhase = "Completed"
 	UploadPhaseUploadError   UploadPhase = "UploadError"
 	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
-	UploadPhaseCanceling 	 UploadPhase = "Canceling"
-	UploadPhaseCanceled 	 UploadPhase = "Canceled"
+	UploadPhaseCanceling     UploadPhase = "Canceling"
+	UploadPhaseCanceled      UploadPhase = "Canceled"
 )
 
 // UploadStatus is the current status of a Upload.

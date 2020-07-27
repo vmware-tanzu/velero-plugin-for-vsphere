@@ -213,7 +213,7 @@ func NewBackupDriverController(
 
 	snapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
+			AddFunc:    func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
 			UpdateFunc: func(_, obj interface{}) { ctrl.enqueueSnapshot(obj) },
 			DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
 		},
