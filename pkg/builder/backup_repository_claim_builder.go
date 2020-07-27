@@ -33,7 +33,7 @@ func (b *BackupRepositoryClaimBuilder) Result() *backupdriverv1.BackupRepository
 
 // AllowedNamespaces sets the allowed namespaces for the backup repository claim.
 func (b *BackupRepositoryClaimBuilder) AllowedNamespaces(allowedNamespaces []string) *BackupRepositoryClaimBuilder {
-	b.object.AllowedNamespaces =  make([]string, len(allowedNamespaces))
+	b.object.AllowedNamespaces = make([]string, len(allowedNamespaces))
 	copy(b.object.AllowedNamespaces, allowedNamespaces)
 	return b
 }

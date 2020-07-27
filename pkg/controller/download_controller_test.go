@@ -17,14 +17,11 @@ limitations under the License.
 package controller
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
 	"github.com/agiledragon/gomonkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	core "k8s.io/client-go/testing"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
@@ -32,13 +29,16 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
-	kubefake "k8s.io/client-go/kubernetes/fake"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/clock"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	core "k8s.io/client-go/testing"
+	"k8s.io/utils/clock"
+	"reflect"
 	"strconv"
 	"testing"
-	"reflect"
 	"time"
 )
 
@@ -77,7 +77,7 @@ func TestProcessDownloadSkipItems(t *testing.T) {
 
 			c := &downloadController{
 				genericController: newGenericController("download-test", logger),
-				downloadLister:      sharedInformers.Veleroplugin().V1().Downloads().Lister(),
+				downloadLister:    sharedInformers.Veleroplugin().V1().Downloads().Lister(),
 			}
 
 			if test.download != nil {
@@ -138,7 +138,7 @@ func TestPatchDownloadByStatus(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				client       = fake.NewSimpleClientset(test.download)
+				client          = fake.NewSimpleClientset(test.download)
 				sharedInformers = informers.NewSharedInformerFactory(client, 0)
 				logger          = veleroplugintest.NewLogger()
 				kubeClient      = kubefake.NewSimpleClientset()
@@ -159,9 +159,9 @@ func TestPatchDownloadByStatus(t *testing.T) {
 				// this is necessary so the Patch() call returns the appropriate object
 				client.PrependReactor("patch", "downloads", func(action core.Action) (bool, runtime.Object, error) {
 					var (
-						patch = action.(core.PatchAction).GetPatch()
+						patch    = action.(core.PatchAction).GetPatch()
 						patchMap = make(map[string]interface{})
-						res = test.download.DeepCopy()
+						res      = test.download.DeepCopy()
 					)
 
 					if err := json.Unmarshal(patch, &patchMap); err != nil {
@@ -251,7 +251,7 @@ func TestPatchDownloadByStatus(t *testing.T) {
 				if newRetry > utils.DOWNLOAD_MAX_RETRY {
 					test.newPhase = test.expectedPhase
 				} else {
-					require.Equal(t, oldRetry + 1, newRetry)
+					require.Equal(t, oldRetry+1, newRetry)
 				}
 			}
 			require.Equal(t, test.newPhase, res.Status.Phase)

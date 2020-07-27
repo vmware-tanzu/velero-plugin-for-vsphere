@@ -25,7 +25,6 @@ type DownloadSpec struct {
 	// SnapshotID is the identifier for the snapshot of the volume.
 	SnapshotID string `json:"snapshotID,omitempty"`
 
-
 	// RestoreTimestamp records the time the restore was called.
 	// The server's time is used for SnapshotTimestamp
 	// +optional
