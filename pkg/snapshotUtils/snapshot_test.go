@@ -3,9 +3,6 @@ package snapshotUtils
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -13,6 +10,8 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"testing"
+	"time"
 )
 
 func TestWaitForPhases(t *testing.T) {
@@ -83,6 +82,72 @@ func TestWaitForPhases(t *testing.T) {
 	}
 }
 
+func TestWaitForClonePhases(t *testing.T) {
+	clientSet, err := createClientSet()
+
+	if err != nil {
+		_, ok := err.(ClientConfigNotFoundError)
+		if ok {
+			t.Skip(err)
+		}
+		t.Fatal(err)
+	}
+	apiGroup := ""
+	testClone := backupdriverv1.CloneFromSnapshot{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CloneFromSnapshot",
+			APIVersion: "backupdriver.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "dp-test-1",
+		},
+		Spec: backupdriverv1.CloneFromSnapshotSpec{
+			SnapshotID:       "snapshot-1",
+			Metadata:         []byte("my metadata"),
+			APIGroup:         &apiGroup,
+			Kind:             "PersistentVolumeClaim",
+			BackupRepository: "test-repo",
+			CloneCancel:      false,
+		},
+		Status: backupdriverv1.CloneStatus{
+			Phase:   backupdriverv1.ClonePhaseNew,
+			Message: "Clone from snapshot done",
+			ResourceHandle: core_v1.TypedLocalObjectReference{
+				APIGroup: &apiGroup,
+				Kind:     "volume",
+				Name:     "dp-volume",
+			},
+		},
+	}
+
+	// set up logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+
+	err = clientSet.Snapshots("backup-driver").Delete(testClone.Name, nil)
+	if err != nil {
+		t.Fatalf("Delete error = %v\n", err)
+	}
+	writtenClone, err := clientSet.CloneFromSnapshots("backup-driver").Create(&testClone)
+
+	testClone.ObjectMeta = writtenClone.ObjectMeta
+	writtenClone, err = clientSet.CloneFromSnapshots("backup-driver").UpdateStatus(&testClone)
+	if err != nil {
+		t.Fatalf("writtenClone =%v, err = %v", writtenClone, err)
+	}
+
+	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	endPhase, err := WaitForClonePhases(timeoutContext, clientSet, testClone, []backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted}, "backup-driver", logger)
+	if err != nil {
+		t.Fatalf("WaitForClonePhases returned err = %v\n", err)
+	} else {
+		fmt.Printf("WaitForClonePhases returned phase = %s\n", endPhase)
+	}
+}
+
 /*
 TODO - figure out how to advance the phase and status
 */
@@ -110,7 +175,7 @@ func TestSnapshotRef(t *testing.T) {
 		backupRepository: "test-repo",
 	}
 
-	snapshot, err := SnapshotRef(context.Background(), clientSet, objectToSnapshot, "backup-driver", backupRepository,
+	snapshot, err := SnapshopRef(context.Background(), clientSet, objectToSnapshot, "backup-driver", backupRepository,
 		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted})
 	if err != nil {
 		t.Fatal(err)
