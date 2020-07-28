@@ -34,6 +34,14 @@ spec:
         spec:
           description: Spec is the custom resource spec
           properties:
+            backupRepositoryName:
+              description: BackupRepository provides backup repository info for download.
+                BackupRepositoryName is the name of the BackupRepository.
+              type: string
+            protectedEntityID:
+              description: ProtectedEntityID is the identifier for the protected entity.
+                This is needed to overwrite an existing volume.
+              type: string
             restoreTimestamp:
               description: RestoreTimestamp records the time the restore was called.
                 The server's time is used for SnapshotTimestamp
