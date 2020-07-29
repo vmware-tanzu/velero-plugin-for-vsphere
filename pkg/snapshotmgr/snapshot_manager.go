@@ -22,6 +22,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -261,7 +262,21 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return updatedPeID, err
 	}
 
-	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(updatedPeID.String()).Phase(v1api.UploadPhaseNew)
+	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).Phase(v1api.UploadPhaseNew)
+	if peID.GetPeType() == astrolabe.PvcPEType {
+		components, err := pe.GetComponents(ctx)
+		if err != nil {
+			this.WithError(err).Errorf("Failed to retrive subcomponents for %s", peID.String())
+			return updatedPeID, err
+		}
+		if len(components) != 1 {
+			return updatedPeID, errors.New(fmt.Sprintf("Expected 1 component, %s has %d", peID.String(), len(components)))
+		}
+		componentPEID := astrolabe.NewProtectedEntityIDWithSnapshotID(components[0].GetID().GetPeType(), components[0].GetID().GetID(), peSnapID)
+		uploadBuilder.SnapshotID(componentPEID.String())
+	} else {
+		uploadBuilder.SnapshotID(updatedPeID.String())
+	}
 	if backupRepositoryName != "" {
 		this.Infof("Create upload CR with backup repository %s", backupRepositoryName)
 		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepositoryName)
