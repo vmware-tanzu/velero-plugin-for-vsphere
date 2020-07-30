@@ -76,33 +76,34 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
-	p.Log.Info("Claiming backup repository for snapshot")
-	bslName := backup.Spec.StorageLocation
-	repositoryParameters := make(map[string]string)
-
+	// Do not claim a backup repository in local mode
+	var backupRepositoryName string
 	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
-	// The repository parameters are irrelevant in local mode.
 	if !isLocalMode {
+		p.Log.Info("Claiming backup repository for snapshot")
+		bslName := backup.Spec.StorageLocation
+		repositoryParameters := make(map[string]string)
+
 		err = utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, p.Log)
 		if err != nil {
 			p.Log.Errorf("Failed to translate BSL to repository parameters: %v", err)
 			return nil, nil, errors.WithStack(err)
 		}
+
+		backupRepositoryName, err = backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
+			[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
+		if err != nil {
+			p.Log.Errorf("Failed to claim backup repository: %v", err)
+			return nil, nil, errors.WithStack(err)
+		}
 	}
+	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 
 	objectToSnapshot := corev1.TypedLocalObjectReference{
 		APIGroup: &corev1.SchemeGroupVersion.Group,
 		Kind:     pvc.Kind,
 		Name:     pvc.Name,
 	}
-
-	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
-		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
-	if err != nil {
-		p.Log.Errorf("Failed to claim backup repository: %v", err)
-		return nil, nil, errors.WithStack(err)
-	}
-	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 
 	p.Log.Info("Creating a Snapshot CR")
 	updatedSnapshot, err := snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository,
@@ -139,4 +140,3 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
 }
-

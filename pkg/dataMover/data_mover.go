@@ -18,6 +18,8 @@ package dataMover
 
 import (
 	"context"
+	"sync"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -26,7 +28,6 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"sync"
 )
 
 type DataMover struct {
@@ -36,7 +37,7 @@ type DataMover struct {
 	inProgressCancelMap *sync.Map
 }
 
-func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
+func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool, logger logrus.FieldLogger) (*DataMover, error) {
 	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
 	if _, ok := params[ivd.HostVcParamKey]; !ok {
 		err := utils.RetrieveVcConfigSecret(params, nil, logger)
@@ -48,27 +49,30 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 		logger.Infof("DataMover: vSphere VC credential is retrieved")
 	}
 
-	err := utils.RetrieveVSLFromVeleroBSLs(params, utils.DefaultS3BackupLocation, nil, logger)
-	if err != nil {
-		logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
-		return nil, err
-	}
-	logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v",
-		params["region"], params["bucket"])
-
-	s3PETM, err := utils.GetS3PETMFromParamsMap(params, logger)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to get s3PETM from params map, region=%v, bucket=%v",
+	// TODO: Do not initialize the data mover with the remote storage location once we move to
+	// using the BackupRepositories
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	if !externalDataMgr {
+		err := utils.RetrieveVSLFromVeleroBSLs(params, utils.DefaultS3BackupLocation, nil, logger)
+		if err != nil {
+			logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
+			return nil, err
+		}
+		logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v",
 			params["region"], params["bucket"])
-		return nil, err
+
+		s3PETM, err = utils.GetS3PETMFromParamsMap(params, logger)
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get s3PETM from params map, region=%v, bucket=%v",
+				params["region"], params["bucket"])
+			return nil, err
+		}
+		logger.Infof("DataMover: Get s3PETM from the params map")
 	}
-	logger.Infof("DataMover: Get s3PETM from the params map")
 
 	ivdPETM, err := utils.GetIVDPETMFromParamsMap(params, logger)
 	if err != nil {
 		logger.WithFields(logrus.Fields{
-			"region":        params["region"],
-			"bucket":        params["bucket"],
 			"VirtualCenter": params["VirtualCenter"],
 			"port":          params["port"],
 		}).WithError(err).Errorf("Failed to get ivdPETM from params map.")
