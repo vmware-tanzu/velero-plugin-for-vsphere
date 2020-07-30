@@ -103,6 +103,17 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	sEnc := string(secret.Data[secretData])
 	lines := strings.Split(sEnc, "\n")
 
+	ParseLines(lines, params, logger)
+
+	// If port is missing, add an entry in the params to use the standard https port
+	if _, ok := params["port"]; !ok {
+		params["port"] = DefaultVCenterPort
+	}
+
+	return nil
+}
+
+func ParseLines(lines []string, params map[string]interface{}, logger logrus.FieldLogger) {
 	for _, line := range lines {
 		if strings.Contains(line, "VirtualCenter") {
 			parts := strings.Split(line, "\"")
@@ -121,13 +132,6 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 			params[key] = unquotedValue
 		}
 	}
-
-	// If port is missing, add an entry in the params to use the standard https port
-	if _, ok := params["port"]; !ok {
-		params["port"] = DefaultVCenterPort
-	}
-
-	return nil
 }
 
 func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, config *rest.Config,

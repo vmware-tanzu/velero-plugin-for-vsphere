@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -228,5 +229,50 @@ func TestRetrieveParamsFromBSL(t *testing.T) {
 			t.Fatalf("RetrieveParamsFromBSL failed!")
 		}
 		logger.Infof("Repository Parameters: %v", repositoryParameters)
+	}
+}
+
+func TestRerieveVcConfigSecret(t *testing.T) {
+	// Setup Logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339Nano
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+	logger.SetLevel(logrus.DebugLevel)
+
+	tests := []struct{
+		name string
+		sEnc string
+		vc string
+		password string
+	}{
+		{
+			name: "Password with special character \\ in it",
+			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;\"",
+			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: "GpI4G`OK'?in40Fo/0\\;",
+		},
+		{
+			name: "Password with multiple = in it",
+			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;=h=\"",
+			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: "GpI4G`OK'?in40Fo/0\\;=h=",
+		},
+		{
+			name: "Password with special character \\t in it",
+			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"G4\\t4t\"",
+			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: "G4\t4t",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			lines := strings.Split(test.sEnc, "\n")
+			params := make(map[string]interface{})
+			ParseLines(lines, params, logger)
+			assert.Equal(t, test.vc, params["VirtualCenter"])
+			assert.Equal(t, test.password, params["password"])
+		})
 	}
 }
