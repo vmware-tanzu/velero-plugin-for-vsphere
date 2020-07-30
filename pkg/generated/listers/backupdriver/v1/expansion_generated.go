@@ -38,6 +38,14 @@ type CloneFromSnapshotListerExpansion interface{}
 // CloneFromSnapshotNamespaceLister.
 type CloneFromSnapshotNamespaceListerExpansion interface{}
 
+// DeleteSnapshotListerExpansion allows custom methods to be added to
+// DeleteSnapshotLister.
+type DeleteSnapshotListerExpansion interface{}
+
+// DeleteSnapshotNamespaceListerExpansion allows custom methods to be added to
+// DeleteSnapshotNamespaceLister.
+type DeleteSnapshotNamespaceListerExpansion interface{}
+
 // SnapshotListerExpansion allows custom methods to be added to
 // SnapshotLister.
 type SnapshotListerExpansion interface{}

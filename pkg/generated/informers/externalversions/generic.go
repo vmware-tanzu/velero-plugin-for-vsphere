@@ -60,6 +60,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().BackupRepositoryClaims().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("clonefromsnapshots"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().CloneFromSnapshots().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("deletesnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().DeleteSnapshots().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("snapshots"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().Snapshots().Informer()}, nil
 

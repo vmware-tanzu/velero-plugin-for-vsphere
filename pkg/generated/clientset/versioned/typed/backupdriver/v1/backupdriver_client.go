@@ -29,6 +29,7 @@ type BackupdriverV1Interface interface {
 	BackupRepositoriesGetter
 	BackupRepositoryClaimsGetter
 	CloneFromSnapshotsGetter
+	DeleteSnapshotsGetter
 	SnapshotsGetter
 }
 
@@ -47,6 +48,10 @@ func (c *BackupdriverV1Client) BackupRepositoryClaims(namespace string) BackupRe
 
 func (c *BackupdriverV1Client) CloneFromSnapshots(namespace string) CloneFromSnapshotInterface {
 	return newCloneFromSnapshots(c, namespace)
+}
+
+func (c *BackupdriverV1Client) DeleteSnapshots(namespace string) DeleteSnapshotInterface {
+	return newDeleteSnapshots(c, namespace)
 }
 
 func (c *BackupdriverV1Client) Snapshots(namespace string) SnapshotInterface {

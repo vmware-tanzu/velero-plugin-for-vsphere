@@ -24,4 +24,6 @@ type BackupRepositoryClaimExpansion interface{}
 
 type CloneFromSnapshotExpansion interface{}
 
+type DeleteSnapshotExpansion interface{}
+
 type SnapshotExpansion interface{}

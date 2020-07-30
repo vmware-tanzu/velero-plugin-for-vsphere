@@ -40,6 +40,10 @@ func (c *FakeBackupdriverV1) CloneFromSnapshots(namespace string) v1.CloneFromSn
 	return &FakeCloneFromSnapshots{c, namespace}
 }
 
+func (c *FakeBackupdriverV1) DeleteSnapshots(namespace string) v1.DeleteSnapshotInterface {
+	return &FakeDeleteSnapshots{c, namespace}
+}
+
 func (c *FakeBackupdriverV1) Snapshots(namespace string) v1.SnapshotInterface {
 	return &FakeSnapshots{c, namespace}
 }
