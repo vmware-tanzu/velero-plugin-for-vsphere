@@ -2,17 +2,19 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
+	pluginUtil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -35,7 +37,7 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 // Execute recognizes PVCs backed by volumes provisioned by vSphere CNS block volumes
-func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
+func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	// Do nothing if volume snapshots have not been requested in this backup
 	//if utils.IsSetToFalse(backup.Spec.SnapshotVolumes) {
 	ctx := context.Background()
@@ -52,7 +54,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
 	var err error
 	defer func() {
-		p.Log.WithError(err).Infof("VSphere PVCBackupItemAction for PVC %s/%s completed", pvc.Namespace, pvc.Name)
+		p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
 	}()
 
 	// get the velero namespace and the rest config in k8s cluster
@@ -88,28 +90,45 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		}
 	}
 
-	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
-		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
-	if err != nil {
-		p.Log.Errorf("Failed to claim backup repository: %v", err)
-		return nil, nil, errors.WithStack(err)
-	}
-
 	objectToSnapshot := corev1.TypedLocalObjectReference{
 		APIGroup: &corev1.SchemeGroupVersion.Group,
 		Kind:     pvc.Kind,
 		Name:     pvc.Name,
 	}
 
-	p.Log.Info("Creating a snapshot CR")
-	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
-	_, err = snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, p.Log)
+	backupRepositoryName, err := backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
+		[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
 	if err != nil {
-		p.Log.Errorf("Failed to create a snapshot CR: %v", err)
+		p.Log.Errorf("Failed to claim backup repository: %v", err)
 		return nil, nil, errors.WithStack(err)
 	}
+	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 
-	p.Log.Info("Snapshot is completed in plugin")
+	p.Log.Info("Creating a Snapshot CR")
+	updatedSnapshot, err := snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository,
+		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted, backupdriverv1.SnapshotPhaseSnapshotFailed}, p.Log)
+	if err != nil {
+		p.Log.Errorf("Failed to create a Snapshot CR: %v", err)
+		return nil, nil, errors.WithStack(err)
+	}
+	if updatedSnapshot.Status.Phase == backupdriverv1.SnapshotPhaseSnapshotFailed {
+		errMsg := fmt.Sprintf("Failed to create a Snapshot CR: Phase=SnapshotFailed, err=%v", updatedSnapshot.Status.Message)
+		p.Log.Error(errMsg)
+		return nil, nil, errors.New(errMsg)
+	}
+
+	// Persist the snapshot blob as an annotation of PVC
+	snapshotAnnotation, err := pluginUtil.GetAnnotationFromSnapshot(updatedSnapshot)
+	if err != nil {
+		p.Log.Errorf("Failed to marshal Snapshot object: %v", err)
+		return nil, nil, errors.WithStack(err)
+	}
+	vals := map[string]string{
+		utils.ItemSnapshotLabel: snapshotAnnotation,
+	}
+	pluginUtil.AddAnnotations(&pvc.ObjectMeta, vals)
+
+	p.Log.Info("Snapshot completed in plugin")
 
 	var additionalItems []velero.ResourceIdentifier
 
@@ -120,3 +139,4 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	return &unstructured.Unstructured{Object: pvcMap}, additionalItems, nil
 }
+

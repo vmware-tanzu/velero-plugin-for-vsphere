@@ -74,11 +74,11 @@ func TestWaitForPhases(t *testing.T) {
 	}
 
 	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
-	endPhase, err := WaitForPhases(timeoutContext, clientSet, testSnapshot, []backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted}, "backup-driver", logger)
+	updatedSnapshot, err := WaitForPhases(timeoutContext, clientSet, testSnapshot, []backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted}, "backup-driver", logger)
 	if err != nil {
 		t.Fatalf("WaitForPhases returned err = %v\n", err)
 	} else {
-		fmt.Printf("WaitForPhases returned phase = %s\n", endPhase)
+		fmt.Printf("WaitForPhases returned phase = %s\n", updatedSnapshot.Status.Phase)
 	}
 }
 
@@ -140,11 +140,11 @@ func TestWaitForClonePhases(t *testing.T) {
 	}
 
 	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
-	endPhase, err := WaitForClonePhases(timeoutContext, clientSet, testClone, []backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted}, "backup-driver", logger)
+	updatedClone, err := WaitForClonePhases(timeoutContext, clientSet, testClone, []backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted}, "backup-driver", logger)
 	if err != nil {
 		t.Fatalf("WaitForClonePhases returned err = %v\n", err)
 	} else {
-		fmt.Printf("WaitForClonePhases returned phase = %s\n", endPhase)
+		fmt.Printf("WaitForClonePhases returned phase = %s\n", updatedClone.Status.Phase)
 	}
 }
 

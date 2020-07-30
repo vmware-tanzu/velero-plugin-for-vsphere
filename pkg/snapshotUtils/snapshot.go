@@ -24,17 +24,17 @@ an in-progress snapshot
 */
 
 type waitResult struct {
-	phase backupdriverv1.SnapshotPhase
+	item  interface{}
 	err   error
 }
 
 type BackupRepository struct {
-	backupRepository string
+	backupRepositoryName string
 }
 
-func NewBackupRepository(backupRepository string) *BackupRepository {
+func NewBackupRepository(backupRepositoryName string) *BackupRepository {
 	return &BackupRepository{
-		backupRepository,
+		backupRepositoryName,
 	}
 }
 
@@ -43,7 +43,7 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 	for _, checkPhase := range waitForPhases {
 		if snapshot.Status.Phase == checkPhase {
 			results <- waitResult{
-				phase: snapshot.Status.Phase,
+				item: snapshot,
 				err:   nil,
 			}
 		}
@@ -57,36 +57,40 @@ func SnapshotRef(ctx context.Context,
 	namespace string,
 	repository BackupRepository,
 	waitForPhases []backupdriverv1.SnapshotPhase,
-	logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
+	logger logrus.FieldLogger) (*backupdriverv1.Snapshot, error) {
 
 	snapshotUUID, err := uuid.NewRandom()
 	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Could not create snapshot UUID")
+		return nil, errors.Wrapf(err, "Could not create snapshot UUID")
 	}
 	snapshotName := "snap-" + snapshotUUID.String()
 	snapshotReq := builder.ForSnapshot(namespace, snapshotName).
-		BackupRepository(repository.backupRepository).
+		BackupRepository(repository.backupRepositoryName).
 		ObjectReference(objectToSnapshot).
 		CancelState(false).Result()
 
 	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(snapshotReq)
 	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to create snapshot record")
+		return nil, errors.Wrapf(err, "Failed to create snapshot record")
 	}
 	logger.Infof("Snapshot record, %s, created", writtenSnapshot.Name)
 
 	writtenSnapshot.Status.Phase = backupdriverv1.SnapshotPhaseNew
 	writtenSnapshot, err = clientSet.Snapshots(namespace).UpdateStatus(writtenSnapshot)
 	if err != nil {
-		return backupdriverv1.Snapshot{}, errors.Wrapf(err, "Failed to update status of snapshot record")
+		return nil, errors.Wrapf(err, "Failed to update status of snapshot record")
 	}
 	logger.Infof("Snapshot record, %s, status updated to %s", writtenSnapshot.Name, writtenSnapshot.Status.Phase)
 
-	_, err = WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases, namespace, logger)
-	return *writtenSnapshot, err
+	updatedSnapshot, err := WaitForPhases(ctx, clientSet, *writtenSnapshot, waitForPhases, namespace, logger)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to wait for expected snapshot phases")
+	}
+
+	return updatedSnapshot, err
 }
 
-func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.SnapshotPhase, error) {
+func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.Snapshot, error) {
 	results := make(chan waitResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", namespace,
 		fields.Everything())
@@ -111,7 +115,7 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 				}
 				logger.Infof("snapshot deleted: %s", obj)
 				results <- waitResult{
-					phase: "",
+					item:  nil,
 					err:   errors.New("Snapshot deleted"),
 				}
 			},
@@ -132,8 +136,8 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 	select {
 	case <-ctx.Done():
 		stop <- struct{}{}
-		return "", ctx.Err()
+		return nil, ctx.Err()
 	case result := <-results:
-		return result.phase, result.err
+		return result.item.(*backupdriverv1.Snapshot), result.err
 	}
 }

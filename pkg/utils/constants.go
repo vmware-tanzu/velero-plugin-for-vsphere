@@ -159,3 +159,7 @@ const (
 const (
 	WithoutBackupRepository = "without-backup-repository"
 )
+
+const (
+	ItemSnapshotLabel              = "velero-plugin-for-vsphere/item-snapshot-blob"
+)
