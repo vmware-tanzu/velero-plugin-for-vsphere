@@ -54,7 +54,7 @@ type SnapshotProgress struct {
 }
 
 type SnapshotStatus struct {
-	// Phase is the current state of the Upload.
+	// Phase is the current state of the Snapshot.
 	Phase SnapshotPhase `json:"phase,omitempty"`
 
 	// Message is a message about the snapshot's status.
@@ -155,12 +155,17 @@ const (
 )
 
 type CloneStatus struct {
-	Phase ClonePhase `json:"phase"`
+	// Phase is the current state of the CloneFromSnapshot.
+	// +optional
+	Phase ClonePhase `json:"phase,omitempty"`
 
-	Message string `json:"message"`
+	// Message is a message about the clone's status.
+	// +optional
+	Message string `json:"message,omitempty"`
+
 	// The handle of the resource that was cloned from the snapshot
 	// +optional
-	ResourceHandle core_v1.TypedLocalObjectReference `json:"resourceHandle"`
+	ResourceHandle *core_v1.TypedLocalObjectReference `json:"resourceHandle,omitempty"`
 }
 
 // +genclient
@@ -182,7 +187,8 @@ type CloneFromSnapshot struct {
 
 	Spec CloneFromSnapshotSpec `json:"spec"`
 
-	Status CloneStatus `json:"status"`
+	// +optional
+	Status CloneStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

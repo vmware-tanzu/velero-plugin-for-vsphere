@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: (devel)
+    controller-gen.kubebuilder.io/version: v0.3.0
   creationTimestamp: null
   name: clonefromsnapshots.backupdriver.io
 spec:
@@ -70,16 +70,10 @@ spec:
         status:
           properties:
             message:
+              description: Message is a message about the clone's status.
               type: string
             phase:
-              description: '  ClonePhase represents the lifecycle phase of a Clone.   New
-                - No work yet, next phase is InProgress   InProgress - snapshot being
-                taken   Completed - new object has been created   Failed - end state,
-                clone failed, no new object was created   Canceling - when the Clone
-                flag is set, if the Clone has not already moved into a terminal state,
-                the               status will move to Canceling.  The object that
-                was being created will be removed  Canceled - the Clone was canceled,
-                no new object was created'
+              description: Phase is the current state of the CloneFromSnapshot.
               type: string
             resourceHandle:
               description: The handle of the resource that was cloned from the snapshot
@@ -99,13 +93,9 @@ spec:
               - kind
               - name
               type: object
-          required:
-          - message
-          - phase
           type: object
       required:
       - spec
-      - status
       type: object
   version: v1
   versions:

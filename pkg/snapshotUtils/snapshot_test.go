@@ -112,7 +112,7 @@ func TestWaitForClonePhases(t *testing.T) {
 		Status: backupdriverv1.CloneStatus{
 			Phase:   backupdriverv1.ClonePhaseNew,
 			Message: "Clone from snapshot done",
-			ResourceHandle: core_v1.TypedLocalObjectReference{
+			ResourceHandle: &core_v1.TypedLocalObjectReference{
 				APIGroup: &apiGroup,
 				Kind:     "volume",
 				Name:     "dp-volume",
