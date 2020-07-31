@@ -45,7 +45,7 @@ import (
 type SnapshotManager struct {
 	logrus.FieldLogger
 	config map[string]string
-	pem    astrolabe.ProtectedEntityManager
+	Pem    astrolabe.ProtectedEntityManager
 	s3PETM *s3repository.ProtectedEntityTypeManager
 }
 
@@ -172,7 +172,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	snapMgr := SnapshotManager{
 		FieldLogger: logger,
 		config:      config,
-		pem:         dpem,
+		Pem:         dpem,
 		s3PETM:      s3PETM,
 	}
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
@@ -195,7 +195,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
-	pe, err := this.pem.GetProtectedEntity(ctx, peID)
+	pe, err := this.Pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to GetProtectedEntity for %s", peID.String())
 		return astrolabe.ProtectedEntityID{}, err
@@ -392,7 +392,7 @@ func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteLocalSnapshot Called")
-	return this.deleteSnapshotFromRepo(peID, this.pem.GetProtectedEntityTypeManager(peID.GetPeType()))
+	return this.deleteSnapshotFromRepo(peID, this.Pem.GetProtectedEntityTypeManager(peID.GetPeType()))
 }
 
 // Will be deleted eventually. Use S3PETM created from backup repository instead of hard coding S3PETM which is initialized when NewSnapshotManagerFromCluster
