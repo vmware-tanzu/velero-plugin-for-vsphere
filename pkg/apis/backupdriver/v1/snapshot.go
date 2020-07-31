@@ -202,3 +202,60 @@ type CloneFromSnapshotList struct {
 
 	Items []CloneFromSnapshot `json:"items"`
 }
+
+type DeleteSnapshotSpec struct {
+	SnapshotID string `json:"snapshotID"`
+
+	// The backup repository to retrieve the snapshot from. The namespace the Snapshot/PVC lives in must
+	// have access to the repository
+	BackupRepository string `json:"backpRepository"`
+}
+
+type DeleteSnapshotPhase string
+
+const (
+	DeleteSnapshotPhaseNew        DeleteSnapshotPhase = "New"
+	DeleteSnapshotPhaseInProgress DeleteSnapshotPhase = "InProgress"
+	DeleteSnapshotPhaseCompleted  DeleteSnapshotPhase = "Completed"
+	DeleteSnapshotPhaseFailed     DeleteSnapshotPhase = "Failed"
+)
+
+type DeleteSnapshotStatus struct {
+	// Phase is the current state of the Delete Snapshot.
+	Phase DeleteSnapshotPhase `json:"phase,omitempty"`
+
+	// Message is a message about the delete snapshot's status.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:subresource:status
+type DeleteSnapshot struct {
+	// TypeMeta is the metadata for the resource, like kind and apiversion
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ObjectMeta `json:"metadata,omitempty"`
+
+	// Spec is the custom resource spec
+	Spec DeleteSnapshotSpec `json:"spec"`
+
+	// Current status of the delete snapshot operation
+	// +optional
+	Status DeleteSnapshotStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// DeleteSnapshotList is a list of DeleteSnapshotList resources
+type DeleteSnapshotList struct {
+	meta_v1.TypeMeta `json:",inline"`
+
+	// +optional
+	meta_v1.ListMeta `json:"metadata,omitempty"`
+
+	Items []DeleteSnapshot `json:"items"`
+}

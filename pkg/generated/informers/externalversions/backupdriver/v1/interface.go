@@ -30,6 +30,8 @@ type Interface interface {
 	BackupRepositoryClaims() BackupRepositoryClaimInformer
 	// CloneFromSnapshots returns a CloneFromSnapshotInformer.
 	CloneFromSnapshots() CloneFromSnapshotInformer
+	// DeleteSnapshots returns a DeleteSnapshotInformer.
+	DeleteSnapshots() DeleteSnapshotInformer
 	// Snapshots returns a SnapshotInformer.
 	Snapshots() SnapshotInformer
 }
@@ -58,6 +60,11 @@ func (v *version) BackupRepositoryClaims() BackupRepositoryClaimInformer {
 // CloneFromSnapshots returns a CloneFromSnapshotInformer.
 func (v *version) CloneFromSnapshots() CloneFromSnapshotInformer {
 	return &cloneFromSnapshotInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// DeleteSnapshots returns a DeleteSnapshotInformer.
+func (v *version) DeleteSnapshots() DeleteSnapshotInformer {
+	return &deleteSnapshotInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Snapshots returns a SnapshotInformer.
