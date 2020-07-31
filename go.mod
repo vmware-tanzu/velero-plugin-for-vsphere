@@ -30,7 +30,6 @@ require (
 	k8s.io/client-go v0.17.3
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
-	sigs.k8s.io/controller-tools v0.3.0 // indirect
 )
 
 replace github.com/vmware/gvddk => ../astrolabe/vendor/github.com/vmware/gvddk
