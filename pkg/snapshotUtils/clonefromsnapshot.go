@@ -20,18 +20,8 @@ Note: Canceling the context cancels the wait, it does not cancel the cloneFromSn
 */
 
 type waitCloneResult struct {
-	phase backupdriverv1.ClonePhase
+	item  interface{}
 	err   error
-}
-
-type BackupRepo struct {
-	backupRepositoryName string
-}
-
-func NewBackupRepo(backupRepositoryName string) *BackupRepo {
-	return &BackupRepo{
-		backupRepositoryName,
-	}
 }
 
 func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot,
@@ -39,18 +29,25 @@ func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cl
 	for _, checkPhase := range waitForPhases {
 		if cloneFromSnapshot.Status.Phase == checkPhase {
 			results <- waitCloneResult{
-				phase: cloneFromSnapshot.Status.Phase,
+				item:  cloneFromSnapshot,
 				err:   nil,
 			}
 		}
 	}
 }
 
-func CloneFromSnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotID string, metadata []byte, apiGroup *string, kind string, namespace string, repo BackupRepo, waitForPhases []backupdriverv1.ClonePhase, logger logrus.FieldLogger) (backupdriverv1.CloneFromSnapshot, error) {
-	cloneFromSnapshotUUID, err := uuid.NewRandom()
+func CloneFromSnapshopRef(ctx context.Context,
+	clientSet *v1.BackupdriverV1Client,
+	snapshotID string, metadata []byte,
+	apiGroup *string, kind string,
+	namespace string,
+	repo BackupRepository,
+	waitForPhases []backupdriverv1.ClonePhase,
+	logger logrus.FieldLogger) (*backupdriverv1.CloneFromSnapshot, error) {
 
+	cloneFromSnapshotUUID, err := uuid.NewRandom()
 	if err != nil {
-		return backupdriverv1.CloneFromSnapshot{}, errors.Wrapf(err, "Could not create cloneFromSnapshot UUID")
+		return nil, errors.Wrapf(err, "Could not create cloneFromSnapshot UUID")
 	}
 	cloneFromSnapshotCR := backupdriverv1.CloneFromSnapshot{
 		TypeMeta: metav1.TypeMeta{
@@ -72,22 +69,26 @@ func CloneFromSnapshopRef(ctx context.Context, clientSet *v1.BackupdriverV1Clien
 
 	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(&cloneFromSnapshotCR)
 	if err != nil {
-		return backupdriverv1.CloneFromSnapshot{}, errors.Wrapf(err, "Failed to create cloneFromSnapshot record")
+		return nil, errors.Wrapf(err, "Failed to create cloneFromSnapshot record")
 	}
 	logger.Infof("CloneFromSnapshot record, %s, created", writtenClone.Name)
 
 	writtenClone.Status.Phase = backupdriverv1.ClonePhaseNew
 	writtenClone, err = clientSet.CloneFromSnapshots(namespace).UpdateStatus(writtenClone)
 	if err != nil {
-		return backupdriverv1.CloneFromSnapshot{}, errors.Wrapf(err, "Failed to update status of cloneFromSnapshot record")
+		return nil, errors.Wrapf(err, "Failed to update status of cloneFromSnapshot record")
 	}
 	logger.Infof("CloneFromSnapshot record, %s, status updated to %s", writtenClone.Name, writtenClone.Status.Phase)
 
-	_, err = WaitForClonePhases(ctx, clientSet, *writtenClone, waitForPhases, namespace, logger)
-	return *writtenClone, err
+	updatedClone, err := WaitForClonePhases(ctx, clientSet, *writtenClone, waitForPhases, namespace, logger)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to wait for expected clone phases")
+	}
+
+	return updatedClone, err
 }
 
-func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, cloneToWait backupdriverv1.CloneFromSnapshot, waitForPhases []backupdriverv1.ClonePhase, namespace string, logger logrus.FieldLogger) (backupdriverv1.ClonePhase, error) {
+func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, cloneToWait backupdriverv1.CloneFromSnapshot, waitForPhases []backupdriverv1.ClonePhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.CloneFromSnapshot, error) {
 	results := make(chan waitCloneResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "cloneFromSnapshots", namespace,
 		fields.Everything())
@@ -112,7 +113,7 @@ func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client,
 				}
 				logger.Infof("cloneFromSnapshot deleted: %s", obj)
 				results <- waitCloneResult{
-					phase: "",
+					item:  nil,
 					err:   errors.New("CloneFromSnapshot deleted"),
 				}
 			},
@@ -133,8 +134,8 @@ func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client,
 	select {
 	case <-ctx.Done():
 		stop <- struct{}{}
-		return "", ctx.Err()
+		return nil, ctx.Err()
 	case result := <-results:
-		return result.phase, result.err
+		return result.item.(*backupdriverv1.CloneFromSnapshot), result.err
 	}
 }
