@@ -17,8 +17,11 @@ limitations under the License.
 package backupdriver
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -93,10 +96,31 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	snapshotClone.Status.Progress.TotalBytes = 0
 	snapshotClone.Status.Progress.BytesDone = 0
 	snapshotClone.Status.SnapshotID = snapshotID
-	// NOTE: snapshotClone.Status.Metadata is not populated yet
+
+	ctx := context.Background()
+	pe, err := ctrl.snapManager.Pem.GetProtectedEntity(ctx, peID)
+	if err != nil {
+		ctrl.logger.WithError(err).Errorf("Failed to get the ProtectedEntity from peID %s", peID.String())
+		return err
+	}
+
+	metadataReader, err := pe.GetMetadataReader(ctx)
+	if err != nil {
+		ctrl.logger.Errorf("createSnapshot: Error happened when calling PE GetMetadataReader: %v", err)
+		return err
+	}
+
+	mdBuf, err := ioutil.ReadAll(metadataReader) // TODO - limit this so it can't run us out of memory here
+	if err != nil && err != io.EOF {
+		ctrl.logger.Errorf("createSnapshot: Error happened when reading metadata: %v", err)
+		return err
+	}
+
+	snapshotClone.Status.Metadata = mdBuf
 
 	snapshot, err = ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 	if err != nil {
+		ctrl.logger.Infof("createSnapshot: update status fro snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
 		return err
 	}
 
