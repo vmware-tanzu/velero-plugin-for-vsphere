@@ -28,7 +28,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+	astrolabeServer "github.com/vmware-tanzu/astrolabe/pkg/server"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -152,6 +154,7 @@ type server struct {
 	config                serverConfig
 	dataMover             *dataMover.DataMover
 	snapManager           *snapshotmgr.SnapshotManager
+	externalDataMgr       bool
 }
 
 func (s *server) run() error {
@@ -231,26 +234,49 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	configParams := make(map[string]interface{})
+	ivdParams := make(map[string]interface{})
 	if config.vcConfigFromSecret == true {
 		logger.Infof("VC Configuration will be retrieved from cluster secret")
 	} else {
-		err := getVCConfigParams(config, configParams, logger)
+		err := getVCConfigParams(config, ivdParams, logger)
 		if err != nil {
 			return nil, err
 		}
 
-		logger.Infof("VC configuration provided by user for :%s", configParams[ivd.HostVcParamKey])
-	}
-
-	dataMover, err := dataMover.NewDataMoverFromCluster(configParams, logger)
-	if err != nil {
-		return nil, err
+		logger.Infof("VC configuration provided by user for :%s", ivdParams[ivd.HostVcParamKey])
 	}
 
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromCluster(configParams, snapshotMgrConfig, logger)
+
+	peConfigs := make(map[string]map[string]interface{})
+	peConfigs["ivd"] = ivdParams // Even an empty map here will force NewSnapshotManagerFromConfig to use the default VC config
+
+	// Initialize dummy s3 config.
+	s3Config := astrolabe.S3Config{
+		URLBase: "VOID_URL",
+	}
+	s3RepoParams := make(map[string]interface{})
+
+	configInfo := astrolabeServer.NewConfigInfo(peConfigs, s3Config)
+	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
+		clientConfig, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterFlavor, err := utils.GetClusterFlavor(clientConfig)
+	if err != nil {
+		logger.WithError(err).Error("Failed tp identify cluster flavor")
+		return nil, err
+	}
+	// In supervisor/guest cluster, data manager is remote
+	externalDataMgr := false
+	if clusterFlavor != utils.VSphere {
+		externalDataMgr = true
+	}
+
+	dataMover, err := dataMover.NewDataMoverFromCluster(ivdParams, externalDataMgr, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -270,6 +296,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		config:                config,
 		dataMover:             dataMover,
 		snapManager:           snapshotmgr,
+		externalDataMgr:       externalDataMgr,
 	}
 	return s, nil
 }
@@ -316,6 +343,7 @@ func (s *server) runControllers() error {
 		s.dataMover,
 		s.snapManager,
 		os.Getenv("NODE_NAME"),
+		s.externalDataMgr,
 	)
 
 	downloadController := controller.NewDownloadController(
