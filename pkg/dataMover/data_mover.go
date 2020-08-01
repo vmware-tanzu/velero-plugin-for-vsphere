@@ -124,7 +124,8 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 		}
 		this.s3PETM = repoPETM
 	}
-	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, astrolabe.AllocateNewObject)
+	var params map[string]map[string]interface{}
+	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, params, astrolabe.AllocateNewObject)
 	log.Debugf("Return from the call of s3 PETM copy API for local PE")
 	if err != nil {
 		log.WithError(err).Errorf("Failed at copying to remote repository")
@@ -163,7 +164,8 @@ func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, backupRepo
 	}
 
 	log.Debugf("Ready to call ivd PETM copy API for remote PE.")
-	ivdPE, err := this.ivdPETM.Copy(ctx, pe, astrolabe.AllocateNewObject)
+	var params map[string]map[string]interface{}
+	ivdPE, err := this.ivdPETM.Copy(ctx, pe, params, astrolabe.AllocateNewObject)
 	log.Debugf("Return from the call of ivd PETM copy API for remote PE.")
 	if err != nil {
 		log.WithError(err).Errorf("Failed to copy from remote repository.")
