@@ -111,7 +111,7 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 		this.logger.Errorf("Failed to get info for ParaVirtProtectedEntity %v", this.id.String())
 		return false, errors.WithStack(err)
 	}
-	this.logger.Infof("ParaVirtProtectedEntity: Retrieved info id: %s, name: %s",peInfo.GetID().String(), peInfo.GetName())
+	this.logger.Infof("ParaVirtProtectedEntity: Retrieved info id: %s, name: %s", peInfo.GetID().String(), peInfo.GetName())
 
 	backupRepositoryName, ok := params[astrolabe.PvcPEType]["BackupRepositoryName"].(string)
 	if !ok {

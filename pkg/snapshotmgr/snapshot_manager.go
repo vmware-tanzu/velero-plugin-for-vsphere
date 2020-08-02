@@ -50,6 +50,7 @@ type SnapshotManager struct {
 	config map[string]string
 	Pem    astrolabe.ProtectedEntityManager
 	s3PETM astrolabe.ProtectedEntityTypeManager
+	clusterFlavor utils.ClusterFlavor
 }
 
 // TODO - remove in favor of NewSnapshotManagerFromConfig when callers have been converted
@@ -130,6 +131,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 		FieldLogger: logger,
 		config:      config,
 		Pem:         dpem,
+		clusterFlavor: clusterFlavor,
 		//s3PETM:      s3PETM,
 	}
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
@@ -165,6 +167,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 	// Register external PETMs if any
 	if clusterFlavor == utils.TkgGuest {
+		logger.Infof("SnapshotManager: Cluster flavor: TKG Guest")
 		paravirtParams := make(map[string]interface{})
 		paravirtParams["restConfig"] = configInfo.PEConfigs[astrolabe.PvcPEType]["restConfig"]
 		paravirtParams["entityType"] = paravirt.ParaVirtEntityTypePersistentVolume
@@ -336,7 +339,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	this.Infof("Ready to create upload CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
 	var retUpload *v1api.Upload
 
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
 		retUpload, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(context.TODO(), upload, metav1.CreateOptions{})
 		if err != nil {
 			return false, err
@@ -386,7 +389,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		}
 		snapIDDecoded, err := decodeSnapshotID(peID.GetSnapshotID(), this.FieldLogger)
 		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve decoded snapshot id to search for on-going uploads, original pe-id :%s",peID.String())
+			log.WithError(err).Errorf("Failed to retrieve decoded snapshot id to search for on-going uploads, original pe-id :%s", peID.String())
 			return err
 		}
 		uploadName := "upload-" + snapIDDecoded
@@ -599,7 +602,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 	}
 	download := downloadBuilder.Result()
 	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
 		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(context.TODO(), download, metav1.CreateOptions{})
 		if err != nil {
 			return false, nil
@@ -672,44 +675,61 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 
 func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe.ProtectedEntityID, metadata []byte,
 	snapshotIDStr string, backupRepositoryName string, cloneFromSnapshotNamespace string, cloneFromSnapshotName string) (astrolabe.ProtectedEntityID, error) {
-	this.Infof("CreateVolumeFromSnapshotWithMetadata: Start creating restore for %s, snapshot ID %s, backupRepositoryName %s", peID.String(), snapshotIDStr, backupRepositoryName)
-
-	// Retrieve PVC PE TypeManager
-	peTM := this.Pem.GetProtectedEntityTypeManager(peID.GetPeType())
-	pvcPETM := peTM.(*astrolabe_pvc.PVCProtectedEntityTypeManager)
-	ctx := context.Background()
-
-	// Translate the BackupRepository to a PETM (usually S3PETM)
-	var snapshotRepo astrolabe.ProtectedEntityTypeManager
-	snapshotRepo = nil
-	if backupRepositoryName != "" && backupRepositoryName != utils.WithoutBackupRepository {
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-			return astrolabe.ProtectedEntityID{}, err
-		}
-		pluginClient, err := plugin_clientset.NewForConfig(config)
-		if err != nil {
-			this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
-			return astrolabe.ProtectedEntityID{}, err
-		}
-		backupRepository, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
-
-		snapshotRepo, err = utils.GetRepositoryFromBackupRepository(backupRepository, this)
-		if err != nil {
-			this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
-			return astrolabe.ProtectedEntityID{}, err
-		}
-	}
-
-	// CreateFromMetadata returns a PVCPE
+	this.Infof("CreateVolumeFromSnapshotWithMetadata: Start creating restore for %s, snapshot ID %s, backupRepositoryName %s, cloneFromSnapshot %s/%s", peID.String(), snapshotIDStr, backupRepositoryName, cloneFromSnapshotNamespace, cloneFromSnapshotName)
 	snapshotID, err := astrolabe.NewProtectedEntityIDFromString(snapshotIDStr)
 	if err != nil {
 		this.WithError(err).Errorf("Error creating volume from metadata")
 		return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
 	}
+	this.Infof("CreateVolumeFromSnapshotWithMetadata: snapshot ID %s", snapshotID.String())
+
+	var snapshotRepo astrolabe.ProtectedEntityTypeManager
+	snapshotRepo = nil
+	ctx := context.Background()
+	if this.clusterFlavor != utils.TkgGuest {
+		this.Infof("CreateVolumeFromSnapshotWithMetadata: not a TKG Guest Cluster")
+		// Translate the BackupRepository to a PETM (usually S3PETM)
+		if backupRepositoryName != "" && backupRepositoryName != utils.WithoutBackupRepository {
+			config, err := rest.InClusterConfig()
+			if err != nil {
+				this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+				return astrolabe.ProtectedEntityID{}, err
+			}
+			pluginClient, err := plugin_clientset.NewForConfig(config)
+			if err != nil {
+				this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
+				return astrolabe.ProtectedEntityID{}, err
+			}
+			backupRepository, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+
+			snapshotRepo, err = utils.GetRepositoryFromBackupRepository(backupRepository, this)
+			if err != nil {
+				this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
+				return astrolabe.ProtectedEntityID{}, err
+			}
+		}
+
+		peTM := this.Pem.GetProtectedEntityTypeManager(peID.GetPeType())
+		pvcPETM := peTM.(*astrolabe_pvc.PVCProtectedEntityTypeManager)
+
+		this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
+		pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
+		if err != nil {
+			this.WithError(err).Errorf("Error creating volume from metadata")
+			return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
+		}
+
+		this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
+
+		return pe.GetID(), err
+	}
+
+	peTM := this.Pem.GetProtectedEntityTypeManager("paravirt-pv")
+	pvcPETM := peTM.(*paravirt.ParaVirtProtectedEntityTypeManager)
+	this.Infof("CreateVolumeFromSnapshotWithMetadata: TKG Guest Cluster")
+
 	this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
-	pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName)
+	pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
 	if err != nil {
 		this.WithError(err).Errorf("Error creating volume from metadata")
 		return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
@@ -733,7 +753,6 @@ func uploadCRNameForSnapshotPEID(snapshotPEID astrolabe.ProtectedEntityID) (stri
 	return "upload-" + snapshotPEID.GetSnapshotID().String(), nil
 }
 
-
 func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger logrus.FieldLogger) (string, error) {
 	// Decode incoming snapshot ID until we retrieve the ivd snapshot-id.
 	snapshotID64Str := snapshotID.String()
@@ -749,7 +768,7 @@ func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger log
 		logger.WithError(err).Error(errorMsg)
 		return "", errors.Wrap(err, errorMsg)
 	}
-	logger.Infof("Successfully translated snapshotID %s into pe-id: %s",string(snapshotIDBytes), decodedPEID.String())
+	logger.Infof("Successfully translated snapshotID %s into pe-id: %s", string(snapshotIDBytes), decodedPEID.String())
 	if decodedPEID.HasSnapshot() && decodedPEID.GetPeType() != "ivd" {
 		logger.Infof("The translated pe-id is not ivd type, recurring for further decode")
 		return decodeSnapshotID(decodedPEID.GetSnapshotID(), logger)
