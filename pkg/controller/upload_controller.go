@@ -19,6 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -36,8 +39,6 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/utils/clock"
-	"math"
-	"time"
 )
 
 type uploadController struct {
@@ -51,6 +52,7 @@ type uploadController struct {
 	snapMgr           *snapshotmgr.SnapshotManager
 	clock             clock.Clock
 	processUploadFunc func(*pluginv1api.Upload) error
+	externalDataMgr   bool
 }
 
 func NewUploadController(
@@ -61,6 +63,7 @@ func NewUploadController(
 	dataMover *dataMover.DataMover,
 	snapMgr *snapshotmgr.SnapshotManager,
 	nodeName string,
+	externalDataMgr bool,
 ) Interface {
 	c := &uploadController{
 		genericController: newGenericController("upload", logger),
@@ -71,6 +74,7 @@ func NewUploadController(
 		dataMover:         dataMover,
 		snapMgr:           snapMgr,
 		clock:             &clock.RealClock{},
+		externalDataMgr:   externalDataMgr,
 	}
 
 	c.syncHandler = c.processUploadItem
@@ -128,28 +132,31 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 		return
 	}
 
-	log.Infof("Filtering out the upload request from nodes other than %v", c.nodeName)
-	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
-	if err != nil {
-		log.WithError(err).Errorf("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
-		return
-	}
-
-	uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
-	if err != nil {
-		_, ok := err.(utils.NotFoundError)
-		if ok {
-			log.Infof("Trying to back independent PV from volume ID, %v", peID.String())
-			uploadNodeName = c.nodeName
-		} else {
-			log.WithError(err).Errorf("Failed to retrieve pod nodes from volume ID, %v", peID.String())
+	// Check if current node is the expected upload node only if data manager is not remote.
+	if !c.externalDataMgr {
+		log.Infof("Filtering out the upload request from nodes other than %v", c.nodeName)
+		peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
 			return
 		}
-	}
 
-	log.Infof("Current node: %v. Expected node for uploading the upload CR: %v", c.nodeName, uploadNodeName)
-	if c.nodeName != uploadNodeName {
-		return
+		uploadNodeName, err := utils.RetrievePodNodesByVolumeId(peID.GetID())
+		if err != nil {
+			_, ok := err.(utils.NotFoundError)
+			if ok {
+				log.Infof("Trying to back independent PV from volume ID, %v", peID.String())
+				uploadNodeName = c.nodeName
+			} else {
+				log.WithError(err).Errorf("Failed to retrieve pod nodes from volume ID, %v", peID.String())
+				return
+			}
+		}
+
+		log.Infof("Current node: %v. Expected node for uploading the upload CR: %v", c.nodeName, uploadNodeName)
+		if c.nodeName != uploadNodeName {
+			return
+		}
 	}
 
 	log.Infof("Enqueueing upload")

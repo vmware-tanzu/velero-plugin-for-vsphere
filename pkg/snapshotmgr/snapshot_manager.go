@@ -18,11 +18,12 @@ package snapshotmgr
 
 import (
 	"context"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
+	"fmt"
 	"os"
 	"strings"
 	"time"
-	"fmt"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -89,20 +90,15 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 
 func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map[string]interface{},
 	config map[string]string, k8sRestConfig *rest.Config, logger logrus.FieldLogger) (*SnapshotManager, error) {
-	// TEMP change for this sprint. Causes install to fails as secret is not present
-	// Do not use BackupStorageLocation, but the BackupRepositories
-	// For guest:
-	// 1. Params can contain supervisor API server endpoint, Token, namespace and crt file location
-	// 2. Initialize pvIVD
-
-	var err error
-	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	clusterFlavor, err := utils.GetClusterFlavor(k8sRestConfig)
 	if err != nil {
 		logger.Errorf("Failed to get cluster flavor")
 		return nil, err
 	}
 	if clusterFlavor != utils.TkgGuest {
-		configInfo.PEConfigs["ivd"] = make(map[string]interface{})
+		if _, ok := configInfo.PEConfigs["ivd"]; !ok {
+			configInfo.PEConfigs["ivd"] = make(map[string]interface{})
+		}
 	}
 
 	// Retrieve VC configuration from the cluster only if it has not been set by the caller
@@ -120,12 +116,15 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	}
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 
-	// firstly, check whether local mode is disabled or not.
+	// TODO: Remove the use of s3RepoParams. Do not use BackupStorageLocation,
+	//  as data movement will use BackupRepositories for each upload/download job
+	// Check whether local mode is disabled or not
 	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
+	initRemoteStorage := clusterFlavor == utils.VSphere
 
 	// if so, check whether there is any specification about remote storage location in config
 	// otherwise, retrieve from velero BSLs.
-	if !isLocalMode {
+	if !isLocalMode && initRemoteStorage {
 		region, isRegionExist := config["region"]
 		bucket, isBucketExist := config["bucket"]
 

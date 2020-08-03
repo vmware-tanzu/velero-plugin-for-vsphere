@@ -226,7 +226,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
-	clusterFlavor, _ := utils.GetClusterFlavor(kubeClient)
+	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
 	var svcConfig *rest.Config
 	var svcNamespace string
 	if clusterFlavor == utils.TkgGuest {

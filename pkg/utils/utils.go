@@ -19,6 +19,12 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -35,7 +41,6 @@ import (
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
-	"io/ioutil"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,10 +48,6 @@ import (
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog"
-	"net"
-	"os"
-	"strconv"
-	"strings"
 )
 
 /*
@@ -70,7 +71,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 
 	// Get the cluster flavor
 	var ns, secretData string
-	clusterFlavor, err := GetClusterFlavor(clientset)
+	clusterFlavor, err := GetClusterFlavor(config)
 	if clusterFlavor == TkgGuest || clusterFlavor == Unknown {
 		logger.Errorf("RetrieveVcConfigSecret: Cannot retrieve VC secret in cluster flavor %s", clusterFlavor)
 		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret")
@@ -548,17 +549,18 @@ func PatchBackupRepository(req *backupdriverapi.BackupRepository,
 }
 
 // Check the cluster flavor that the plugin is deployed in
-func GetClusterFlavor(clientset *kubernetes.Clientset) (ClusterFlavor, error) {
-	if clientset == nil {
-		config, err := rest.InClusterConfig()
+func GetClusterFlavor(config *rest.Config) (ClusterFlavor, error) {
+	var err error
+	if config == nil {
+		config, err = rest.InClusterConfig()
 		if err != nil {
 			return Unknown, err
 		}
+	}
 
-		clientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			return Unknown, err
-		}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return Unknown, err
 	}
 
 	// Direct vSphere deployment.
@@ -577,7 +579,7 @@ func GetClusterFlavor(clientset *kubernetes.Clientset) (ClusterFlavor, error) {
 	// Check if vSphere secret is available in appropriate namespace.
 	ns = VCSecretNsSupervisor
 	secretApis = clientset.CoreV1().Secrets(ns)
-	_, err := secretApis.Get(VCSecret, metav1.GetOptions{})
+	_, err = secretApis.Get(VCSecret, metav1.GetOptions{})
 	if err == nil {
 		return Supervisor, nil
 	}
@@ -606,33 +608,6 @@ func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupR
 		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, S3RepositoryDriver)
 		return nil, errors.New(errMsg)
 	}
-}
-
-/*
- * In the guest cluster, the credentials to access the Supervisor Cluster
- * namespace are mounted as a volume. Return all the parameters to access the
- * Supervisor Cluster namespace.
- */
-func RetrieveParaVirtCredentials(params map[string]string, logger logrus.FieldLogger) error {
-	token, err := ioutil.ReadFile(PvTokenLocation)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to read the Para Virtual token from the credentials file %s", PvTokenLocation)
-		return err
-	}
-	params[PvTokenParamKey] = string(token)
-
-	ns, err := ioutil.ReadFile(PvNamespaceLocation)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to read the Para Virtual namespace from the credentials file %s", PvNamespaceLocation)
-		return err
-	}
-	params[PvNamespaceParamKey] = string(ns)
-
-	params[PvCrtFileParamKey] = PvCrtLocation
-	params[PvApiEndpointParamKey] = PvApiEndpoint
-	params[PvPortParamKey] = PvPort
-
-	return nil
 }
 
 /*

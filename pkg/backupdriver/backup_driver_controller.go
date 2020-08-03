@@ -54,14 +54,16 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	// but it is not really used
 	var tags map[string]string
 
-	brName := snapshot.Spec.BackupRepository
 	if ctrl.backupdriverClient == nil {
 		errMsg := fmt.Sprintf("backupdriverClient is not initialized")
 		ctrl.logger.Error(errMsg)
 		return errors.New(errMsg)
 	}
 
-	if ctrl.svcKubeConfig != nil {
+	// Get the BackupRepository name. The snapshot spec can have an empty backup repository
+	// name in case of local mode.
+	brName := snapshot.Spec.BackupRepository
+	if ctrl.svcKubeConfig != nil && brName != "" {
 		// For guest cluster, get the supervisor backup repository name
 		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
 		if err != nil {
