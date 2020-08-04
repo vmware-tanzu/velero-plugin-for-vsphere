@@ -130,21 +130,37 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	return nil
 }
 
-// deleteSnapshot deletes the specified volume snapshot.
-func (ctrl *backupDriverController) deleteSnapshot(snapshot *backupdriverapi.Snapshot) error {
-	ctrl.logger.Infof("deleteSnapshot called with snapshot %s/%s", snapshot.Namespace, snapshot.Name)
-	if snapshot.Status.SnapshotID == "" {
+func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdriverapi.DeleteSnapshot) error {
+	ctrl.logger.Infof("deleteSnapshot called with SnapshotID %s, Namespace: %s, Name: %s",
+		deleteSnapshot.Spec.SnapshotID, deleteSnapshot.Namespace, deleteSnapshot.Name)
+	if deleteSnapshot.Spec.SnapshotID == "" {
 		errMsg := fmt.Sprintf("snapshotID is required to delete snapshot")
 		ctrl.logger.Error(errMsg)
 		return errors.New(errMsg)
 	}
-
-	snapshotID := snapshot.Status.SnapshotID
+	snapshotID := deleteSnapshot.Spec.SnapshotID
 	ctrl.logger.Infof("Calling Snapshot Manager to delete snapshot with snapshotID %s", snapshotID)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Fail to construct new Protected Entity ID from string %s", snapshotID)
 		return err
+	}
+
+	if ctrl.backupdriverClient == nil {
+		errMsg := fmt.Sprintf("backupdriverClient is not initialized")
+		ctrl.logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	brName := deleteSnapshot.Spec.BackupRepository
+	if ctrl.svcKubeConfig != nil && brName != "" {
+		// For guest cluster, get the supervisor backup repository name
+		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
+		if err != nil {
+			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
+		}
+		// Update the backup repository name with the Supervisor BR name
+		brName = br.SvcBackupRepositoryName
 	}
 
 	if ctrl.snapManager == nil {
@@ -153,13 +169,26 @@ func (ctrl *backupDriverController) deleteSnapshot(snapshot *backupdriverapi.Sna
 		return errors.New(errMsg)
 	}
 
-	err = ctrl.snapManager.DeleteSnapshot(peID)
+	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager DeleteSnapshot for peID %v", peID)
 		return err
 	}
 
-	ctrl.logger.Infof("deleteSnapshot %s/%s completed with snapshotID: %s", snapshot.Namespace, snapshot.Name, snapshotID)
+	// Update the status
+	deleteSnapshotClone := deleteSnapshot.DeepCopy()
+	deleteSnapshotClone.Status.Phase = backupdriverapi.DeleteSnapshotPhaseCompleted
+	deleteSnapshotClone.Status.Message = "DeleteSnapshot Successfully processed."
 
+	deleteSnapshotUpdate, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshot.Namespace).UpdateStatus(deleteSnapshotClone)
+	if err != nil {
+		ctrl.logger.Errorf("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, failed: %v",
+			deleteSnapshot.Spec.SnapshotID, deleteSnapshot.Namespace, deleteSnapshot.Name, err)
+		return err
+	}
+
+	ctrl.logger.Errorf("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, Completed",
+		deleteSnapshotUpdate.Spec.SnapshotID, deleteSnapshotUpdate.Namespace, deleteSnapshotUpdate.Name)
 	return nil
 }
+

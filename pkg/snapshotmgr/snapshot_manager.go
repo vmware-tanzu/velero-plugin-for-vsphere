@@ -290,16 +290,16 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	return updatedPeID, nil
 }
 
-func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID) error {
+func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository string) error {
 	this.WithField("peID", peID.String()).Info("SnapshotManager.DeleteSnapshotWithBackupRepository was called.")
-	return this.deleteSnapshot(peID, &backupdriverv1.BackupRepository{})
+	return this.deleteSnapshot(peID, backupRepository)
 }
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
-	return this.deleteSnapshot(peID, nil)
+	return this.deleteSnapshot(peID, "")
 }
 
-func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) error {
+func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepository string) error {
 	log := this.WithField("peID", peID.String())
 	log.Infof("Step 0: Cancel on-going upload.")
 	config, err := rest.InClusterConfig()
@@ -363,7 +363,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		}
 
 		log.Infof("Step 2: Deleting the durable snapshot from s3")
-		if backupRepository != nil {
+		if backupRepository != "" {
 			backupRepositoryName := uploadCR.Spec.BackupRepositoryName
 			backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
 			if err != nil {

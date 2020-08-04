@@ -238,7 +238,7 @@ func NewBackupDriverController(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { ctrl.enqueueSnapshot(obj) },
 			UpdateFunc: func(_, obj interface{}) { ctrl.enqueueSnapshot(obj) },
-			DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
+			//DeleteFunc: func(obj interface{}) { ctrl.delSnapshot(obj) },
 		},
 		resyncPeriod,
 	)
@@ -419,30 +419,6 @@ func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
 	}
 }
 
-func (ctrl *backupDriverController) delSnapshot(obj interface{}) {
-	ctrl.logger.Infof("delSnapshot: delete snapshot %v", obj)
-
-	var key string
-	var err error
-	if key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj); err != nil {
-		return
-	}
-
-	snapshot, ok := obj.(*backupdriverapi.Snapshot)
-	if !ok || snapshot == nil {
-		return
-	}
-
-	err = ctrl.deleteSnapshot(snapshot)
-	if err != nil {
-		ctrl.logger.Errorf("Delete snapshot %s/%s failed: %v", snapshot.Namespace, snapshot.Name, err)
-		return
-	}
-
-	ctrl.snapshotQueue.Forget(key)
-	ctrl.snapshotQueue.Done(key)
-}
-
 func (ctrl *backupDriverController) pvcWorker() {
 }
 
@@ -620,13 +596,10 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 	}
 
 	if delSnapshot.ObjectMeta.DeletionTimestamp == nil {
-		ctrl.logger.Infof("syncDeleteSnapshotByKey: calling DeleteSnapshot SnapShotID: %s Namespace: %s Name: %s",
-			delSnapshot.Spec.SnapshotID, delSnapshot.Namespace, delSnapshot.Name)
-		if ctrl.svcKubeConfig != nil {
-
-		}
-		return nil
+		ctrl.logger.Infof("syncDeleteSnapshotByKey: calling deleteSnapshot %s/%s ", delSnapshot.Namespace, delSnapshot.Name)
+		return ctrl.deleteSnapshot(delSnapshot)
 	}
+
 	return nil
 }
 
