@@ -220,22 +220,8 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 	}
 	ctrl.logger.Infof("cloneFromSnapshot: Generated PE ID: %s", peId.String())
 
-	/*
-	// Move this code further insides
-	brName := cloneFromSnapshot.Spec.BackupRepository
-	if brName != "" && ctrl.svcKubeConfig != nil {
-		// For guest cluster, get the supervisor backup repository name
-		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
-		if err != nil {
-			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
-		}
-		// Update the backup repository name with the Supervisor BR name
-		brName = br.SvcBackupRepositoryName
-	}
-	*/
-	// snapManager.CreateVolumeFromSnapshotWithMetadata waits until download is complete.
 	returnPeId, err = ctrl.snapManager.CreateVolumeFromSnapshotWithMetadata(peId, cloneFromSnapshot.Spec.Metadata,
-		cloneFromSnapshot.Spec.SnapshotID, cloneFromSnapshot.Spec.BackupRepository)
+		cloneFromSnapshot.Spec.SnapshotID, cloneFromSnapshot.Spec.BackupRepository, cloneFromSnapshot.Namespace, cloneFromSnapshot.Name)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager cloneFromSnapshot with peId %v", peId)
 		return err

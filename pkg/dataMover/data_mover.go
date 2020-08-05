@@ -138,18 +138,18 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 	return s3PE.GetID(), nil
 }
 
-func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
 	backupRepository := builder.ForBackupRepository(utils.WithoutBackupRepository).Result()
-	return this.copyFromRepo(peID, backupRepository)
+	return this.copyFromRepo(peID, targetPEID, backupRepository, options)
 }
 
-func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
-	return this.copyFromRepo(peID, backupRepository)
+func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
+	return this.copyFromRepo(peID, targetPEID, backupRepository, options)
 }
 
-func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
 	log := this.WithField("Remote PEID", peID.String())
-	log.Infof("Copying the snapshot from remote repository to local.")
+	log.Infof("Copying the snapshot from remote repository to local. Copy options: %d", options)
 	if backupRepository.Name != utils.WithoutBackupRepository {
 		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
 		if err != nil {
@@ -165,9 +165,32 @@ func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, backupRepo
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
+	// Options is UpdateExistingObject. Overwrite target with the snapshot
+	if options == astrolabe.UpdateExistingObject {
+		// Overwrite target pe with source pe
+		log.Infof("Overwriting the target PE %s with the snapshot from remote repository source PE %s.", targetPEID.String(), peID.String())
+		targetPE, err := this.ivdPETM.GetProtectedEntity(ctx, targetPEID)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get ProtectedEntity from target PEID %s", targetPEID.String())
+			return astrolabe.ProtectedEntityID{}, err
+		}
+
+		var params map[string]map[string]interface{}
+		err = targetPE.Overwrite(ctx, pe, params, true)
+		log.Infof("Return from the call of ivd PE overwrite API for remote PE.")
+		if err != nil {
+			log.WithError(err).Errorf("Failed to overwrite from remote repository.")
+			return astrolabe.ProtectedEntityID{}, err
+		}
+
+		log.WithField("Local peID", targetPE.GetID().String()).Infof("Protected Entity was just overwritten by snapshot from remote repository.")
+		return targetPE.GetID(), nil
+	}
+
 	log.Debugf("Ready to call ivd PETM copy API for remote PE.")
 	var params map[string]map[string]interface{}
-	ivdPE, err := this.ivdPETM.Copy(ctx, pe, params, astrolabe.AllocateNewObject)
+	// options should be astrolabe.AllocateNewObject
+	ivdPE, err := this.ivdPETM.Copy(ctx, pe, params, options)
 	log.Debugf("Return from the call of ivd PETM copy API for remote PE.")
 	if err != nil {
 		log.WithError(err).Errorf("Failed to copy from remote repository.")

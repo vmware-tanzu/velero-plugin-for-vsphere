@@ -20,8 +20,8 @@ Note: Canceling the context cancels the wait, it does not cancel the cloneFromSn
 */
 
 type waitCloneResult struct {
-	item interface{}
-	err  error
+	item  interface{}
+	err   error
 }
 
 func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot,
@@ -29,8 +29,8 @@ func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cl
 	for _, checkPhase := range waitForPhases {
 		if cloneFromSnapshot.Status.Phase == checkPhase {
 			results <- waitCloneResult{
-				item: cloneFromSnapshot,
-				err:  nil,
+				item:  cloneFromSnapshot,
+				err:   nil,
 			}
 		}
 	}
@@ -113,8 +113,8 @@ func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client,
 				}
 				logger.Infof("cloneFromSnapshot deleted: %s", obj)
 				results <- waitCloneResult{
-					item: nil,
-					err:  errors.New("CloneFromSnapshot deleted"),
+					item:  nil,
+					err:   errors.New("CloneFromSnapshot deleted"),
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {

@@ -124,3 +124,9 @@ func (b *DownloadBuilder) NextRetryTimestamp(val time.Time) *DownloadBuilder {
 	b.object.Status.NextRetryTimestamp = &metav1.Time{Time: val}
 	return b
 }
+
+// CloneFromSnapshotReference sets the reference to the clonefromsnapshot.
+func (b *DownloadBuilder) CloneFromSnapshotReference(cloneFromSnapshotRef string) *DownloadBuilder {
+	b.object.Spec.CloneFromSnapshotReference = cloneFromSnapshotRef
+	return b
+}

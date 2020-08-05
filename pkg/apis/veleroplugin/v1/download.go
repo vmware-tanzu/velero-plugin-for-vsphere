@@ -37,6 +37,12 @@ type DownloadSpec struct {
 	// BackupRepository provides backup repository info for download.
 	// BackupRepositoryName is the name of the BackupRepository.
 	BackupRepositoryName string `json:"backupRepositoryName,omitempty"`
+
+	// CloneFromSnapshotReference is the namespace and clonefromsnapshot name for this download request.
+	// The format is CloneFromSnapshotNamespace/CloneFromSnapshotName
+	// It is used to update the download status in the clonefromsnapshot.
+	// +optional
+	CloneFromSnapshotReference string `json:"clonefromSnapshotReference,omitempty"`
 }
 
 // DownloadPhase represents the lifecycle phase of a Download.

@@ -18,6 +18,6 @@ func newDataManagerProtectedEntity(pe astrolabe.ProtectedEntity, dm_petm *DataMa
 }
 
 func (this DataManagerProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe.ProtectedEntity, params map[string]map[string]interface{}, overwriteComponents bool) error {
-	_, err := this.dm_petm.snapshotMgr.CreateVolumeFromSnapshot(sourcePE.GetID(), this.GetID())
+	_, err := this.dm_petm.snapshotMgr.CreateVolumeFromSnapshot(sourcePE.GetID(), this.GetID(), params)
 	return err
 }

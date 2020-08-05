@@ -11,20 +11,20 @@ import "github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 type DataManagerProtectedEntityTypeManager struct {
 	astrolabe.ProtectedEntityTypeManager
 	snapshotMgr *SnapshotManager
-	upload bool
+	upload      bool
 }
 
 /*
 Creates a DataManagerProtectedEntityTypeManager that wrappers the sourcePETM (and by extension, the PEs managed by the
 source PETM).  Data Manager currently has upload and download CRs.  If upload is set, Copy, CopyFromInfo and Overwrite will generate
 Upload CRs to the source PETM type.  If not set, Download CRs will be generated
- */
+*/
 func NewDataManagerProtectedEntityTypeManager(sourcePETM astrolabe.ProtectedEntityTypeManager,
 	snapshotMGR *SnapshotManager, upload bool) DataManagerProtectedEntityTypeManager {
 	return DataManagerProtectedEntityTypeManager{
 		ProtectedEntityTypeManager: sourcePETM,
 		snapshotMgr:                snapshotMGR,
-		upload: upload,
+		upload:                     upload,
 	}
 }
 
