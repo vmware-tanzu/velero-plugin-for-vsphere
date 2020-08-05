@@ -122,6 +122,11 @@ func (this ParaVirtProtectedEntity) GetMetadataReader(ctx context.Context) (io.R
 	panic("implement me")
 }
 
+func (this ParaVirtProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe.ProtectedEntity,
+	params map[string]map[string]interface{}, overwriteComponents bool) error {
+	panic("implement me")
+}
+
 func (this ParaVirtProtectedEntity) getVolumeHandleFromPV() (string, error) {
 	pv, err := this.pvpetm.gcKubeClientSet.CoreV1().PersistentVolumes().Get(this.id.GetID(), metav1.GetOptions{})
 	if err != nil {
@@ -151,9 +156,4 @@ func newParaVirtProtectedEntity(pvpetm *ParaVirtProtectedEntityTypeManager, id a
 		logger:   pvpetm.logger,
 	}
 	return newIPE, nil
-}
-
-func (this ParaVirtProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe.ProtectedEntity, params map[string]map[string]interface{},
-	overwriteComponents bool) error {
-	return nil
 }

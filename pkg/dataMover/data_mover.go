@@ -124,8 +124,10 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 		}
 		this.s3PETM = repoPETM
 	}
+
 	var params map[string]map[string]interface{}
 	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, params, astrolabe.AllocateNewObject)
+
 	log.Debugf("Return from the call of s3 PETM copy API for local PE")
 	if err != nil {
 		log.WithError(err).Errorf("Failed at copying to remote repository")

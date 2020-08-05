@@ -77,7 +77,7 @@ func (p *NewVolumeSnapshotter) CreateVolumeFromSnapshot(snapshotID, volumeType, 
 		p.WithError(err).Errorf("Fail to construct new PE ID from string %s", snapshotID)
 		return returnVolumeID, err
 	}
-	returnPeId, err = p.snapMgr.CreateVolumeFromSnapshot(peId)
+	returnPeId, err = p.snapMgr.CreateVolumeFromSnapshot(peId, astrolabe.ProtectedEntityID{})
 	if err != nil {
 		p.WithError(err).Errorf("Failed at calling SnapshotManager CreateVolumeFromSnapshot with peId %v", peId)
 		return returnVolumeID, err
