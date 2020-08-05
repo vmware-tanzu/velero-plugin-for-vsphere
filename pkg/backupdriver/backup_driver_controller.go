@@ -25,6 +25,7 @@ import (
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -192,3 +193,78 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	return nil
 }
 
+// cloneFromSnapshot creates a new volume from the provided snapshot
+func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupdriverapi.CloneFromSnapshot) error {
+	ctrl.logger.Infof("cloneFromSnapshot called with cloneFromSnapshot: %+v", cloneFromSnapshot)
+	var returnVolumeID, returnVolumeType string
+
+	var peId, returnPeId astrolabe.ProtectedEntityID
+	var err error
+
+	// Need to extract PVC info from metadata to clone from snapshot
+	// Fail clone if metadata does not exist
+	if len(cloneFromSnapshot.Spec.Metadata) == 0 {
+		errMsg := fmt.Sprintf("no metadata in cloneFromSnapshot %s/%s", cloneFromSnapshot.Namespace, cloneFromSnapshot.Name)
+		ctrl.logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	pvc := v1.PersistentVolumeClaim{}
+	err = pvc.Unmarshal(cloneFromSnapshot.Spec.Metadata)
+	if err != nil {
+		ctrl.logger.Errorf("Error extracting metadata into PVC: %v", err)
+		return err
+	}
+	ctrl.logger.Infof("cloneFromSnapshot: retrieved PVC %s/%s from metadata. %+v", pvc.Namespace, pvc.Name, pvc)
+
+	// cloneFromSnapshot.Spec.Kind should be "PersistentVolumeClaim" for now
+	peId = astrolabe.NewProtectedEntityIDWithNamespace(cloneFromSnapshot.Spec.Kind, pvc.Name, pvc.Namespace)
+	if err != nil {
+		ctrl.logger.WithError(err).Errorf("Fail to construct new PE ID for %s/%s", pvc.Namespace, pvc.Name)
+		return err
+	}
+	ctrl.logger.Infof("cloneFromSnapshot: Generated PE ID: %s", peId.String())
+
+	brName := cloneFromSnapshot.Spec.BackupRepository
+	if brName != "" && ctrl.svcKubeConfig != nil {
+		// For guest cluster, get the supervisor backup repository name
+		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
+		if err != nil {
+			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
+		}
+		// Update the backup repository name with the Supervisor BR name
+		brName = br.SvcBackupRepositoryName
+	}
+
+	// snapManager.CreateVolumeFromSnapshotWithMetadata waits until download is complete.
+	returnPeId, download, err := ctrl.snapManager.CreateVolumeFromSnapshotWithMetadata(peId, cloneFromSnapshot.Spec.Metadata, cloneFromSnapshot.Spec.SnapshotID, brName)
+	if err != nil {
+		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager cloneFromSnapshot with peId %v", peId)
+		return err
+	}
+
+	returnVolumeID = returnPeId.GetID()
+	returnVolumeType = returnPeId.GetPeType()
+
+	clone := cloneFromSnapshot.DeepCopy()
+	// Since we wait until download is complete in
+	// snapManager.CreateVolumeFromSnapshotWithMetadata,
+	// download.Status.Phase should be up to date.
+	clone.Status.Phase = backupdriverapi.ClonePhase(download.Status.Phase)
+	clone.Status.Message = download.Status.Message
+	apiGroup := ""
+	clone.Status.ResourceHandle = &v1.TypedLocalObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     "PersistentVolumeClaim",
+		Name:     returnVolumeID,
+	}
+
+	clone, err = ctrl.backupdriverClient.CloneFromSnapshots(clone.Namespace).UpdateStatus(clone)
+	if err != nil {
+		return err
+	}
+
+	ctrl.logger.Infof("A new volume %s with type being %s was just created from the call of SnapshotManager cloneFromSnapshot", returnVolumeID, returnVolumeType)
+
+	return nil
+}

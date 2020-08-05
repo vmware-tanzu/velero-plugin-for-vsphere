@@ -216,11 +216,14 @@ func NewBackupDriverController(
 		snapManager:                    snapManager,
 	}
 
-	pvcInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		//AddFunc:    rc.addPVC,
-		//UpdateFunc: rc.updatePVC,
-		//DeleteFunc: rc.deletePVC,
-	}, resyncPeriod)
+	pvcInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			//AddFunc:    func(obj interface{}) { ctrl.enqueueClaim(obj) },
+			//UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueClaim(newObj) },
+			//DeleteFunc: func(obj interface{}) { ctrl.delClaim(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcPVCInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddPVC,
@@ -249,11 +252,14 @@ func NewBackupDriverController(
 		//DeleteFunc: rc.svcDeleteSnapshot,
 	}, resyncPeriod)
 
-	cloneFromSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		//AddFunc:    rc.addCloneFromSnapshot,
-		//UpdateFunc: rc.updateCloneFromSnapshot,
-		//DeleteFunc: rc.deleteCloneFromSnapshot,
-	}, resyncPeriod)
+	cloneFromSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { ctrl.enqueueCloneFromSnapshot(obj) },
+			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueCloneFromSnapshot(newObj) },
+			//DeleteFunc: func(obj interface{}) { ctrl.delCloneFromSnapshot(obj) },
+		},
+		resyncPeriod,
+	)
 
 	svcCloneFromSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		//AddFunc:    rc.svcAddCloneFromSnapshot,
@@ -339,7 +345,7 @@ func (ctrl *backupDriverController) Run(
 		//go wait.Until(ctrl.svcPvcWorker, 0, stopCh)
 		go wait.Until(ctrl.snapshotWorker, 0, stopCh)
 		//go wait.Until(ctrl.svcSnapshotWorker, 0, stopCh)
-		//go wait.Until(ctrl.cloneFromSnapshotWorker, 0, stopCh)
+		go wait.Until(ctrl.cloneFromSnapshotWorker, 0, stopCh)
 		//go wait.Until(ctrl.svcCloneFromSnapshotWorker, 0, stopCh)
 		go wait.Until(ctrl.backupRepositoryClaimWorker, 0, stopCh)
 		go wait.Until(ctrl.deleteSnapshotWorker, 0, stopCh)
@@ -392,7 +398,7 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 		return nil
 	}
 
-	if snapshot.ObjectMeta.DeletionTimestamp == nil {
+	if snapshot.Spec.SnapshotCancel == false {
 		ctrl.logger.Infof("syncSnapshotByKey: calling CreateSnapshot %s/%s", snapshot.Namespace, snapshot.Name)
 		return ctrl.createSnapshot(snapshot)
 	}
@@ -408,10 +414,10 @@ func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
 	}
-	if brc, ok := obj.(*backupdriverapi.Snapshot); ok {
-		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(brc)
+	if snapshot, ok := obj.(*backupdriverapi.Snapshot); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(snapshot)
 		if err != nil {
-			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, snapshot)
 			return
 		}
 		ctrl.logger.Infof("enqueueSnapshot: enqueued %q for sync", objName)
@@ -431,7 +437,87 @@ func (ctrl *backupDriverController) pvWorker() {
 func (ctrl *backupDriverController) svcSnapshotWorker() {
 }
 
+// cloneFromSnapshotWorker is the main worker for restore request.
 func (ctrl *backupDriverController) cloneFromSnapshotWorker() {
+	ctrl.logger.Infof("cloneFromSnapshotWorker: Enter cloneFromSnapshotWorker")
+
+	key, quit := ctrl.cloneFromSnapshotQueue.Get()
+	if quit {
+		return
+	}
+	defer ctrl.cloneFromSnapshotQueue.Done(key)
+
+	if err := ctrl.syncCloneFromSnapshotByKey(key.(string)); err != nil {
+		// Put cloneFromSnapshot back to the queue so that we can retry later.
+		ctrl.cloneFromSnapshotQueue.AddRateLimited(key)
+	} else {
+		ctrl.cloneFromSnapshotQueue.Forget(key)
+	}
+}
+
+// syncCloneFromSnapshotByKey processes one CloneFromSnapshot CRD
+func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error {
+	ctrl.logger.Infof("syncCloneFromSnapshotByKey: Started CloneFromSnapshot processing %s", key)
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		ctrl.logger.Errorf("Split meta namespace key of CloneFromSnapshot %s failed: %v", key, err)
+		return err
+	}
+
+	cloneFromSnapshot, err := ctrl.backupdriverClient.CloneFromSnapshots(namespace).Get(name, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			ctrl.logger.Infof("CloneFromSnapshot %s/%s is deleted, no need to process it", namespace, name)
+			return nil
+		}
+		ctrl.logger.Errorf("Get CloneFromSnapshot %s/%s failed: %v", namespace, name, err)
+		return err
+	}
+
+	switch phase := cloneFromSnapshot.Status.Phase; phase {
+	case backupdriverapi.ClonePhaseInProgress:
+	case backupdriverapi.ClonePhaseCompleted:
+	case backupdriverapi.ClonePhaseFailed:
+	case backupdriverapi.ClonePhaseCanceling:
+	case backupdriverapi.ClonePhaseCanceled:
+		ctrl.logger.Infof("Skipping cloneFromSnapshot %s which is not in New or Retry phase. Current phase: %v", key, cloneFromSnapshot.Status.Phase)
+		return nil
+	default:
+		// If phase is ClonePhaseNew or ClonePhaseRetry,
+		// or if phase is not initialized, proceed
+		// to clone from snapshot
+	}
+
+	if cloneFromSnapshot.Spec.CloneCancel == false {
+		ctrl.logger.Infof("syncCloneFromSnapshotByKey: calling CloneFromSnapshot %s/%s", cloneFromSnapshot.Namespace, cloneFromSnapshot.Name)
+		err := ctrl.cloneFromSnapshot(cloneFromSnapshot)
+		if err != nil {
+			ctrl.logger.Errorf("cloneFromSnapshot %s/%s failed: %v", namespace, name, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// enqueueCloneFromSnapshot adds CloneFromSnapshotto given work queue.
+func (ctrl *backupDriverController) enqueueCloneFromSnapshot(obj interface{}) {
+	ctrl.logger.Infof("enqueueCloneFromSnapshot: %+v", obj)
+
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
+	}
+	if cloneFromSnapshot, ok := obj.(*backupdriverapi.CloneFromSnapshot); ok {
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(cloneFromSnapshot)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, cloneFromSnapshot)
+			return
+		}
+		ctrl.logger.Infof("enqueueCloneFromSnapshot: enqueued %q for sync", objName)
+		ctrl.cloneFromSnapshotQueue.Add(objName)
+	}
 }
 
 func (ctrl *backupDriverController) svcCloneFromSnapshotWorker() {
