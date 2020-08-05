@@ -43,7 +43,7 @@ spec:
             apiGroup:
               description: APIGroup of the resource being created
               type: string
-            backpRepository:
+            backupRepository:
               description: The backup repository to retrieve the snapshot from.  The
                 namespace the Snapshot/PVC lives in must have access to the repository
               type: string
@@ -62,7 +62,7 @@ spec:
               type: string
           required:
           - apiGroup
-          - backpRepository
+          - backupRepository
           - cloneCancel
           - kind
           - snapshotID

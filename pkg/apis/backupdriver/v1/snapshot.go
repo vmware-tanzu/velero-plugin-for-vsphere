@@ -125,7 +125,7 @@ type CloneFromSnapshotSpec struct {
 	Kind string `json:"kind"`
 
 	// The backup repository to retrieve the snapshot from.  The namespace the Snapshot/PVC lives in must have access to the repository
-	BackupRepository string `json:"backpRepository"`
+	BackupRepository string `json:"backupRepository"`
 
 	// SnapshotCancel indicates request to cancel ongoing snapshot.  SnapshotCancel can be set at anytime before
 	// the snapshot reaches a terminal phase.  If the snapshot has reached a terminal phase
