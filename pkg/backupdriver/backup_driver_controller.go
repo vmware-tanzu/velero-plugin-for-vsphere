@@ -134,11 +134,6 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdriverapi.DeleteSnapshot) error {
 	ctrl.logger.Infof("deleteSnapshot called with SnapshotID %s, Namespace: %s, Name: %s",
 		deleteSnapshot.Spec.SnapshotID, deleteSnapshot.Namespace, deleteSnapshot.Name)
-	if deleteSnapshot.Spec.SnapshotID == "" {
-		errMsg := fmt.Sprintf("snapshotID is required to delete snapshot")
-		ctrl.logger.Error(errMsg)
-		return errors.New(errMsg)
-	}
 	snapshotID := deleteSnapshot.Spec.SnapshotID
 	ctrl.logger.Infof("Calling Snapshot Manager to delete snapshot with snapshotID %s", snapshotID)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
@@ -154,7 +149,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	}
 
 	brName := deleteSnapshot.Spec.BackupRepository
-	if ctrl.svcKubeConfig != nil && brName != "" {
+	if ctrl.svcKubeConfig != nil {
 		// For guest cluster, get the supervisor backup repository name
 		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
 		if err != nil {
