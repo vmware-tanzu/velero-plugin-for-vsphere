@@ -149,3 +149,8 @@ func newParaVirtProtectedEntity(pvpetm *ParaVirtProtectedEntityTypeManager, id a
 	}
 	return newIPE, nil
 }
+
+func (this ParaVirtProtectedEntity) Overwrite(ctx context.Context, sourcePE astrolabe.ProtectedEntity, params map[string]map[string]interface{},
+	overwriteComponents bool) error {
+	return nil
+}

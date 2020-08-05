@@ -446,6 +446,10 @@ github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPU
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/vmware-tanzu/astrolabe v0.1.2-0.20200731185127-4afab021f6b3 h1:gu4O4IUoFcu3/hV7ch7KcpFjvGJ8fbWayQQ64e64lHI=
 github.com/vmware-tanzu/astrolabe v0.1.2-0.20200731185127-4afab021f6b3/go.mod h1:hgUcdPy7lXeCTMUxHkYY9wCJnzFcB7dNw38+qXdIi9Q=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200804001410-2ab0459890d0 h1:dqYeO33cBlUusP2mkSacz4SytoH3Vo9YivWtEXsrZ18=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200804001410-2ab0459890d0/go.mod h1:AeD5ssLmDQpZkxvd+RVYH288/Vugv8wqVRWnM7YfGLQ=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200804195701-8d372cf85f17 h1:1SjN0Jpg1Xel7NLME21jBjFXdF3nhYcCFPKfDtO9dJc=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200804195701-8d372cf85f17/go.mod h1:AeD5ssLmDQpZkxvd+RVYH288/Vugv8wqVRWnM7YfGLQ=
 github.com/vmware-tanzu/velero v1.3.2 h1:Rhn37gjxn6Hwg6OFZUsW1CTuRaVuHEL8p/eiXrcKNGw=
 github.com/vmware-tanzu/velero v1.3.2/go.mod h1:s+8IqUKWcprcMVOfZKNC+jFY3tr/ElJfaMCcAfhThts=
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f h1:6LIYlihC1/LDUhZ7zYVp1WOEY5owzsvogiaHBqvBzPU=
