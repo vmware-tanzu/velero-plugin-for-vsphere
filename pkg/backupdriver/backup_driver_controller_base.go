@@ -122,11 +122,6 @@ type backupDriverController struct {
 	// Snapshot Synced
 	deleteSnapshotSynced cache.InformerSynced
 
-	// Supervisor Cluster Snapshot Lister
-	svcDeleteSnapshotLister backupdriverlisters.DeleteSnapshotLister
-	// Supervisor Cluster Snapshot Synced
-	svcDeleteSnapshotSynced cache.InformerSynced
-
 	// Snapshot manager
 	snapManager *snapshotmgr.SnapshotManager
 }
@@ -164,8 +159,7 @@ func NewBackupDriverController(
 	svcCloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().CloneFromSnapshots()
 
 	deleteSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().DeleteSnapshots()
-	// TODO: Use svcBackupdriverInformerFactor for svcDeleteSnapshotInformer
-	svcDeleteSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().DeleteSnapshots()
+
 
 	claimQueue := workqueue.NewNamedRateLimitingQueue(
 		rateLimiter, "backup-driver-claim-queue")
@@ -211,8 +205,6 @@ func NewBackupDriverController(
 		deleteSnapshotQueue:            deleteSnapshotQueue,
 		deleteSnapshotLister:           deleteSnapshotInformer.Lister(),
 		deleteSnapshotSynced:           deleteSnapshotInformer.Informer().HasSynced,
-		svcDeleteSnapshotLister:        svcDeleteSnapshotInformer.Lister(),
-		svcDeleteSnapshotSynced:        svcDeleteSnapshotInformer.Informer().HasSynced,
 		snapManager:                    snapManager,
 	}
 
@@ -295,12 +287,6 @@ func NewBackupDriverController(
 		},
 		resyncPeriod,
 	)
-
-	svcDeleteSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		//AddFunc:    rc.svcAddDeleteSnapshot,
-		//UpdateFunc: rc.svcUpdateDeleteSnapshot,
-		//DeleteFunc: rc.svcDeleteDeleteSnapshot,
-	}, resyncPeriod)
 
 	return ctrl
 }
