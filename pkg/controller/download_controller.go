@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -219,7 +220,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	// update status to InProgress
 	if req.Status.Phase != pluginv1api.DownloadPhaseInProgress {
 		// update status to InProgress
-		req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseInProgress, "")
+		req, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownloadPhaseInProgress, "")
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -228,7 +229,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
-		_, err = c.patchDownloadByStatus(req, pluginv1api.DownLoadPhaseRetry, errMsg)
+		_, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownLoadPhaseRetry, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -239,7 +240,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	returnPeId, err := c.dataMover.CopyFromRepo(peID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to download snapshot, %v, from durable object storage. %v", peID.String(), errors.WithStack(err))
-		_, err = c.patchDownloadByStatus(req, pluginv1api.DownLoadPhaseRetry, errMsg)
+		_, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownLoadPhaseRetry, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -250,7 +251,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	log.Debugf("A new volume %s was just created from the call to CopyFromRepo", returnPeId.String())
 
 	// update status to Completed with path & snapshot id
-	req, err = c.patchDownloadByStatus(req, pluginv1api.DownloadPhaseCompleted, returnPeId.String())
+	req, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownloadPhaseCompleted, returnPeId.String())
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -295,6 +296,25 @@ func (c *downloadController) patchDownload(req *pluginv1api.Download, mutate fun
 	}
 
 	return req, nil
+}
+
+func (c *downloadController) patchDownloadByStatusWithRetry(req *pluginv1api.Download, newPhase pluginv1api.DownloadPhase, msg string) (*pluginv1api.Download, error) {
+	var updatedDownload *pluginv1api.Download
+	var err error
+	log := loggerForDownload(c.logger, req)
+	log.Infof("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", utils.RetryInterval, utils.RetryMaximum)
+	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+		updatedDownload, err = c.patchDownloadByStatus(req, newPhase, msg)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+	log.Debugf("Return from patchDownloadByStatus with retry %v times.", utils.RetryMaximum)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to patch Download, retry time exceeds maximum %d.", utils.RetryMaximum)
+	}
+	return updatedDownload, err
 }
 
 func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, newPhase pluginv1api.DownloadPhase, msg string) (*pluginv1api.Download, error) {

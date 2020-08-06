@@ -163,3 +163,8 @@ const (
 const (
 	ItemSnapshotLabel              = "velero-plugin-for-vsphere/item-snapshot-blob"
 )
+
+const (
+	RetryInterval = 5
+	RetryMaximum = 5
+)
