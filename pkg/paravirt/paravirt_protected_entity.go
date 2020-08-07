@@ -92,11 +92,14 @@ func (this ParaVirtProtectedEntity) ListSnapshots(ctx context.Context) ([]astrol
 	// Depends on ListSnapshots API in SnapshotUtils
 }
 
-func (this ParaVirtProtectedEntity) DeleteSnapshot(ctx context.Context, snapshotToDelete astrolabe.ProtectedEntitySnapshotID) (bool, error) {
-	panic("implement me")
+func (this ParaVirtProtectedEntity) DeleteSnapshot(
+	ctx context.Context,
+	snapshotToDelete astrolabe.ProtectedEntitySnapshotID,
+	params map[string]map[string]interface{}) (bool, error) {
 	// Depends on ListSnapshots API in SnapshotUtils
 	// Depends on DeleteSnaphsot CRD in BackupDriver APIs
 	// Depends on DeleteSnaphsot API in SnapshotUtils
+	return true, nil
 }
 
 func (this ParaVirtProtectedEntity) GetInfoForSnapshot(ctx context.Context, snapshotID astrolabe.ProtectedEntitySnapshotID) (*astrolabe.ProtectedEntityInfo, error) {
