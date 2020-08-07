@@ -437,7 +437,7 @@ func (this *SnapshotManager) deleteSnapshotFromRepo(peID astrolabe.ProtectedEnti
 
 	this.Infof("Ready to call astrolabe DeleteSnapshot API. Will retry on InvalidState error once per second for an hour at maximum")
 	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
-		_, err = pe.DeleteSnapshot(ctx, peID.GetSnapshotID())
+		_, err = pe.DeleteSnapshot(ctx, peID.GetSnapshotID(), make(map[string]map[string]interface{}))
 
 		if err != nil {
 			if strings.Contains(err.Error(), "The operation is not allowed in the current state") {
