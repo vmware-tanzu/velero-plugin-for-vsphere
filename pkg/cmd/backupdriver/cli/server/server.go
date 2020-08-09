@@ -39,6 +39,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	backupdriver_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	veleroplugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -143,21 +144,25 @@ func NewCommand(f client.Factory) *cobra.Command {
 }
 
 type server struct {
-	namespace             string
-	metricsAddress        string
-	kubeClient            kubernetes.Interface
-	backupdriverClient    *backupdriver_clientset.BackupdriverV1Client
-	svcConfig             *rest.Config
-	svcNamespace          string
-	pluginInformerFactory pluginInformers.SharedInformerFactory
-	kubeInformerFactory   kubeinformers.SharedInformerFactory
-	ctx                   context.Context
-	cancelFunc            context.CancelFunc
-	logger                logrus.FieldLogger
-	logLevel              logrus.Level
-	metrics               *metrics.ServerMetrics
-	config                serverConfig
-	snapManager           *snapshotmgr.SnapshotManager
+	namespace                      string
+	metricsAddress                 string
+	kubeClient                     kubernetes.Interface
+	backupdriverClient             *backupdriver_clientset.BackupdriverV1Client
+	veleropluginClient             *veleroplugin_clientset.VeleropluginV1Client
+	svcBackupdriverClient          *backupdriver_clientset.BackupdriverV1Client
+	svcConfig                      *rest.Config
+	svcNamespace                   string
+	pluginInformerFactory          pluginInformers.SharedInformerFactory
+	kubeInformerFactory            kubeinformers.SharedInformerFactory
+	svcKubeInformerFactory         kubeinformers.SharedInformerFactory
+	svcBackupdriverInformerFactory pluginInformers.SharedInformerFactory
+	ctx                            context.Context
+	cancelFunc                     context.CancelFunc
+	logger                         logrus.FieldLogger
+	logLevel                       logrus.Level
+	metrics                        *metrics.ServerMetrics
+	config                         serverConfig
+	snapManager                    *snapshotmgr.SnapshotManager
 }
 
 func (s *server) run() error {
@@ -211,6 +216,12 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
+	veleropluginClient, err := veleroplugin_clientset.NewForConfig(clientConfig)
+	if err != nil {
+		logger.Errorf("Failed to get the veleroplugin client for the current kubernetes cluster")
+		return nil, err
+	}
+
 	// backup driver watches all namespaces so do not specify any one
 	backupdriverInformerFactory := pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, config.resyncPeriod)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, config.resyncPeriod)
@@ -228,6 +239,9 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
 	var svcConfig *rest.Config
+	var svcBackupdriverClient *backupdriver_clientset.BackupdriverV1Client
+	var svcKubeInformerFactory kubeinformers.SharedInformerFactory
+	var svcBackupdriverInformerFactory pluginInformers.SharedInformerFactory
 	var svcNamespace string
 	if clusterFlavor == utils.TkgGuest {
 		svcConfig, svcNamespace, err = utils.SupervisorConfig(logger)
@@ -235,6 +249,32 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
 			return nil, err
 		}
+		logger.Infof("Supervisor Namespace: %s", svcNamespace)
+
+		// Create informers to watch supervisor CRs in the guest-cluster namespace
+		svcBackupdriverClient, err = backupdriver_clientset.NewForConfig(svcConfig)
+		if err != nil {
+			logger.Error("Failed to get the supervisor backupdriver client for the guest kubernetes cluster")
+			return nil, err
+		}
+
+		svcPluginClient, err := plugin_clientset.NewForConfig(svcConfig)
+		if err != nil {
+			logger.Errorf("Failed to get the plugin client for the supervisor cluster")
+			return nil, err
+		}
+		svcBackupdriverInformerFactory = pluginInformers.NewSharedInformerFactoryWithOptions(svcPluginClient, config.resyncPeriod,
+			pluginInformers.WithNamespace(svcNamespace))
+
+		svcKubeClient, err := kubernetes.NewForConfig(svcConfig)
+		if err != nil {
+			logger.Errorf("Failed to get the kubernetes client for the supervisor cluster")
+			return nil, err
+		}
+		svcKubeInformerFactory = kubeinformers.NewSharedInformerFactoryWithOptions(svcKubeClient, config.resyncPeriod,
+			kubeinformers.WithNamespace(svcNamespace))
+
+		// Set snapshot manager params
 		pvcConfig["svcConfig"] = svcConfig
 		pvcConfig["svcNamespace"] = svcNamespace
 
@@ -259,20 +299,24 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 
 	s := &server{
-		namespace:             f.Namespace(),
-		metricsAddress:        config.metricsAddress,
-		kubeClient:            kubeClient,
-		backupdriverClient:    backupdriverClient,
-		svcConfig:             svcConfig,
-		svcNamespace:          svcNamespace,
-		pluginInformerFactory: backupdriverInformerFactory,
-		kubeInformerFactory:   kubeInformerFactory,
-		ctx:                   ctx,
-		cancelFunc:            cancelFunc,
-		logger:                logger,
-		logLevel:              logger.Level,
-		config:                config,
-		snapManager:           snapshotmgr,
+		namespace:                      f.Namespace(),
+		metricsAddress:                 config.metricsAddress,
+		kubeClient:                     kubeClient,
+		backupdriverClient:             backupdriverClient,
+		veleropluginClient:             veleropluginClient,
+		svcBackupdriverClient:          svcBackupdriverClient,
+		svcConfig:                      svcConfig,
+		svcNamespace:                   svcNamespace,
+		pluginInformerFactory:          backupdriverInformerFactory,
+		kubeInformerFactory:            kubeInformerFactory,
+		svcKubeInformerFactory:         svcKubeInformerFactory,
+		svcBackupdriverInformerFactory: svcBackupdriverInformerFactory,
+		ctx:                            ctx,
+		cancelFunc:                     cancelFunc,
+		logger:                         logger,
+		logLevel:                       logger.Level,
+		config:                         config,
+		snapManager:                    snapshotmgr,
 	}
 	return s, nil
 }
@@ -315,11 +359,16 @@ func (s *server) runControllers() error {
 		"BackupDriverController",
 		s.logger,
 		s.backupdriverClient,
+		s.veleropluginClient,
+		s.svcBackupdriverClient,
 		s.svcConfig,
 		s.svcNamespace,
 		s.config.resyncPeriod,
 		s.kubeInformerFactory,
 		s.pluginInformerFactory,
+		s.svcKubeInformerFactory,
+		s.svcBackupdriverInformerFactory,
+		s.config.localMode,
 		s.snapManager,
 		workqueue.NewItemExponentialFailureRateLimiter(s.config.retryIntervalStart, s.config.retryIntervalMax))
 
@@ -332,6 +381,10 @@ func (s *server) runControllers() error {
 	// SHARED INFORMERS HAVE TO BE STARTED AFTER ALL CONTROLLERS
 	go s.pluginInformerFactory.Start(ctx.Done())
 	go s.kubeInformerFactory.Start(ctx.Done())
+	if s.svcConfig != nil {
+		go s.svcKubeInformerFactory.Start(ctx.Done())
+		go s.svcBackupdriverInformerFactory.Start(ctx.Done())
+	}
 
 	s.logger.Info("Server started successfully")
 

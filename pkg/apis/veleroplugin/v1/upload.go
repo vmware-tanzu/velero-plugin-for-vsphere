@@ -35,6 +35,12 @@ type UploadSpec struct {
 	// BackupRepository provides backup repository info for upload. Used for
 	// multiple backup repository.
 	BackupRepositoryName string `json:"backupRepository,omitempty"`
+
+	// SnapshotReference is the namespace and snapshot name for this upload request.
+	// The format is SnapshotNamespace/SnapshotCRName
+	// It is used to update the upload status in the snapshot.
+	// +optional
+	SnapshotReference string `json:"snapshotReference,omitempty"`
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.

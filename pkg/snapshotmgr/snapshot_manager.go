@@ -182,16 +182,17 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
-	return this.createSnapshot(peID, tags, "")
+	return this.createSnapshot(peID, tags, "", "")
 }
 
-func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string) (astrolabe.ProtectedEntityID, error) {
+func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string,
+	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v, BackupRepository %s",
 		peID.String(), tags, backupRepositoryName)
-	return this.createSnapshot(peID, tags, backupRepositoryName)
+	return this.createSnapshot(peID, tags, backupRepositoryName, snapshotRef)
 }
 
-func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string) (astrolabe.ProtectedEntityID, error) {
+func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var updatedPeID astrolabe.ProtectedEntityID
 	ctx := context.Background()
@@ -205,7 +206,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	snapshotParams := make(map[string]map[string]interface{})
 	guestSnapshotParams := make(map[string]interface{})
 	// Pass the backup repository name as snapshot param.
-	guestSnapshotParams["BackupRepositoryName"] = backupRepositoryName
+	guestSnapshotParams[paravirt.SnapshotParamBackupRepository] = backupRepositoryName
 
 	snapshotParams[peID.GetPeType()] = guestSnapshotParams
 
@@ -262,7 +263,12 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return updatedPeID, err
 	}
 
-	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).BackupTimestamp(time.Now()).NextRetryTimestamp(time.Now()).Phase(v1api.UploadPhaseNew)
+	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).
+		BackupTimestamp(time.Now()).
+		NextRetryTimestamp(time.Now()).
+		Phase(v1api.UploadPhaseNew).
+		SnapshotReference(snapshotRef)
+
 	if peID.GetPeType() == astrolabe.PvcPEType {
 		components, err := pe.GetComponents(ctx)
 		if err != nil {

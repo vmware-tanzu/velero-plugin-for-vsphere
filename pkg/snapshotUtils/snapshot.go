@@ -24,8 +24,8 @@ an in-progress snapshot
 */
 
 type waitResult struct {
-	item  interface{}
-	err   error
+	item interface{}
+	err  error
 }
 
 type BackupRepository struct {
@@ -44,7 +44,7 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 		if snapshot.Status.Phase == checkPhase {
 			results <- waitResult{
 				item: snapshot,
-				err:   nil,
+				err:  nil,
 			}
 		}
 	}
@@ -115,8 +115,8 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 				}
 				logger.Infof("snapshot deleted: %s", obj)
 				results <- waitResult{
-					item:  nil,
-					err:   errors.New("Snapshot deleted"),
+					item: nil,
+					err:  errors.New("Snapshot deleted"),
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {

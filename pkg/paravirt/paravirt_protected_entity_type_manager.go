@@ -2,6 +2,7 @@ package paravirt
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -25,6 +26,10 @@ const (
 	ParaVirtEntityTypePersistentVolume  ParaVirtEntityType = "pv"
 	ParaVirtEntityTypeVirtualMachine    ParaVirtEntityType = "vm"
 	ParaVirtEntityTypePersistentService ParaVirtEntityType = "ps"
+)
+
+const (
+	SnapshotParamBackupRepository = "BackupRepository"
 )
 
 type ParaVirtProtectedEntityTypeManager struct {

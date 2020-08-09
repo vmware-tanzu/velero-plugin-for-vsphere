@@ -70,15 +70,15 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		Name:     peInfo.GetName(),        // Supervisor PVC Name, i.e., Guest PV CSI VolumeHandle
 	}
 
-	// TODO: the key of params might get changed
-	backupRepositoryName, ok := params[astrolabe.PvcPEType]["BackupRepositoryName"].(string)
+	backupRepositoryName, ok := params[astrolabe.PvcPEType][SnapshotParamBackupRepository].(string)
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
 
 	this.logger.Info("Creating a snapshot CR")
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
-	snapshot, err := snapshotUtils.SnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace, *backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
+	snapshot, err := snapshotUtils.SnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace,
+		*backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
 	if err != nil {
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err

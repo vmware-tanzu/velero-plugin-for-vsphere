@@ -17,6 +17,11 @@ limitations under the License.
 package utils
 
 import (
+	"os"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -27,10 +32,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"strings"
-	"testing"
-	"time"
 )
 
 func TestGetStringFromParamsMap(t *testing.T) {
@@ -241,28 +242,28 @@ func TestRerieveVcConfigSecret(t *testing.T) {
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
 
-	tests := []struct{
-		name string
-		sEnc string
-		vc string
+	tests := []struct {
+		name     string
+		sEnc     string
+		vc       string
 		password string
 	}{
 		{
-			name: "Password with special character \\ in it",
-			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;\"",
-			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			name:     "Password with special character \\ in it",
+			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;\"",
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
 			password: "GpI4G`OK'?in40Fo/0\\;",
 		},
 		{
-			name: "Password with multiple = in it",
-			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;=h=\"",
-			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			name:     "Password with multiple = in it",
+			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;=h=\"",
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
 			password: "GpI4G`OK'?in40Fo/0\\;=h=",
 		},
 		{
-			name: "Password with special character \\t in it",
-			sEnc : "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"G4\\t4t\"",
-			vc: "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			name:     "Password with special character \\t in it",
+			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"G4\\t4t\"",
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
 			password: "G4\t4t",
 		},
 	}
@@ -273,6 +274,55 @@ func TestRerieveVcConfigSecret(t *testing.T) {
 			ParseLines(lines, params, logger)
 			assert.Equal(t, test.vc, params["VirtualCenter"])
 			assert.Equal(t, test.password, params["password"])
+		})
+	}
+}
+
+func TestGetSvcSnapshotName(t *testing.T) {
+	type args struct {
+		snapshotId string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "valid snapshotID",
+			args:    args{"pvc:ns/dynamic-block-pvc:snap-e51f7fc5-613a-42ed-891f-3b47fa092d43"},
+			want:    "snap-e51f7fc5-613a-42ed-891f-3b47fa092d43",
+			wantErr: false,
+		},
+		{
+			name:    "invalid empty snapshotID",
+			args:    args{""},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid incomplete snapshotID",
+			args:    args{"pvc:ns/dynamic-block-pvc"},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid extended snapshotID",
+			args:    args{"pvc:ns/dynamic-block-pvc:snap-id:additional-id"},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetSvcSnapshotName(tt.args.snapshotId)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetSvcSnapshotName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetSvcSnapshotName() got = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
