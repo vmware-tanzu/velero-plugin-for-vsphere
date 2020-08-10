@@ -43,7 +43,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	}
 
 	// call SnapshotMgr CreateSnapshot API
-	peID := astrolabe.NewProtectedEntityIDWithNamespace(objKind, objName, snapshot.Namespace)
+	peID := astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(objKind, objName, snapshot.Namespace, "")
 	ctrl.logger.Infof("CreateSnapshot: The initial Astrolabe PE ID: %s", peID)
 	if ctrl.snapManager == nil {
 		errMsg := fmt.Sprintf("snapManager is not initialized.")
@@ -165,7 +165,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 		return errors.New(errMsg)
 	}
 
-	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName)
+	err = ctrl.snapManager.BackupDriverDeleteSnapshotWithBackupRepository(peID, brName)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager DeleteSnapshot for peID %v", peID)
 		return err
@@ -213,7 +213,7 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 	ctrl.logger.Infof("cloneFromSnapshot: retrieved PVC %s/%s from metadata. %+v", pvc.Namespace, pvc.Name, pvc)
 
 	// cloneFromSnapshot.Spec.Kind should be "PersistentVolumeClaim" for now
-	peId = astrolabe.NewProtectedEntityIDWithNamespace(cloneFromSnapshot.Spec.Kind, pvc.Name, pvc.Namespace)
+	peId = astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(cloneFromSnapshot.Spec.Kind, pvc.Name, pvc.Namespace, "")
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Fail to construct new PE ID for %s/%s", pvc.Namespace, pvc.Name)
 		return err

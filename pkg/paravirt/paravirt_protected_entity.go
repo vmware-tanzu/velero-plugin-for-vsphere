@@ -96,6 +96,29 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	ctx context.Context,
 	snapshotToDelete astrolabe.ProtectedEntitySnapshotID,
 	params map[string]map[string]interface{}) (bool, error) {
+	this.logger.Infof("DeleteSnapshot called on Paravirtualized Protected Entity, %v", this.id.String())
+	peInfo, err := this.GetInfo(ctx)
+	if err != nil {
+		this.logger.Errorf("Failed to get info for ParaVirtProtectedEntity %v", this.id.String())
+		return false, errors.WithStack(err)
+	}
+
+	backupRepositoryName, ok := params[astrolabe.PvcPEType]["BackupRepositoryName"].(string)
+	if !ok {
+		backupRepositoryName = "INVALID_BR_NAME"
+	}
+	// Reconstruct the snapshot-id to delete.
+	peID := astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(
+		astrolabe.PvcPEType, peInfo.GetName(),
+		this.pvpetm.svcNamespace,
+		snapshotToDelete.String())
+	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
+	_, err = snapshotUtils.DeleteSnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, peID.String(), this.pvpetm.svcNamespace, *backupRepository,
+		[]backupdriverv1api.DeleteSnapshotPhase{backupdriverv1api.DeleteSnapshotPhaseCompleted, backupdriverv1api.DeleteSnapshotPhaseFailed}, this.logger)
+	if err != nil {
+		this.logger.Errorf("Failed to create a DeleteSnapshot CR: %v", err)
+		return false, err
+	}
 	// Depends on ListSnapshots API in SnapshotUtils
 	// Depends on DeleteSnaphsot CRD in BackupDriver APIs
 	// Depends on DeleteSnaphsot API in SnapshotUtils
