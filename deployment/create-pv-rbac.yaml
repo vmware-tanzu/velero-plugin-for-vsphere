@@ -4,10 +4,10 @@ metadata:
   name: velero-rbac-role
 rules:
   - apiGroups: ["backupdriver.io"]
-    resources: ["backuprepositoryclaims", "snapshots", "clonefromsnapshots"]
+    resources: ["backuprepositoryclaims", "snapshots", "clonefromsnapshots", "deletesnapshots"]
     verbs: ["get", "list", "watch", "update", "create", "delete"]
   - apiGroups: ["backupdriver.io"]
-    resources: ["snapshots/status", "clonefromsnapshots/status"]
+    resources: ["snapshots/status", "clonefromsnapshots/status", "deletesnapshots/status"]
     verbs: ["get", "update", "patch"]
 ---
 kind: ClusterRoleBinding

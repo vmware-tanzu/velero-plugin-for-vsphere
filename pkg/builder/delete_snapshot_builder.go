@@ -43,10 +43,6 @@ func ForDeleteSnapshot(ns, name string) *DeleteSnapshotBuilder {
 
 // Result returns the built DeleteSnapshot.
 func (b *DeleteSnapshotBuilder) Result() *backupdriverv1.DeleteSnapshot {
-	// Builder can only create a new CRD with "New" phase
-	b.object.Status = backupdriverv1.DeleteSnapshotStatus{
-		Phase: backupdriverv1.DeleteSnapshotPhaseNew,
-	}
 	return b.object
 }
 

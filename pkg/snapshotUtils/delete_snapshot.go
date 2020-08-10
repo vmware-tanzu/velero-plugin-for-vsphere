@@ -46,7 +46,8 @@ func DeleteSnapshotRef(
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create deleteSnapshot UUID")
 	}
-	deleteSnapshotCR := builder.ForDeleteSnapshot(namespace, deleteSnapshotUUID.String()).
+	deleteSnapshotName := "delete-" + deleteSnapshotUUID.String()
+	deleteSnapshotCR := builder.ForDeleteSnapshot(namespace, deleteSnapshotName).
 		SnapshotID(snapshotID).
 		BackupRepository(repo.backupRepositoryName).
 		Result()
@@ -54,6 +55,12 @@ func DeleteSnapshotRef(
 	writtenDeleteSnapCR, err := clientSet.DeleteSnapshots(namespace).Create(context.TODO(), deleteSnapshotCR, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create DeleteSnapshot record")
+	}
+	// Explicitly update the status to "New" since it's a subresource.
+	writtenDeleteSnapCR.Status.Phase = backupdriverv1.DeleteSnapshotPhaseNew
+	writtenDeleteSnapCR, err = clientSet.DeleteSnapshots(namespace).UpdateStatus(context.TODO(), writtenDeleteSnapCR, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to update status of delete snapshot record")
 	}
 	logger.Infof("DeleteSnapshot record, Name: %s Phase: %s SnapshotID: %s created",
 		writtenDeleteSnapCR.Name, writtenDeleteSnapCR.Status.Phase, writtenDeleteSnapCR.Spec.SnapshotID)
