@@ -17,9 +17,10 @@ limitations under the License.
 package builder
 
 import (
+	"time"
+
 	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"time"
 )
 
 // UploadBuilder builds Upload objects
@@ -115,5 +116,11 @@ func (b *UploadBuilder) CurrentBackOff(backoff int32) *UploadBuilder {
 // BackupRepository sets the backup repository for upload.
 func (b *UploadBuilder) BackupRepositoryName(backuprepo string) *UploadBuilder {
 	b.object.Spec.BackupRepositoryName = backuprepo
+	return b
+}
+
+// SnapshotReference sets the reference to the snapshot.
+func (b *UploadBuilder) SnapshotReference(snapshotRef string) *UploadBuilder {
+	b.object.Spec.SnapshotReference = snapshotRef
 	return b
 }

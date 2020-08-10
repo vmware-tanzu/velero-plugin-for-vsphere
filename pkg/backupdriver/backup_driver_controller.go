@@ -74,7 +74,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 		brName = br.SvcBackupRepositoryName
 	}
 
-	peID, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName)
+	peID, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
 		ctrl.logger.Error(errMsg)
@@ -123,7 +123,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 
 	snapshot, err = ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 	if err != nil {
-		ctrl.logger.Infof("createSnapshot: update status fro snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
+		ctrl.logger.Infof("createSnapshot: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
 		return err
 	}
 
@@ -260,6 +260,25 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 	}
 
 	ctrl.logger.Infof("A new volume %s with type being %s was just created from the call of SnapshotManager cloneFromSnapshot", returnVolumeID, returnVolumeType)
+	return nil
+}
 
+// Update the snapshot status phase
+func (ctrl *backupDriverController) updateSnapshotStatusPhase(snapshot *backupdriverapi.Snapshot, newPhase backupdriverapi.SnapshotPhase) error {
+	ctrl.logger.Infof("Entering updateSnapshotStatusPhase: %s/%s, Phase %s", snapshot.Namespace, snapshot.Name, newPhase)
+
+	if snapshot.Status.Phase == newPhase {
+		ctrl.logger.Infof("updateSnapshotStatusPhase: Snapshot %s/%s already updated with %s", snapshot.Namespace, snapshot.Name, newPhase)
+		return nil
+	}
+
+	snapshotClone := snapshot.DeepCopy()
+	snapshotClone.Status.Phase = newPhase
+
+	_, err := ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
+	if err != nil {
+		ctrl.logger.Infof("updateSnapshotStatusPhase: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
+		return err
+	}
 	return nil
 }
