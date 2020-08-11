@@ -41,6 +41,7 @@ const (
 	SnapshotPhaseUploadFailed   SnapshotPhase = "UploadFailed"
 	SnapshotPhaseCanceling      SnapshotPhase = "Canceling"
 	SnapshotPhaseCanceled       SnapshotPhase = "Canceled"
+	SnapshotPhaseCleanupFailed  SnapshotPhase = "CleanupAfterUploadFailed"
 )
 
 // UploadOperationProgress represents the progress of a
