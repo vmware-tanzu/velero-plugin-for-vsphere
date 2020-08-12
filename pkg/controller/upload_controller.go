@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"math"
 	"time"
 
@@ -312,7 +313,8 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 
 	if req.Spec.BackupRepositoryName != "" {
-		backupRepositoryCR, err := utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
+		var backupRepositoryCR *backupdriverapi.BackupRepository
+		backupRepositoryCR, err = utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get BackupRepository from BackupRepositoryName %s", req.Spec.BackupRepositoryName)
 			return err
