@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"math"
 	"time"
 
@@ -294,7 +295,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	// update status to InProgress
 	if req.Status.Phase != pluginv1api.UploadPhaseInProgress {
 		// update status to InProgress
-		req, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseInProgress, "")
+		req, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseInProgress, "")
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -304,7 +305,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get PEID from SnapshotID, %v. %v", req.Spec.SnapshotID, errors.WithStack(err))
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
+		_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseUploadError, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -328,7 +329,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		// Check if the request was canceled.
 		if errors.Is(err, context.Canceled) {
 			log.Infof("The upload of PE %v upload was canceled.", peID.String())
-			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceled, "The upload was canceled.")
+			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCanceled, "The upload was canceled.")
 			if err != nil {
 				return err
 			}
@@ -336,7 +337,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 			return nil
 		} else {
 			errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
-			_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseUploadError, errMsg)
+			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseUploadError, errMsg)
 			if err != nil {
 				errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 			}
@@ -353,7 +354,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to clean up local snapshot after uploading snapshot, %v. %v", peID.String(), errors.WithStack(err))
 		// TODO: Change the upload CRD definition to add one more phase, such as, UploadPhaseFailedLocalCleanup
-		_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
+		_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
 		if err != nil {
 			errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
 		}
@@ -362,7 +363,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 
 	// update status to Completed with path & snapshot id
-	req, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCompleted, "Upload completed")
+	req, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCompleted, "Upload completed")
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -378,6 +379,25 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 func (c *uploadController) patchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload)) (*pluginv1api.Upload, error) {
 	log := loggerForUpload(c.logger, req)
 	return utils.PatchUpload(req, mutate, c.uploadClient.Uploads(req.Namespace), log)
+}
+
+func (c *uploadController) patchUploadByStatusWithRetry(req *pluginv1api.Upload, newPhase pluginv1api.UploadPhase, msg string) (*pluginv1api.Upload, error) {
+	var updatedUpload *pluginv1api.Upload
+	var err error
+	log := loggerForUpload(c.logger, req)
+	log.Infof("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", utils.RetryInterval, utils.RetryMaximum)
+	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+		updatedUpload, err = c.patchUploadByStatus(req, newPhase, msg)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+	log.Debugf("Return from patchUploadByStatus with retry %v times.", utils.RetryMaximum)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to patch Upload, retry time exceeds maximum %d.", utils.RetryMaximum)
+	}
+	return updatedUpload, err
 }
 
 func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase pluginv1api.UploadPhase, msg string) (*pluginv1api.Upload, error) {
@@ -506,7 +526,7 @@ func (c *uploadController) triggerUploadCancellation(req *pluginv1api.Upload) er
 		log.Infof("Current node: %v is not processing the upload, skipping", c.nodeName)
 		return nil
 	}
-	_, err = c.patchUploadByStatus(req, pluginv1api.UploadPhaseCanceling, "Canceling on-going upload to repository.")
+	_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCanceling, "Canceling on-going upload to repository.")
 	if err != nil {
 		log.WithError(err).Error("Failed to patch ongoing Upload to Canceling state")
 		return err

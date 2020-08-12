@@ -288,7 +288,15 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepositoryName)
 	}
 	upload := uploadBuilder.Result()
-	_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
+	this.Infof("Ready to create upload CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
+	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+		_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+
 	if err != nil {
 		this.WithError(err).Errorf("CreateSnapshot: Failed to create Upload CR for PE %s", updatedPeID.String())
 		return updatedPeID, err
@@ -594,7 +602,15 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 	downloadRecordName := "download-" + peID.GetSnapshotID().GetID() + "-" + uuid.String()
 	download := builder.ForDownload(veleroNs, downloadRecordName).
 		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
-	_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
+	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
+	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+
 	if err != nil {
 		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
 		return
