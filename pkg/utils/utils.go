@@ -315,17 +315,10 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 		if !ok {
 			return nil, errors.New("Failed to retrieve S3 Secret Access Key.")
 		}
-		logger.Infof("Using explicitly found credentials for S3 repository access.")
-		logger.Infof("AccessKeyID: %s SecretAccessKey: %s Region: %s",s3AccessKeyId, s3SecretAccessKey, region)
 		sess = session.Must(session.NewSession(&aws.Config{
 			Region:      aws.String(region),
 			Credentials: credentials.NewStaticCredentials(s3AccessKeyId, s3SecretAccessKey, ""),
 		}))
-		if sess != nil {
-			logger.Infof("AWS Session successful: %v", sess)
-		} else {
-			logger.Infof("AWS Session is nil.")
-		}
 	} else {
 		sess = session.Must(session.NewSession(&aws.Config{
 			Region: aws.String(region),
