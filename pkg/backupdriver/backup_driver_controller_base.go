@@ -703,7 +703,7 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 	}
 
 	if delSnapshot.Status.Phase != backupdriverapi.DeleteSnapshotPhaseNew {
-		ctrl.logger.Debugf("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
+		ctrl.logger.Infof("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
 			key, delSnapshot.Status.Phase)
 		return nil
 	}
