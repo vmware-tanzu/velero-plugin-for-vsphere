@@ -63,6 +63,7 @@ func CustomResources() map[string]typeInfo {
 		"CloneFromSnapshot":     newTypeInfo("clonefromsnapshots", &CloneFromSnapshot{}, &CloneFromSnapshotList{}),
 		"BackupRepositoryClaim": newTypeInfo("backuprepositoryclaim", &BackupRepositoryClaim{}, &BackupRepositoryClaimList{}),
 		"BackupRepository":      newTypeInfo("backuprepository", &BackupRepository{}, &BackupRepositoryList{}),
+		"DeleteSnapshot":        newTypeInfo("deletesnapshots", &DeleteSnapshot{}, &DeleteSnapshotList{}),
 	}
 }
 
