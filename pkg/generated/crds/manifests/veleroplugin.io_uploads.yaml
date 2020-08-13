@@ -46,6 +46,11 @@ spec:
             snapshotID:
               description: SnapshotID is the identifier for the snapshot of the volume.
               type: string
+            snapshotReference:
+              description: SnapshotReference is the namespace and snapshot name for
+                this upload request. The format is SnapshotNamespace/SnapshotCRName
+                It is used to update the upload status in the snapshot.
+              type: string
             uploadCancel:
               description: UploadCancel indicates request to cancel ongoing upload.
               type: boolean

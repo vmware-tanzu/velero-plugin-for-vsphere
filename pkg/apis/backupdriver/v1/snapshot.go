@@ -208,7 +208,7 @@ type DeleteSnapshotSpec struct {
 
 	// The backup repository to retrieve the snapshot from. The namespace the Snapshot/PVC lives in must
 	// have access to the repository
-	BackupRepository string `json:"backpRepository"`
+	BackupRepository string `json:"backupRepository"`
 }
 
 type DeleteSnapshotPhase string
