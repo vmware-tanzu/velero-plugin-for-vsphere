@@ -54,6 +54,12 @@ func DeleteSnapshotRef(
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create DeleteSnapshot record")
 	}
+	// Explicitly update the status to "New" since it's a subresource.
+	writtenDeleteSnapCR.Status.Phase = backupdriverv1.DeleteSnapshotPhaseNew
+	writtenDeleteSnapCR, err = clientSet.DeleteSnapshots(namespace).UpdateStatus(writtenDeleteSnapCR)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to update status of delete snapshot record")
+	}
 	logger.Infof("DeleteSnapshot record, Name: %s Phase: %s SnapshotID: %s created",
 		writtenDeleteSnapCR.Name, writtenDeleteSnapCR.Status.Phase, writtenDeleteSnapCR.Spec.SnapshotID)
 
