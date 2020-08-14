@@ -386,7 +386,7 @@ func (this *SnapshotManager) BackupDriverDeleteSnapshotWithBackupRepository(peID
 		log.Infof("Successfully deleted local snapshot for PE: %s", pe.GetID().String())
 	}
 	if clusterFlavor == utils.TkgGuest {
-		log.Infof("Tkg Cluster detected, nothing more to do.")
+		log.Infof("Tkg Cluster detected during delete snapshot, nothing more to do.")
 	}
 	// Trigger remote snapshot deletion in Supervisor/Vanilla setup.
 	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
@@ -394,13 +394,24 @@ func (this *SnapshotManager) BackupDriverDeleteSnapshotWithBackupRepository(peID
 		log.Infof("Local Mode detected, skipping remote delete snapshot for PE: %s", peID)
 		return nil
 	}
+	// Retrieve the component pe-id
+	components, err := pe.GetComponents(ctx)
+	if err != nil {
+		return errors.Wrap(err, "Could not retrieve components")
+	}
+	if len(components) != 1 {
+		return errors.New(fmt.Sprintf("Expected 1 component, %s has %d", pe.GetID().String(), len(components)))
+	}
+	log.Infof("Retrieved components to delete remote snapshot component ID: %s", components[0].GetID().String())
+
 	log.Infof("Step 2: Deleting the durable snapshot from s3")
 	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 		return err
 	}
-	err = this.DeleteRemoteSnapshotFromRepo(peID, backupRepositoryCR)
+
+	err = this.DeleteRemoteSnapshotFromRepo(components[0].GetID(), backupRepositoryCR)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
 		return err

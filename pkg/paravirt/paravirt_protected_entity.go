@@ -83,8 +83,11 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
-
-	return astrolabe.NewProtectedEntitySnapshotID(snapshot.Name), nil
+	peIdFromSnap, err := astrolabe.NewProtectedEntityIDFromString(snapshot.Status.SnapshotID)
+	if err != nil {
+		return astrolabe.ProtectedEntitySnapshotID{}, err
+	}
+	return peIdFromSnap.GetSnapshotID(), nil
 }
 
 func (this ParaVirtProtectedEntity) ListSnapshots(ctx context.Context) ([]astrolabe.ProtectedEntitySnapshotID, error) {
@@ -109,7 +112,8 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	}
 	// Reconstruct the snapshot-id to delete.
 	peID := astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(
-		astrolabe.PvcPEType, peInfo.GetName(),
+		astrolabe.PvcPEType,
+		peInfo.GetName(),
 		this.pvpetm.svcNamespace,
 		snapshotToDelete.String())
 	this.logger.Infof("ParaVirtProtectedEntity: Reconstructed peID: %s", peID.String())
