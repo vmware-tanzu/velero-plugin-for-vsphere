@@ -269,7 +269,7 @@ func NewBackupDriverController(
 	uploadInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			//AddFunc:    func(obj interface{}) { ctrl.enqueueUpload(obj) },
-			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueUpload(oldObj, newObj) },
+			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.updateUpload(newObj) },
 			//DeleteFunc: func(obj interface{}) { ctrl.delUpload(obj) },
 		},
 		resyncPeriod,
@@ -281,7 +281,7 @@ func NewBackupDriverController(
 		svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
 				//AddFunc:    func(obj interface{}) { ctrl.enqueueSvcSnapshot(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { ctrl.updateSvcSnapshot(oldObj, newObj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctrl.updateSvcSnapshot(newObj) },
 				//DeleteFunc: func(obj interface{}) { ctrl.delSvcSnapshot(obj) },
 			},
 			resyncPeriod)
@@ -832,6 +832,8 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCanceling
 	case veleropluginapi.UploadPhaseUploadError:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploadFailed
+	case veleropluginapi.UploadPhaseCleanupFailed:
+		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCleanupFailed
 	default:
 		ctrl.logger.Infof("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
 		return nil
@@ -841,31 +843,23 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	return ctrl.updateSnapshotStatusPhase(snapshot, newSnapshotStatusPhase)
 }
 
-// enqueueUpload adds Uploads to given work queue.
-// Compare the old and new objects and check if there is a status phase update.
-func (ctrl *backupDriverController) enqueueUpload(oldObj, newObj interface{}) {
-	ctrl.logger.Debugf("enqueueUpload: Old: %+v, New: %+v", oldObj, newObj)
+// updateUpload adds updated Uploads to given work queue.
+func (ctrl *backupDriverController) updateUpload(newObj interface{}) {
+	ctrl.logger.Debugf("updateUpload: New: %+v", newObj)
 
 	// Beware of "xxx deleted" events
 	if unknown, ok := newObj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		newObj = unknown.Obj
 	}
 	uploadNew, okNew := newObj.(*veleropluginapi.Upload)
-	uploadOld, okOld := oldObj.(*veleropluginapi.Upload)
 
-	if okNew && okOld {
-		// check if there is a change in status. If no change in status, skip.
-		if uploadOld.Status.Phase == uploadNew.Status.Phase {
-			ctrl.logger.Infof("The old and new upload phase are the same %s. Skipping updating snapshot status", uploadNew.Status.Phase)
-			return
-		}
-		ctrl.logger.Infof("Upload phase updated from %s to %s", uploadOld.Status.Phase, uploadNew.Status.Phase)
+	if okNew {
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(uploadNew)
 		if err != nil {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, uploadNew)
 			return
 		}
-		ctrl.logger.Infof("enqueueUpload: enqueued %q for sync", objName)
+		ctrl.logger.Infof("updateUpload: enqueued %q for sync", objName)
 		ctrl.uploadQueue.Add(objName)
 	}
 }
@@ -938,6 +932,8 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 		fallthrough
 	case backupdriverapi.SnapshotPhaseCanceling:
 		fallthrough
+	case backupdriverapi.SnapshotPhaseCleanupFailed:
+		fallthrough
 	case backupdriverapi.SnapshotPhaseUploadFailed:
 		newSnapshotStatusPhase = svcSnapshot.Status.Phase
 	default:
@@ -950,30 +946,22 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 }
 
 // updateSvcSnapshot adds supervisor snapshots that have been updated to given work queue.
-// Compare the old and new objects and check if there is a status phase update.
-func (ctrl *backupDriverController) updateSvcSnapshot(oldObj, newObj interface{}) {
-	ctrl.logger.Debugf("updateSvcSnapshot: Old: %+v, New: %+v", oldObj, newObj)
+func (ctrl *backupDriverController) updateSvcSnapshot(newObj interface{}) {
+	ctrl.logger.Debugf("updateSvcSnapshot: New: %+v", newObj)
 
 	// Beware of "xxx deleted" events
 	if unknown, ok := newObj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		newObj = unknown.Obj
 	}
 	svcSnapshotNew, okNew := newObj.(*backupdriverapi.Snapshot)
-	svcSnapshotOld, okOld := oldObj.(*backupdriverapi.Snapshot)
 
-	if okNew && okOld {
+	if okNew {
 		// Skip snapshots not in the svc snapshot map
 		// TODO: Add filter to informer to get snapshot owned by this cluster
 		if _, ok := ctrl.svcSnapshotMap[svcSnapshotNew.Name]; !ok {
 			ctrl.logger.Infof("The supervisor snapshot %s either does not belong to this cluster, or is still not snapshotted. Skipping updating snapshot status", svcSnapshotNew.Name)
 			return
 		}
-		// check if there is a change in status. If no change in status, skip.
-		if svcSnapshotOld.Status.Phase == svcSnapshotNew.Status.Phase {
-			ctrl.logger.Infof("The old and new supervisor snapshot phase are the same %s. Skipping updating snapshot status", svcSnapshotNew.Status.Phase)
-			return
-		}
-		ctrl.logger.Infof("Supervisor snapshot phase updated from %s to %s", svcSnapshotOld.Status.Phase, svcSnapshotNew.Status.Phase)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(svcSnapshotNew)
 		if err != nil {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, svcSnapshotNew)

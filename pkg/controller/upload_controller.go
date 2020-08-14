@@ -239,6 +239,7 @@ func (c *uploadController) processUploadItem(key string) error {
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
 				// Don't mutate the shared cache
+				log.Infof("Lock is acquired by current node - %s to process Upload %s.", c.nodeName, req.Name)
 				reqCopy := req.DeepCopy()
 				processErr = c.processUploadFunc(reqCopy)
 				cancel()
@@ -251,7 +252,7 @@ func (c *uploadController) processUploadItem(key string) error {
 					// Same node is trying to acquire or renew the lease, ignore.
 					return
 				}
-				log.Infof("Lock is acquired by another node %s. Current node - %s need not process the Upload.", identity, c.nodeName)
+				log.Infof("Lock is acquired by another node %s. Current node - %s need not process the Upload %s.", identity, c.nodeName, req.Name)
 				cancel()
 			},
 		},
