@@ -369,9 +369,11 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 
 	repo := ""
 	tag := ""
+	image := ""
 	for _, container := range deployment.Spec.Template.Spec.InitContainers {
 		if strings.Contains(container.Image, utils.VeleroPluginForVsphere) {
-			repo = strings.Split(container.Image, "/")[0]
+			image = container.Image
+			repo = utils.GetRepo(container.Image)
 			tag = strings.Split(container.Image, ":")[1]
 			break
 		}
@@ -381,7 +383,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 		o.Image = repo + "/" + utils.DataManagerForPlugin + ":" + tag
 		return nil
 	} else {
-		errMsg := fmt.Sprint("Failed to get repo and tag from velero plugin image.")
+		errMsg := fmt.Sprintf("Failed to get repo and tag from velero plugin image %s.", image)
 		return errors.New(errMsg)
 	}
 }

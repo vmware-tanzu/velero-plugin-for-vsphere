@@ -322,3 +322,17 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 
 	return nodeName, nil
 }
+
+// Retrieve image repository from image name here. We expect the following format
+// for image name: <repo-level1>/<repo-level2>/.../<plugin-bin-name>:<tag>. plugin-bin-name
+// and tag should not include '/'.
+func GetRepo(image string) string {
+	if image == "" {
+		return ""
+	}
+	lastIndex := strings.LastIndex(image, "/")
+	if lastIndex < 0 {
+		return ""
+	}
+	return image[:lastIndex]
+}
