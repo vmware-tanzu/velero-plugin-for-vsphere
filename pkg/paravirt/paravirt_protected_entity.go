@@ -96,7 +96,7 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	ctx context.Context,
 	snapshotToDelete astrolabe.ProtectedEntitySnapshotID,
 	params map[string]map[string]interface{}) (bool, error) {
-	this.logger.Infof("DeleteSnapshot called on Paravirtualized Protected Entity, %v", this.id.String())
+	this.logger.Infof("ParaVirtProtectedEntity: DeleteSnapshot called on Paravirtualized Protected Entity, %v snapshotToDelete: %s", this.id.String(), snapshotToDelete.String())
 	peInfo, err := this.GetInfo(ctx)
 	if err != nil {
 		this.logger.Errorf("Failed to get info for ParaVirtProtectedEntity %v", this.id.String())
@@ -112,6 +112,7 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 		astrolabe.PvcPEType, peInfo.GetName(),
 		this.pvpetm.svcNamespace,
 		snapshotToDelete.String())
+	this.logger.Infof("ParaVirtProtectedEntity: Reconstructed peID: %s", peID.String())
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 	_, err = snapshotUtils.DeleteSnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, peID.String(), this.pvpetm.svcNamespace, *backupRepository,
 		[]backupdriverv1api.DeleteSnapshotPhase{backupdriverv1api.DeleteSnapshotPhaseCompleted, backupdriverv1api.DeleteSnapshotPhaseFailed}, this.logger)

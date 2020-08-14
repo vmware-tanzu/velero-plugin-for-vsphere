@@ -118,6 +118,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.New(errMsg)
 	}
 
+	p.Log.Infof("Persisting snapshot with snapshotID :%s under label: %s Snapshot: %v", updatedSnapshot.Status.SnapshotID, utils.ItemSnapshotLabel, updatedSnapshot)
 	// Persist the snapshot blob as an annotation of PVC
 	snapshotAnnotation, err := pluginUtil.GetAnnotationFromSnapshot(updatedSnapshot)
 	if err != nil {

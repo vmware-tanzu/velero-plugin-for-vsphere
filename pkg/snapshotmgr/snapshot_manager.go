@@ -339,6 +339,7 @@ func (this *SnapshotManager) BackupDriverDeleteSnapshotWithBackupRepository(peID
 		uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
+			return err
 		}
 		uploadCompleted := this.isTerminalState(uploadCR)
 		if uploadCR != nil && !uploadCompleted {
