@@ -165,7 +165,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 		return errors.New(errMsg)
 	}
 
-	err = ctrl.snapManager.BackupDriverDeleteSnapshotWithBackupRepository(peID, brName)
+	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager DeleteSnapshot for peID %v", peID)
 		return err
