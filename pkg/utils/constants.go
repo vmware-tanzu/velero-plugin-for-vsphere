@@ -138,15 +138,6 @@ const (
 	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
 )
 
-// Keys for Para Virtual Cluster access for Guest Cluster
-const (
-	PvApiEndpointParamKey = "PvEndPoint"
-	PvPortParamKey        = "PvPort"
-	PvNamespaceParamKey   = "PvNamespace"
-	PvTokenParamKey       = "PvToken"
-	PvCrtFileParamKey     = "PvCrtFile"
-)
-
 // Para Virtual Cluster access for Guest Cluster
 const (
 	PvApiEndpoint       = "supervisor.default.svc" // TODO: get it from "kubectl get cm -n vmware-system-csi pvcsi-config"
@@ -161,10 +152,17 @@ const (
 )
 
 const (
-	ItemSnapshotLabel              = "velero-plugin-for-vsphere/item-snapshot-blob"
+	ItemSnapshotLabel = "velero-plugin-for-vsphere/item-snapshot-blob"
 )
 
 const (
 	RetryInterval = 5
-	RetryMaximum = 5
+	RetryMaximum  = 5
+)
+
+// Keys for supervisor cluster parameters
+const (
+	VCuuidKey                 = "vCenterUUID"
+	SupervisorClusterIdKey    = "SupervisorClusterId"
+	SupervisorResourcePoolKey = "SupervisorResourcePool"
 )
