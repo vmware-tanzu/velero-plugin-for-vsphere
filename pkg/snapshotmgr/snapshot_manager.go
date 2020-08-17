@@ -339,7 +339,6 @@ func (this *SnapshotManager) BackupDriverDeleteSnapshotWithBackupRepository(peID
 		uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
-			return err
 		}
 		uploadCompleted := this.isTerminalState(uploadCR)
 		if uploadCR != nil && !uploadCompleted {
@@ -517,6 +516,9 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 }
 
 func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
+	if uploadCR == nil {
+		return true
+	}
 	return uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
 }
 

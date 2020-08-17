@@ -85,6 +85,7 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 	}
 	peIdFromSnap, err := astrolabe.NewProtectedEntityIDFromString(snapshot.Status.SnapshotID)
 	if err != nil {
+		this.logger.Errorf("Failed to retrieve pe-id from the snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
 	return peIdFromSnap.GetSnapshotID(), nil
@@ -124,9 +125,6 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 		this.logger.Errorf("Failed to create a DeleteSnapshot CR: %v", err)
 		return false, err
 	}
-	// Depends on ListSnapshots API in SnapshotUtils
-	// Depends on DeleteSnaphsot CRD in BackupDriver APIs
-	// Depends on DeleteSnaphsot API in SnapshotUtils
 	return true, nil
 }
 
