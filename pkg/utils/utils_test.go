@@ -326,3 +326,43 @@ func TestGetSvcSnapshotName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetRepo(t *testing.T) {
+	tests := []struct {
+		name     string
+		image    string
+		expected string
+	} {
+		{
+			name:     "Top level registry",
+			image:    "harbor.mylab.local/velero-plugin-for-vsphere:1.0.1",
+			expected: "harbor.mylab.local",
+		},
+		{
+			name :    "Multiple level registry",
+			image:    "harbor.mylab.local/library/velero-plugin-for-vsphere:1.0.1",
+			expected: "harbor.mylab.local/library",
+		},
+		{
+			name :    "No / should return empty string",
+			image:    "velero-plugin-for-vsphere:1.0.1",
+			expected: "",
+		},
+		{
+			name :    "/ appears in beginning should return empty string",
+			image:    "/velero-plugin-for-vsphere:1.0.1",
+			expected: "",
+		},
+		{
+			name :    "Empty input should return empty string",
+			image:    "",
+			expected: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := GetRepo(test.image)
+			assert.Equal(t, test.expected, repo)
+		})
+	}
+}
