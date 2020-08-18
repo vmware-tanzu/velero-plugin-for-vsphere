@@ -642,6 +642,58 @@ func SupervisorConfig(logger logrus.FieldLogger) (*rest.Config, string, error) {
 	}, string(ns), nil
 }
 
+/*
+ * Get Supervisor parameters present as annotations in the supervisor namespace for the guest.
+ * We do not return all the annotations, but only annotations required but guest cluster plugin.
+ */
+func GetSupervisorParameters(config *rest.Config, ns string, logger logrus.FieldLogger) (map[string]string, error) {
+	params := make(map[string]string)
+	var err error
+	if config == nil || ns == "" {
+		config, ns, err = SupervisorConfig(logger)
+		if err != nil {
+			logger.WithError(err).Error("Could not get supervisor config")
+			return params, err
+		}
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get k8s clientset from the given config")
+		return params, err
+	}
+
+	nsapi, err := clientset.CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
+	if err != nil {
+		logger.WithError(err).Errorf("Could not get namespace object for supervisor namespace %s", ns)
+		return params, err
+	}
+
+	nsAnnotations := nsapi.ObjectMeta.Annotations
+
+	// Resource pool
+	if resPool, ok := nsAnnotations["vmware-system-resource-pool"]; !ok {
+		logrus.Warnf("%s information is not present in supervisor namespace %s annotations", SupervisorResourcePoolKey, ns)
+	} else {
+		params[SupervisorResourcePoolKey] = resPool
+	}
+
+	// vCenter UUID and cluster ID
+	if svcClusterInfo, ok := nsAnnotations["ncp/extpoolid"]; !ok {
+		logrus.Warnf("%s and %s information is not present in supervisor namespace %s annotations", VCuuidKey, SupervisorClusterIdKey, ns)
+	} else {
+		// Format: <cluster ID>:<vCenter UUID>-ippool-<ip pool range>
+		svcClusterParts := strings.Split(svcClusterInfo, ":")
+		if len(svcClusterParts) < 2 {
+			logrus.Warnf("Invalid ncp/extpoolid %s in supervisor namespace %s annotations", svcClusterInfo, ns)
+		} else {
+			params[SupervisorClusterIdKey] = svcClusterParts[0]
+			vcIdParts := strings.Split(svcClusterParts[1], "-ippool")
+			params[VCuuidKey] = vcIdParts[0]
+		}
+	}
+	return params, nil
+}
+
 func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*backupdriverapi.BackupRepository, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {

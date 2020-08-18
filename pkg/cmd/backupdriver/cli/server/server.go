@@ -280,6 +280,13 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 		// Set the mode to local as the data movement job is assigned to the supervisor cluster
 		snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = "true"
+
+		// Log supervisor namespace annotations
+		if params, err := utils.GetSupervisorParameters(svcConfig, svcNamespace, logger); err != nil {
+			logger.WithError(err).Warn("Failed to get supervisor parameters")
+		} else {
+			logger.Infof("Supervisor parameters: %v", params)
+		}
 	}
 
 	peConfigs := make(map[string]map[string]interface{})
