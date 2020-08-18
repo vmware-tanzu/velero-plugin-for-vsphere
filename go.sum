@@ -447,8 +447,8 @@ github.com/valyala/fasttemplate v1.0.1 h1:tY9CJiPnMXf1ERmG2EyK7gNUd+c6RKGD0IfU8W
 github.com/valyala/fasttemplate v1.0.1/go.mod h1:UQGH1tvbgY+Nz5t2n7tXsz52dQxojPUpymEIMZ47gx8=
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/vmware-tanzu/astrolabe v0.1.1-0.20200519042640-570f84703079/go.mod h1:SChYb3UPGc4UpCOs/9IhPb5Fpxd+8C9blc0RG5KfxtY=
-github.com/vmware-tanzu/astrolabe v0.1.2-0.20200817161746-4f9917b2bb0e h1:SYLuhWi706PqSnw/jLlQV9EyMytBGBtr/c4mMExCgHY=
-github.com/vmware-tanzu/astrolabe v0.1.2-0.20200817161746-4f9917b2bb0e/go.mod h1:fvONaSMK4nblp8lIabpJAujoVTL9UNpfv9dibw0KBRo=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200818231420-1ed4b2ce0e1e h1:edVLl/4hWXlsAN7+btsjBYuspvdKaiQblPkR93CxjbU=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200818231420-1ed4b2ce0e1e/go.mod h1:fvONaSMK4nblp8lIabpJAujoVTL9UNpfv9dibw0KBRo=
 github.com/vmware-tanzu/velero v1.3.2 h1:Rhn37gjxn6Hwg6OFZUsW1CTuRaVuHEL8p/eiXrcKNGw=
 github.com/vmware-tanzu/velero v1.3.2/go.mod h1:s+8IqUKWcprcMVOfZKNC+jFY3tr/ElJfaMCcAfhThts=
 github.com/vmware-tanzu/velero-plugin-for-vsphere v1.0.1/go.mod h1:YBVVhH314guKJ2I9T5j6HXoyemUU0Ma9xHB/T3SEaNo=
