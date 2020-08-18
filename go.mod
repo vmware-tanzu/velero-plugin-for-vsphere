@@ -20,8 +20,6 @@ require (
 	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 )
 
-replace github.com/vmware-tanzu/astrolabe => ../astrolabe
-
 replace github.com/vmware/gvddk => ../astrolabe/vendor/github.com/vmware/gvddk
 
 replace k8s.io/api => k8s.io/api v0.17.3
