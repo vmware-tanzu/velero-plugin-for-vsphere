@@ -38,6 +38,11 @@ spec:
               description: BackupRepository provides backup repository info for download.
                 BackupRepositoryName is the name of the BackupRepository.
               type: string
+            clonefromSnapshotReference:
+              description: CloneFromSnapshotReference is the namespace and clonefromsnapshot
+                name for this download request. The format is CloneFromSnapshotNamespace/CloneFromSnapshotName
+                It is used to update the download status in the clonefromsnapshot.
+              type: string
             protectedEntityID:
               description: ProtectedEntityID is the identifier for the protected entity.
                 This is needed to overwrite an existing volume.
