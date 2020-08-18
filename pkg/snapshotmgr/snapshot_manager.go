@@ -29,7 +29,6 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	astrolabe_pvc "github.com/vmware-tanzu/astrolabe/pkg/pvc"
-	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	"github.com/vmware-tanzu/astrolabe/pkg/server"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
@@ -37,6 +36,7 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -47,7 +47,7 @@ type SnapshotManager struct {
 	logrus.FieldLogger
 	config map[string]string
 	Pem    astrolabe.ProtectedEntityManager
-	s3PETM *s3repository.ProtectedEntityTypeManager
+	s3PETM astrolabe.ProtectedEntityTypeManager
 }
 
 // TODO - remove in favor of NewSnapshotManagerFromConfig when callers have been converted
@@ -114,7 +114,6 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 			logger.Infof("SnapshotManager: vSphere VC credential is retrieved")
 		}
 	}
-	var s3PETM *s3repository.ProtectedEntityTypeManager
 
 	// TODO: Remove the use of s3RepoParams. Do not use BackupStorageLocation,
 	//  as data movement will use BackupRepositories for each upload/download job
@@ -122,6 +121,16 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
 	initRemoteStorage := clusterFlavor == utils.VSphere
 
+	// Initialize the DirectProtectedEntityManager
+	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
+
+	snapMgr := SnapshotManager{
+		FieldLogger: logger,
+		config:      config,
+		Pem:         dpem,
+		//s3PETM:      s3PETM,
+	}
+	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
 	// if so, check whether there is any specification about remote storage location in config
 	// otherwise, retrieve from velero BSLs.
 	if !isLocalMode && initRemoteStorage {
@@ -141,17 +150,16 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 		logger.Infof("SnapshotManager: Velero Backup Storage Location is retrieved, region=%v, bucket=%v", s3RepoParams["region"], s3RepoParams["bucket"])
 
-		s3PETM, err = utils.GetS3PETMFromParamsMap(s3RepoParams, logger)
+		intS3PETM, err := utils.GetS3PETMFromParamsMap(s3RepoParams, logger)
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get s3PETM from params map: region=%v, bucket=%v",
 				s3RepoParams["region"], s3RepoParams["bucket"])
 			return nil, err
 		}
+		// Wrapper the S3PETM to delegate copy/overwrite to data manager
+		snapMgr.s3PETM = NewDataManagerProtectedEntityTypeManager(intS3PETM, &snapMgr, false)
 		logger.Infof("SnapshotManager: Get s3PETM from the params map")
 	}
-
-	// Initialize the DirectProtectedEntityManager
-	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
 
 	// Register external PETMs if any
 	if clusterFlavor == utils.TkgGuest {
@@ -168,11 +176,11 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 		dpem.RegisterExternalProtectedEntityTypeManagers([]astrolabe.ProtectedEntityTypeManager{paraVirtPETM})
 	}
 
-	snapMgr := SnapshotManager{
-		FieldLogger: logger,
-		config:      config,
-		Pem:         dpem,
-		s3PETM:      s3PETM,
+	ivdPETM := dpem.GetProtectedEntityTypeManager("ivd")
+	if ivdPETM != nil {
+		dmIVDPE := NewDataManagerProtectedEntityTypeManager(ivdPETM, &snapMgr, true)
+		// We use a DataManagerPE to delegate data copy to the data manager
+		dpem.RegisterExternalProtectedEntityTypeManagers([]astrolabe.ProtectedEntityTypeManager{dmIVDPE})
 	}
 
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
@@ -194,7 +202,7 @@ func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.P
 
 func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
-	var updatedPeID astrolabe.ProtectedEntityID
+	var snapshotPEID astrolabe.ProtectedEntityID
 	ctx := context.Background()
 	pe, err := this.Pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
@@ -233,76 +241,99 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	}
 
 	this.Debugf("constructing the returned PE snapshot id, %s", peSnapID.GetID())
-	updatedPeID = astrolabe.NewProtectedEntityIDWithSnapshotID(peID.GetPeType(), peID.GetID(), peSnapID)
+	snapshotPEID = peID.IDWithSnapshot(peSnapID)
 
-	this.Infof("Local IVD snapshot is created, %s", updatedPeID.String())
+	this.Infof("Local IVD snapshot is created, %s", snapshotPEID.String())
 
 	// This is set for Guest Cluster or if the local mode flag is set
 	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
 	if isLocalMode {
 		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
-		return updatedPeID, nil
+		return snapshotPEID, nil
 	}
 
+	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
+	_, err = this.UploadSnapshot(snapshotPE, ctx, backupRepositoryName, snapshotRef)
+	if err != nil {
+		return astrolabe.ProtectedEntityID{}, err
+	}
+
+	return snapshotPEID, nil
+}
+
+/*
+Creates an Upload CR
+*/
+func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, ctx context.Context, backupRepositoryName string,
+	snapshotRef string) (*v1api.Upload, error) {
 	this.Info("Start creating Upload CR")
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-		return updatedPeID, err
+		return nil, err
 	}
 	pluginClient, err := plugin_clientset.NewForConfig(config)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
-		return updatedPeID, err
+		return nil, err
 	}
 
 	// look up velero namespace from the env variable in container
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
 	if !exist {
 		this.WithError(err).Errorf("CreateSnapshot: Failed to lookup the env variable for velero namespace")
-		return updatedPeID, err
+		return nil, err
+	}
+	var uploadSnapshotPEID astrolabe.ProtectedEntityID
+
+	// For PVC types, we do not upload the PVC itself, rather we upload what it points to.  This may be a ParaVirt PE
+	// or an IVC currently
+	if uploadPE.GetID().GetPeType() == astrolabe.PvcPEType {
+		components, err := uploadPE.GetComponents(ctx)
+		if err != nil {
+			this.WithError(err).Errorf("Failed to retrive subcomponents for %s", uploadPE.GetID().String())
+			return nil, err
+		}
+		if len(components) != 1 {
+			return nil, errors.New(fmt.Sprintf("Expected 1 component, %s has %d", uploadPE.GetID().String(), len(components)))
+		}
+
+		uploadSnapshotPEID = components[0].GetID()
+		this.Info("UploadSnapshot: componentPEID %s", uploadSnapshotPEID.String())
+
+	} else {
+		uploadSnapshotPEID = uploadPE.GetID()
 	}
 
-	uploadBuilder := builder.ForUpload(veleroNs, "upload-"+peSnapID.GetID()).
+	uploadName, err := uploadCRNameForSnapshotPEID(uploadSnapshotPEID)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to get uploadCR")
+		return nil, err
+	}
+	this.Info("Creating Upload CR: %s/%s", veleroNs, uploadName)
+	uploadBuilder := builder.ForUpload(veleroNs, uploadName).
 		BackupTimestamp(time.Now()).
 		NextRetryTimestamp(time.Now()).
 		Phase(v1api.UploadPhaseNew).
-		SnapshotReference(snapshotRef)
+		SnapshotReference(snapshotRef).
+		SnapshotID(uploadSnapshotPEID.String())
 
-	if peID.GetPeType() == astrolabe.PvcPEType {
-		components, err := pe.GetComponents(ctx)
-		if err != nil {
-			this.WithError(err).Errorf("Failed to retrive subcomponents for %s", peID.String())
-			return updatedPeID, err
-		}
-		if len(components) != 1 {
-			return updatedPeID, errors.New(fmt.Sprintf("Expected 1 component, %s has %d", peID.String(), len(components)))
-		}
-		componentPEID := astrolabe.NewProtectedEntityIDWithSnapshotID(components[0].GetID().GetPeType(), components[0].GetID().GetID(), peSnapID)
-		uploadBuilder.SnapshotID(componentPEID.String())
-	} else {
-		uploadBuilder.SnapshotID(updatedPeID.String())
-	}
+
 	if backupRepositoryName != "" {
 		this.Infof("Create upload CR with backup repository %s", backupRepositoryName)
 		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepositoryName)
 	}
 	upload := uploadBuilder.Result()
 	this.Infof("Ready to create upload CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
+	var retUpload *v1api.Upload
 	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
-		_, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
+		retUpload, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		return true, nil
 	})
-
-	if err != nil {
-		this.WithError(err).Errorf("CreateSnapshot: Failed to create Upload CR for PE %s", updatedPeID.String())
-		return updatedPeID, err
-	}
-
-	return updatedPeID, nil
+	return retUpload, err
 }
 
 func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository string) error {
@@ -334,7 +365,11 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		this.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
 		return err
 	}
-	uploadName := "upload-" + peID.GetSnapshotID().GetID()
+	uploadName, err := uploadCRNameForSnapshotPEID(peID)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to get uploadCR")
+		return err
+	}
 	log.Infof("Searching for Upload CR: %v", uploadName)
 	uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 	if err != nil {
@@ -475,8 +510,8 @@ func (this *SnapshotManager) deleteSnapshotFromRepo(peID astrolabe.ProtectedEnti
 
 const PollLogInterval = time.Minute
 
-func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEntityID) (updatedID astrolabe.ProtectedEntityID, err error) {
-	this.Infof("Start creating Download CR for %s", peID.String())
+func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.ProtectedEntityID, destinationPEID astrolabe.ProtectedEntityID, params map[string]map[string]interface{}) (updatedID astrolabe.ProtectedEntityID, err error) {
+	this.Infof("Start creating Download CR for %s", sourcePEID.String())
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
@@ -495,9 +530,25 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 	}
 
 	uuid, _ := uuid.NewRandom()
-	downloadRecordName := "download-" + peID.GetSnapshotID().GetID() + "-" + uuid.String()
-	download := builder.ForDownload(veleroNs, downloadRecordName).
-		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(peID.String()).Phase(v1api.DownloadPhaseNew).Result()
+	cloneParams := params["CloneFromSnapshotReference"]
+	cloneFromSnapshotNamespace, ok := cloneParams["CloneFromSnapshotNamespace"].(string)
+	if !ok {
+		cloneFromSnapshotNamespace = "INVALID_CLONE_NAMESPACE"
+	}
+	cloneFromSnapshotName, ok := cloneParams["CloneFromSnapshotName"].(string)
+	if !ok {
+		cloneFromSnapshotName = "INVALID_CLONE_NAME"
+	}
+	cloneRef := fmt.Sprintf("%s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
+	this.Infof("CloneFromSnapshotReference: %s", cloneRef)
+	downloadRecordName := "download-" + sourcePEID.GetSnapshotID().GetID() + "-" + uuid.String()
+	this.Infof("Creating Download CR: %s/%s", veleroNs, downloadRecordName)
+	downloadBuilder := builder.ForDownload(veleroNs, downloadRecordName).
+		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(sourcePEID.String()).Phase(v1api.DownloadPhaseNew).CloneFromSnapshotReference(cloneRef)
+	if destinationPEID != (astrolabe.ProtectedEntityID{}) {
+		downloadBuilder = downloadBuilder.ProtectedEntityID(destinationPEID.String())
+	}
+	download := downloadBuilder.Result()
 	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
 	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
 		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
@@ -508,7 +559,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 	})
 
 	if err != nil {
-		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
+		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", sourcePEID.String())
 		return
 	}
 
@@ -542,95 +593,93 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(peID astrolabe.ProtectedEn
 		return
 	}
 	updatedID, err = astrolabe.NewProtectedEntityIDFromString(download.Status.VolumeID)
+
+	// TODO(xyang): Watch for Download status and update CloneFromSnapshot status accordingly in Backupdriver
+	cloneFromSnap, err := pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).Get(cloneFromSnapshotName, metav1.GetOptions{})
+	if err != nil {
+		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to get CloneFromSnapshot %s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
+		return
+	}
+	clone := cloneFromSnap.DeepCopy()
+	// Since we wait until download is complete here,
+	// download.Status.Phase should be up to date.
+	clone.Status.Phase = backupdriverv1.ClonePhase(download.Status.Phase)
+	clone.Status.Message = download.Status.Message
+	apiGroup := ""
+	clone.Status.ResourceHandle = &v1.TypedLocalObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     "PersistentVolumeClaim",
+		Name:     download.Status.VolumeID,
+	}
+
+	_, err = pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(clone)
+	if err != nil {
+		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+		return
+	}
+
 	return
 }
 
-func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe.ProtectedEntityID, metadata []byte, snapshotID string, backupRepositoryName string) (astrolabe.ProtectedEntityID, *v1api.Download, error) {
-	this.Infof("CreateVolumeFromSnapshotWithMetadata: Start creating restore for %s", peID.String())
-	// TODO(xyang): Will enable following code when astrolabe.Overwrite is ready
-	//config, err := rest.InClusterConfig()
-	//if err != nil {
-	//	this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-	//	return
-	//}
-	//pluginClient, err := plugin_clientset.NewForConfig(config)
-	//if err != nil {
-	//	this.WithError(err).Errorf("Failed to get k8s clientset with the given config: %v", config)
-	//	return
-	//}
-
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
-	if !exist {
-		this.Errorf("CreateVolumeFromSnapshot: Failed to lookup the env variable for velero namespace")
-		return astrolabe.ProtectedEntityID{}, nil, errors.New(fmt.Sprintf("failed to lookup the env variable for velero namespace"))
-	}
+func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe.ProtectedEntityID, metadata []byte,
+	snapshotIDStr string, backupRepositoryName string, cloneFromSnapshotNamespace string, cloneFromSnapshotName string) (astrolabe.ProtectedEntityID, error) {
+	this.Infof("CreateVolumeFromSnapshotWithMetadata: Start creating restore for %s, snapshot ID %s, backupRepositoryName %s", peID.String(), snapshotIDStr, backupRepositoryName)
 
 	// Retrieve PVC PE TypeManager
 	peTM := this.Pem.GetProtectedEntityTypeManager(peID.GetPeType())
 	pvcPETM := peTM.(*astrolabe_pvc.PVCProtectedEntityTypeManager)
 	ctx := context.Background()
-	var pe astrolabe.ProtectedEntity
 
-	this.Infof("Ready to call astrolabe CreateFromMetadata API.")
+	// Translate the BackupRepository to a PETM (usually S3PETM)
+	var snapshotRepo astrolabe.ProtectedEntityTypeManager
+	snapshotRepo = nil
+	if backupRepositoryName != "" && backupRepositoryName != utils.WithoutBackupRepository {
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+			return astrolabe.ProtectedEntityID{}, err
+		}
+		pluginClient, err := plugin_clientset.NewForConfig(config)
+		if err != nil {
+			this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
+			return astrolabe.ProtectedEntityID{}, err
+		}
+		backupRepository, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
+
+		snapshotRepo, err = utils.GetRepositoryFromBackupRepository(backupRepository, this)
+		if err != nil {
+			this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
+			return astrolabe.ProtectedEntityID{}, err
+		}
+	}
+
 	// CreateFromMetadata returns a PVCPE
-	pe, err := pvcPETM.CreateFromMetadata(ctx, metadata)
+	snapshotID, err := astrolabe.NewProtectedEntityIDFromString(snapshotIDStr)
 	if err != nil {
 		this.WithError(err).Errorf("Error creating volume from metadata")
-		return astrolabe.ProtectedEntityID{}, nil, err
+		return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
+	}
+	this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
+	pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName)
+	if err != nil {
+		this.WithError(err).Errorf("Error creating volume from metadata")
+		return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
 	}
 	this.Infof("Return from the call of astrolabe CreateFromMetadata API for PE %s", peID.String())
 
 	if err != nil {
 		this.WithError(err).Errorf("Failed to CreateFromMetadata for PE %s", peID.String())
-		return astrolabe.ProtectedEntityID{}, nil, err
+		return astrolabe.ProtectedEntityID{}, err
 	}
 
-	this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata PE %+v", pe.GetID().String())
+	this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
 
-	uuid, _ := uuid.NewRandom()
-	downloadRecordName := "download-" + "-" + snapshotID + "-" + uuid.String()
-	download := builder.ForDownload(veleroNs, downloadRecordName).
-		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(snapshotID).ProtectedEntityID(pe.GetID().String()).BackupRepositoryName(backupRepositoryName).Phase(v1api.DownloadPhaseNew).Result()
-	this.Infof("Download CR by builder: %+v", download)
-	// TODO(xyang): Will enable following code when astrolabe.Overwrite is ready
-	/*_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
-	if err != nil {
-		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to create Download CR for %s", peID.String())
-		return
+	return pe.GetID(), err
+}
+
+func uploadCRNameForSnapshotPEID(snapshotPEID astrolabe.ProtectedEntityID) (string, error) {
+	if !snapshotPEID.HasSnapshot() {
+		return "", errors.New(fmt.Sprintf("snapshotPEID %s does not have a snapshot ID", snapshotPEID.String()))
 	}
-
-	lastPollLogTime := time.Now()
-	// TODO: Suitable length of timeout
-	err = wait.PollImmediateInfinite(time.Second, func() (bool, error) {
-		infoLog := false
-		if time.Now().Sub(lastPollLogTime) > PollLogInterval {
-			infoLog = true
-			this.Infof("Polling download record %s", downloadRecordName)
-			lastPollLogTime = time.Now()
-		}
-		download, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Get(downloadRecordName, metav1.GetOptions{})
-		if err != nil {
-			this.Errorf("Retrieve download record %s failed with err %v", downloadRecordName, err)
-			return false, errors.Wrapf(err, "Failed to retrieve download record %s", downloadRecordName)
-		}
-		if download.Status.Phase == v1api.DownloadPhaseCompleted {
-			this.Infof("Download record %s completed", downloadRecordName)
-			return true, nil
-		} else if download.Status.Phase == v1api.DownloadPhaseFailed {
-			return false, errors.Errorf("Create download cr failed.")
-		} else {
-			if infoLog {
-				this.Infof("Retrieve phase %s for download record %s", download.Status.Phase, downloadRecordName)
-			}
-			return false, nil
-		}
-	})
-	if err != nil {
-		return
-	}
-	updatedID, err = astrolabe.NewProtectedEntityIDFromString(download.Status.VolumeID)
-	this.Infof("CreateVolumeFromSnapshotWithMetadata completed with updated ID: %s", updatedID)
-	*/
-
-	return pe.GetID(), download, err
+	return "upload-" + snapshotPEID.GetSnapshotID().String(), nil
 }

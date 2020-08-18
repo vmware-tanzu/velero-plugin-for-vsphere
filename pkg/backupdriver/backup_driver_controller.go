@@ -220,19 +220,8 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 	}
 	ctrl.logger.Infof("cloneFromSnapshot: Generated PE ID: %s", peId.String())
 
-	brName := cloneFromSnapshot.Spec.BackupRepository
-	if brName != "" && ctrl.svcKubeConfig != nil {
-		// For guest cluster, get the supervisor backup repository name
-		br, err := ctrl.backupdriverClient.BackupRepositories().Get(brName, metav1.GetOptions{})
-		if err != nil {
-			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
-		}
-		// Update the backup repository name with the Supervisor BR name
-		brName = br.SvcBackupRepositoryName
-	}
-
-	// snapManager.CreateVolumeFromSnapshotWithMetadata waits until download is complete.
-	returnPeId, download, err := ctrl.snapManager.CreateVolumeFromSnapshotWithMetadata(peId, cloneFromSnapshot.Spec.Metadata, cloneFromSnapshot.Spec.SnapshotID, brName)
+	returnPeId, err = ctrl.snapManager.CreateVolumeFromSnapshotWithMetadata(peId, cloneFromSnapshot.Spec.Metadata,
+		cloneFromSnapshot.Spec.SnapshotID, cloneFromSnapshot.Spec.BackupRepository, cloneFromSnapshot.Namespace, cloneFromSnapshot.Name)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager cloneFromSnapshot with peId %v", peId)
 		return err
@@ -240,24 +229,6 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 
 	returnVolumeID = returnPeId.GetID()
 	returnVolumeType = returnPeId.GetPeType()
-
-	clone := cloneFromSnapshot.DeepCopy()
-	// Since we wait until download is complete in
-	// snapManager.CreateVolumeFromSnapshotWithMetadata,
-	// download.Status.Phase should be up to date.
-	clone.Status.Phase = backupdriverapi.ClonePhase(download.Status.Phase)
-	clone.Status.Message = download.Status.Message
-	apiGroup := ""
-	clone.Status.ResourceHandle = &v1.TypedLocalObjectReference{
-		APIGroup: &apiGroup,
-		Kind:     "PersistentVolumeClaim",
-		Name:     returnVolumeID,
-	}
-
-	clone, err = ctrl.backupdriverClient.CloneFromSnapshots(clone.Namespace).UpdateStatus(clone)
-	if err != nil {
-		return err
-	}
 
 	ctrl.logger.Infof("A new volume %s with type being %s was just created from the call of SnapshotManager cloneFromSnapshot", returnVolumeID, returnVolumeType)
 	return nil

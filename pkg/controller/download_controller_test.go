@@ -309,7 +309,8 @@ func TestProcessedDownloadItem(t *testing.T) {
 			}
 			require.NoError(t, sharedInformers.Veleroplugin().V1().Downloads().Informer().GetStore().Add(test.download))
 
-			patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyFromRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+			patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyFromRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID,
+				_ astrolabe.ProtectedEntityID, _ astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
 				return astrolabe.ProtectedEntityID{}, test.expectedErr
 			})
 			defer patches.Reset()
