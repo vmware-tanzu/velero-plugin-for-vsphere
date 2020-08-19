@@ -45,7 +45,8 @@ func DeleteSnapshotRef(
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create deleteSnapshot UUID")
 	}
-	deleteSnapshotCR := builder.ForDeleteSnapshot(namespace, deleteSnapshotUUID.String()).
+	deleteSnapshotName := "delete-" + deleteSnapshotUUID.String()
+	deleteSnapshotCR := builder.ForDeleteSnapshot(namespace, deleteSnapshotName).
 		SnapshotID(snapshotID).
 		BackupRepository(repo.backupRepositoryName).
 		Result()
