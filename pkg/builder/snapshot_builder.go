@@ -64,3 +64,8 @@ func (b *SnapshotBuilder) CancelState(cancelState bool) *SnapshotBuilder {
 	b.object.Spec.SnapshotCancel = cancelState
 	return b
 }
+
+func (b *SnapshotBuilder) Phase(phase backupdriverv1.SnapshotPhase) *SnapshotBuilder {
+	b.object.Status.Phase = phase
+	return b
+}

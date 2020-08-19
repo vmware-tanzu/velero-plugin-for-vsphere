@@ -19,6 +19,7 @@ package builder
 import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
 // DeleteSnapshotBuilder builds DeleteSnapshot objects.
@@ -59,5 +60,15 @@ func (b *DeleteSnapshotBuilder) SnapshotID(snapshotID string) *DeleteSnapshotBui
 // BackupRepository sets the name of the backup repository for this specific delete snapshot.
 func (b *DeleteSnapshotBuilder) BackupRepository(backupRepositoryName string) *DeleteSnapshotBuilder {
 	b.object.Spec.BackupRepository = backupRepositoryName
+	return b
+}
+
+func (b *DeleteSnapshotBuilder) Phase(phase backupdriverv1.DeleteSnapshotPhase) *DeleteSnapshotBuilder {
+	b.object.Status.Phase = phase
+	return b
+}
+
+func (b *DeleteSnapshotBuilder) DeleteTimestamp(val time.Time) *DeleteSnapshotBuilder {
+	b.object.ObjectMeta.DeletionTimestamp = &metav1.Time{Time: val}
 	return b
 }
