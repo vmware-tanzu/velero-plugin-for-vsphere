@@ -29,7 +29,7 @@ func NewDataManagerProtectedEntityTypeManager(sourcePETM astrolabe.ProtectedEnti
 }
 
 func (this DataManagerProtectedEntityTypeManager) GetProtectedEntity(ctx context.Context, id astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntity, error) {
-	basePE, err := this.GetProtectedEntity(ctx, id)
+	basePE, err := this.ProtectedEntityTypeManager.GetProtectedEntity(ctx, id)
 	if err != nil {
 		return nil, errors.Wrapf(err, "GetProtectedEntity from base PETM failed for PEID %s", id.String())
 	}
