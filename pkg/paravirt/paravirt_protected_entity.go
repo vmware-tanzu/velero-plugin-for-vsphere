@@ -2,6 +2,8 @@ package paravirt
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"io"
 
 	"github.com/pkg/errors"
@@ -88,7 +90,21 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		this.logger.Errorf("Failed to retrieve pe-id from the snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
-	return peIdFromSnap.GetSnapshotID(), nil
+	//Decode the snap-id string
+	snapIdStr := peIdFromSnap.GetSnapshotID().String()
+	snapIdBytes, err := base64.StdEncoding.DecodeString(snapIdStr)
+	if err != nil {
+		errorMsg := fmt.Sprintf("Could not decode snapshot ID encoded string %s", snapIdStr)
+		this.logger.WithError(err).Error(errorMsg)
+		return astrolabe.ProtectedEntitySnapshotID{}, err
+	}
+	decodedSnapPeID, err := astrolabe.NewProtectedEntityIDFromString(string(snapIdBytes))
+	if err != nil {
+		errorMsg := fmt.Sprintf("Could not decode snapshot ID encoded string %s", string(snapIdBytes))
+		this.logger.WithError(err).Error(errorMsg)
+		return astrolabe.ProtectedEntitySnapshotID{}, err
+	}
+	return decodedSnapPeID.GetSnapshotID(), nil
 }
 
 func (this ParaVirtProtectedEntity) ListSnapshots(ctx context.Context) ([]astrolabe.ProtectedEntitySnapshotID, error) {

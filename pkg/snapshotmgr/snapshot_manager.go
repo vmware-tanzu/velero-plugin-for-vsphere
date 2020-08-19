@@ -233,14 +233,14 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		}
 		return true, nil
 	})
-	this.Debugf("Return from the call of astrolabe Snapshot API for PE %s", peID.String())
+	this.Infof("Return from the call of astrolabe Snapshot API for PE %s", peID.String())
 
 	if err != nil {
 		this.WithError(err).Errorf("Failed to Snapshot PE for %s", peID.String())
 		return astrolabe.ProtectedEntityID{}, err
 	}
 
-	this.Debugf("constructing the returned PE snapshot id, %s", peSnapID.GetID())
+	this.Infof("constructing the returned PE snapshot id, %s", peSnapID.GetID())
 	snapshotPEID = peID.IDWithSnapshot(peSnapID)
 
 	this.Infof("Local IVD snapshot is created, %s", snapshotPEID.String())
@@ -346,7 +346,7 @@ func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) er
 
 func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepositoryName string) error {
 	log := this.WithField("peID", peID.String())
-	log.Info("SnapshotManager.BackupDriverDeleteSnapshotWithBackupRepository was called.")
+	log.Info("SnapshotManager.deleteSnapshot was called.")
 	ctx := context.Background()
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -528,7 +528,7 @@ func (this *SnapshotManager) deleteSnapshotFromRepo(peID astrolabe.ProtectedEnti
 		}
 		return true, nil
 	})
-	this.Debugf("Return from the call of astrolabe DeleteSnapshot API for snapshot %s", peID.GetSnapshotID().String())
+	this.Infof("Return from the call of astrolabe DeleteSnapshot API for snapshot %s", peID.GetSnapshotID().String())
 
 	if err != nil {
 		this.WithError(err).Errorf("Failed to delete the snapshot %s", peID.GetSnapshotID().String())
