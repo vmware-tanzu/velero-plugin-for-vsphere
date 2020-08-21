@@ -10,6 +10,7 @@ import (
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
 
 func defaultSnapshot() *builder.SnapshotBuilder {
