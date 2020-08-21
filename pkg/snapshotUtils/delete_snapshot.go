@@ -110,6 +110,8 @@ func WaitForDeleteSnapshotPhases(ctx context.Context,
 		},
 	)
 	stop := make(chan struct{})
+	defer close(stop)
+
 	go controller.Run(stop)
 	select {
 	case <-ctx.Done():

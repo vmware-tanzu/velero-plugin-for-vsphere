@@ -130,6 +130,8 @@ func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client,
 		},
 	)
 	stop := make(chan struct{})
+	defer close(stop)
+
 	go controller.Run(stop)
 	select {
 	case <-ctx.Done():
