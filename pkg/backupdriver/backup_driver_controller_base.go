@@ -415,13 +415,12 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 
 // enqueueSnapshot adds Snapshot to given work queue.
 func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
-	ctrl.logger.Infof("enqueueSnapshot: %+v", obj)
-
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
 	}
 	if snapshot, ok := obj.(*backupdriverapi.Snapshot); ok {
+		ctrl.logger.Infof("enqueueSnapshot: %s", snapshot.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(snapshot)
 		if err != nil {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, snapshot)

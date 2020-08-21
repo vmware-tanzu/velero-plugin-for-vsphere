@@ -124,8 +124,7 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 				if snapshot.Name != snapshotToWait.Name {
 					return
 				}
-				logger.Infof("snapshot changed: %v", snapshot)
-				logger.Infof("phase = %s", snapshot.Status.Phase)
+				logger.Infof("snapshot changed, phase = %s", snapshot.Status.Phase)
 				checkPhasesAndSendResult(waitForPhases, snapshot, results)
 
 			},

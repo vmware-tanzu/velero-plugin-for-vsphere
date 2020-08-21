@@ -18,7 +18,9 @@ package snapshotmgr
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"strings"
 	"time"
@@ -243,7 +245,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Infof("constructing the returned PE snapshot id, %s", peSnapID.GetID())
 	snapshotPEID = peID.IDWithSnapshot(peSnapID)
 
-	this.Infof("Local IVD snapshot is created, %s", snapshotPEID.String())
+	this.Infof("Local snapshot is created, %s", snapshotPEID.String())
 
 	// This is set for Guest Cluster or if the local mode flag is set
 	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
@@ -251,7 +253,6 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
 		return snapshotPEID, nil
 	}
-
 	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
 	_, err = this.UploadSnapshot(snapshotPE, ctx, backupRepositoryName, snapshotRef)
 	if err != nil {
@@ -291,7 +292,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	if uploadPE.GetID().GetPeType() == astrolabe.PvcPEType {
 		components, err := uploadPE.GetComponents(ctx)
 		if err != nil {
-			this.WithError(err).Errorf("Failed to retrive subcomponents for %s", uploadPE.GetID().String())
+			this.WithError(err).Errorf("Failed to retrieve subcomponents for %s", uploadPE.GetID().String())
 			return nil, err
 		}
 		if len(components) != 1 {
@@ -299,7 +300,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 		}
 
 		uploadSnapshotPEID = components[0].GetID()
-		this.Info("UploadSnapshot: componentPEID %s", uploadSnapshotPEID.String())
+		this.Infof("UploadSnapshot: componentPEID %s", uploadSnapshotPEID.String())
 
 	} else {
 		uploadSnapshotPEID = uploadPE.GetID()
@@ -310,7 +311,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 		this.WithError(err).Errorf("Failed to get uploadCR")
 		return nil, err
 	}
-	this.Info("Creating Upload CR: %s/%s", veleroNs, uploadName)
+	this.Infof("Creating Upload CR: %s / %s", veleroNs, uploadName)
 	uploadBuilder := builder.ForUpload(veleroNs, uploadName).
 		BackupTimestamp(time.Now()).
 		NextRetryTimestamp(time.Now()).
@@ -370,14 +371,23 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		// look up velero namespace from the env variable in container
 		veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
 		if !exist {
-			this.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
+			log.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
 			return err
 		}
-		uploadName := "upload-" + peID.GetSnapshotID().GetID()
-		log.Infof("Searching for Upload CR: %v", uploadName)
+		snapIDDecoded, err := decodeSnapshotID(peID.GetSnapshotID(), this.FieldLogger)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to retrieve decoded snapshot id to search for on-going uploads, original pe-id :%s",peID.String())
+			return err
+		}
+		uploadName := "upload-" + snapIDDecoded
+		log.Infof("Searching for Upload CR: %s", uploadName)
 		uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(uploadName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
+			if k8serrors.IsNotFound(err) {
+				log.Errorf("The upload CR: %s was not found, assuming terminal stage", uploadName)
+			}
+			uploadCR = nil
 		}
 		uploadCompleted := this.isTerminalState(uploadCR)
 		if uploadCR != nil && !uploadCompleted {
@@ -403,7 +413,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	}
 	pe, err := this.Pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
-		this.WithError(err).Errorf("Failed to GetProtectedEntity for %s", peID.String())
+		log.WithError(err).Errorf("Failed to GetProtectedEntity for %s", peID.String())
 		return err
 	}
 	// Snapshot params
@@ -712,4 +722,27 @@ func uploadCRNameForSnapshotPEID(snapshotPEID astrolabe.ProtectedEntityID) (stri
 		return "", errors.New(fmt.Sprintf("snapshotPEID %s does not have a snapshot ID", snapshotPEID.String()))
 	}
 	return "upload-" + snapshotPEID.GetSnapshotID().String(), nil
+}
+
+func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger logrus.FieldLogger) (string, error) {
+	// Decode incoming snapshot ID until we retrieve the ivd snapshot-id.
+	snapshotID64Str := snapshotID.String()
+	snapshotIDBytes, err := base64.RawStdEncoding.DecodeString(snapshotID64Str)
+	if err != nil {
+		errorMsg := fmt.Sprintf("Could not decode snapshot ID encoded string %s", snapshotID64Str)
+		logger.WithError(err).Error(errorMsg)
+		return "", errors.Wrap(err, errorMsg)
+	}
+	decodedPEID, err := astrolabe.NewProtectedEntityIDFromString(string(snapshotIDBytes))
+	if err != nil {
+		errorMsg := fmt.Sprintf("Could not translate decoded snapshotID %s into pe-id", string(snapshotIDBytes))
+		logger.WithError(err).Error(errorMsg)
+		return "", errors.Wrap(err, errorMsg)
+	}
+	logger.Infof("Successfully translated snapshotID %s into pe-id: %s",string(snapshotIDBytes), decodedPEID.String())
+	if decodedPEID.HasSnapshot() && decodedPEID.GetPeType() != "ivd" {
+		logger.Infof("The translated pe-id is not ivd type, recurring for further decode")
+		return decodeSnapshotID(decodedPEID.GetSnapshotID(), logger)
+	}
+	return decodedPEID.GetSnapshotID().String(), nil
 }

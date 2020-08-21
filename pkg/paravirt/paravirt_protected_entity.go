@@ -2,8 +2,6 @@ package paravirt
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
 	"io"
 
 	"github.com/pkg/errors"
@@ -59,7 +57,7 @@ func (this ParaVirtProtectedEntity) GetCombinedInfo(ctx context.Context) ([]astr
 }
 
 func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[string]map[string]interface{}) (astrolabe.ProtectedEntitySnapshotID, error) {
-	this.logger.Infof("CreateSnapshot called on Paravirtualized Protected Entity, %v", this.id.String())
+	this.logger.Infof("CreateSnapshot called on Para-virtualized Protected Entity, %v", this.id.String())
 	// create snapshot CR using snapshot utils
 	peInfo, err := this.GetInfo(context.TODO())
 	if err != nil {
@@ -85,31 +83,26 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
+	this.logger.Infof("Supervisor snapshot status detected as done, extracted snapshotID : %s", snapshot.Status.SnapshotID)
 	peIdFromSnap, err := astrolabe.NewProtectedEntityIDFromString(snapshot.Status.SnapshotID)
 	if err != nil {
 		this.logger.Errorf("Failed to retrieve pe-id from the snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
-	//Decode the snap-id string
-	snapIdStr := peIdFromSnap.GetSnapshotID().String()
-	snapIdBytes, err := base64.StdEncoding.DecodeString(snapIdStr)
-	if err != nil {
-		errorMsg := fmt.Sprintf("Could not decode snapshot ID encoded string %s", snapIdStr)
-		this.logger.WithError(err).Error(errorMsg)
-		return astrolabe.ProtectedEntitySnapshotID{}, err
-	}
-	decodedSnapPeID, err := astrolabe.NewProtectedEntityIDFromString(string(snapIdBytes))
-	if err != nil {
-		errorMsg := fmt.Sprintf("Could not decode snapshot ID encoded string %s", string(snapIdBytes))
-		this.logger.WithError(err).Error(errorMsg)
-		return astrolabe.ProtectedEntitySnapshotID{}, err
-	}
-	return decodedSnapPeID.GetSnapshotID(), nil
+	return peIdFromSnap.GetSnapshotID(), nil
 }
 
 func (this ParaVirtProtectedEntity) ListSnapshots(ctx context.Context) ([]astrolabe.ProtectedEntitySnapshotID, error) {
-	panic("implement me")
-	// Depends on ListSnapshots API in SnapshotUtils
+	this.logger.Infof("ParaVirtProtectedEntity: ListSnapshots called on Para-virtualized Protected Entity, %v", this.id.String())
+	returnIDs := make([]astrolabe.ProtectedEntitySnapshotID, 0)
+	peInfo, err := this.GetInfo(ctx)
+	if err != nil {
+		this.logger.Errorf("Failed to get info for Para-Virt ProtectedEntity %v", this.id.String())
+		return returnIDs, errors.WithStack(err)
+	}
+	this.logger.Infof("ParaVirtProtectedEntity: Retrieved Para-virtualized Protected Entity Info : %s", peInfo.GetID().String())
+
+	return returnIDs, nil
 }
 
 func (this ParaVirtProtectedEntity) DeleteSnapshot(
@@ -122,11 +115,13 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 		this.logger.Errorf("Failed to get info for ParaVirtProtectedEntity %v", this.id.String())
 		return false, errors.WithStack(err)
 	}
+	this.logger.Infof("ParaVirtProtectedEntity: Retrieved info id: %s, name: %s",peInfo.GetID().String(), peInfo.GetName())
 
 	backupRepositoryName, ok := params[astrolabe.PvcPEType]["BackupRepositoryName"].(string)
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
+
 	// Reconstruct the snapshot-id to delete.
 	peID := astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(
 		astrolabe.PvcPEType,
@@ -134,6 +129,7 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 		this.pvpetm.svcNamespace,
 		snapshotToDelete.String())
 	this.logger.Infof("ParaVirtProtectedEntity: Reconstructed peID: %s", peID.String())
+
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 	_, err = snapshotUtils.DeleteSnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, peID.String(), this.pvpetm.svcNamespace, *backupRepository,
 		[]backupdriverv1api.DeleteSnapshotPhase{backupdriverv1api.DeleteSnapshotPhaseCompleted, backupdriverv1api.DeleteSnapshotPhaseFailed}, this.logger)
@@ -181,8 +177,6 @@ func (this ParaVirtProtectedEntity) getVolumeHandleFromPV() (string, error) {
 
 	return pv.Spec.CSI.VolumeHandle, nil
 }
-
-// Package functions
 
 func newParaVirtProtectedEntity(pvpetm *ParaVirtProtectedEntityTypeManager, id astrolabe.ProtectedEntityID) (ParaVirtProtectedEntity, error) {
 	data, metadata, combined, err := pvpetm.getDataTransports(id)
