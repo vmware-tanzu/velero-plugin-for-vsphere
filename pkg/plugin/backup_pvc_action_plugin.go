@@ -107,7 +107,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	p.Log.Info("Creating a Snapshot CR")
 	updatedSnapshot, err := snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository,
-		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted, backupdriverv1.SnapshotPhaseSnapshotFailed}, p.Log)
+		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted, backupdriverv1.SnapshotPhaseSnapshotFailed, backupdriverv1.SnapshotPhaseUploaded, backupdriverv1.SnapshotPhaseUploading, backupdriverv1.SnapshotPhaseUploadFailed, backupdriverv1.SnapshotPhaseCanceling, backupdriverv1.SnapshotPhaseCanceled, backupdriverv1.SnapshotPhaseCleanupFailed}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a Snapshot CR: %v", err)
 		return nil, nil, errors.WithStack(err)
@@ -116,6 +116,19 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		errMsg := fmt.Sprintf("Failed to create a Snapshot CR: Phase=SnapshotFailed, err=%v", updatedSnapshot.Status.Message)
 		p.Log.Error(errMsg)
 		return nil, nil, errors.New(errMsg)
+	} else if updatedSnapshot.Status.Phase == backupdriverv1.SnapshotPhaseUploadFailed {
+		errMsg := fmt.Sprintf("Failed to upload a Snapshot: Phase=UploadFailed, err=%v", updatedSnapshot.Status.Message)
+		p.Log.Error(errMsg)
+		return nil, nil, errors.New(errMsg)
+	} else if updatedSnapshot.Status.Phase == backupdriverv1.SnapshotPhaseCanceled {
+		errMsg := fmt.Sprintf("Snapshot upload canceled: Phase=Canceled, err=%v", updatedSnapshot.Status.Message)
+		p.Log.Error(errMsg)
+		return nil, nil, errors.New(errMsg)
+	} else if updatedSnapshot.Status.Phase == backupdriverv1.SnapshotPhaseCleanupFailed {
+		errMsg := fmt.Sprintf("Failed to clean up a local snapshot after upload: Phase=CleanupAfterUploadFailed, err=%v", updatedSnapshot.Status.Message)
+		p.Log.Error(errMsg)
+		// Since upload is successful, log an error but don't return error so that backup will be considered successful
+		// return nil, nil, errors.New(errMsg)
 	}
 
 	p.Log.Infof("Persisting snapshot with snapshotID :%s under label: %s Snapshot: %v", updatedSnapshot.Status.SnapshotID, utils.ItemSnapshotLabel, updatedSnapshot)
