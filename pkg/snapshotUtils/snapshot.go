@@ -132,6 +132,8 @@ func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snap
 		},
 	)
 	stop := make(chan struct{})
+	defer close(stop)
+
 	go controller.Run(stop)
 	select {
 	case <-ctx.Done():
