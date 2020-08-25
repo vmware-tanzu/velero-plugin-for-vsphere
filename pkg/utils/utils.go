@@ -713,21 +713,6 @@ func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*
 	return backupRepositoryCR, nil
 }
 
-// Get the supervisor snapshot name from guest cluster snapshot ID
-// The snapshot ID format in the guest is PEType:pvcName:svcSnapshotName
-func GetSvcSnapshotName(snapshotId string) (string, error) {
-	if snapshotId == "" {
-		return "", errors.New("Snapshot ID is empty")
-	}
-
-	// The last part of the guest snapshot ID is the supervisor snapshot CR name
-	snapshotIdParts := strings.Split(snapshotId, ":")
-	if len(snapshotIdParts) != 3 {
-		return "", errors.New("Snapshot ID has invalid format")
-	}
-	return snapshotIdParts[len(snapshotIdParts)-1], nil
-}
-
 // Retrieve image repository from image name here. We expect the following format
 // for image name: <repo-level1>/<repo-level2>/.../<plugin-bin-name>:<tag>. plugin-bin-name
 // and tag should not include '/'.

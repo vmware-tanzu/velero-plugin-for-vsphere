@@ -97,6 +97,11 @@ spec:
               description: Snapshot ID that has been taken.  This will be filled in
                 when the phase goes to "Snapshotted"
               type: string
+            svcSnapshotName:
+              description: For guest clusters, save the name of the corresponding
+                supervisor cluster snapshot name. This is used to track the upload
+                status from the supervisor cluster.
+              type: string
           type: object
       required:
       - spec

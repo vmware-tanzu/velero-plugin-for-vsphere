@@ -69,6 +69,11 @@ type SnapshotStatus struct {
 	// +optional
 	SnapshotID string `json:"snapshotID,omitempty"`
 
+	// +optional
+	// For guest clusters, save the name of the corresponding supervisor cluster snapshot name.
+	// This is used to track the upload status from the supervisor cluster.
+	SvcSnapshotName string `json:"svcSnapshotName"`
+
 	// Metadata for the snapshotted object
 	Metadata []byte `json:"metadata,omitempty"`
 }

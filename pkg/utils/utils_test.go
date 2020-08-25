@@ -278,83 +278,34 @@ func TestRerieveVcConfigSecret(t *testing.T) {
 	}
 }
 
-func TestGetSvcSnapshotName(t *testing.T) {
-	type args struct {
-		snapshotId string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{
-			name:    "valid snapshotID",
-			args:    args{"pvc:ns/dynamic-block-pvc:snap-e51f7fc5-613a-42ed-891f-3b47fa092d43"},
-			want:    "snap-e51f7fc5-613a-42ed-891f-3b47fa092d43",
-			wantErr: false,
-		},
-		{
-			name:    "invalid empty snapshotID",
-			args:    args{""},
-			want:    "",
-			wantErr: true,
-		},
-		{
-			name:    "invalid incomplete snapshotID",
-			args:    args{"pvc:ns/dynamic-block-pvc"},
-			want:    "",
-			wantErr: true,
-		},
-		{
-			name:    "invalid extended snapshotID",
-			args:    args{"pvc:ns/dynamic-block-pvc:snap-id:additional-id"},
-			want:    "",
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetSvcSnapshotName(tt.args.snapshotId)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetSvcSnapshotName() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("GetSvcSnapshotName() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGetRepo(t *testing.T) {
 	tests := []struct {
 		name     string
 		image    string
 		expected string
-	} {
+	}{
 		{
 			name:     "Top level registry",
 			image:    "harbor.mylab.local/velero-plugin-for-vsphere:1.0.1",
 			expected: "harbor.mylab.local",
 		},
 		{
-			name :    "Multiple level registry",
+			name:     "Multiple level registry",
 			image:    "harbor.mylab.local/library/velero-plugin-for-vsphere:1.0.1",
 			expected: "harbor.mylab.local/library",
 		},
 		{
-			name :    "No / should return empty string",
+			name:     "No / should return empty string",
 			image:    "velero-plugin-for-vsphere:1.0.1",
 			expected: "",
 		},
 		{
-			name :    "/ appears in beginning should return empty string",
+			name:     "/ appears in beginning should return empty string",
 			image:    "/velero-plugin-for-vsphere:1.0.1",
 			expected: "",
 		},
 		{
-			name :    "Empty input should return empty string",
+			name:     "Empty input should return empty string",
 			image:    "",
 			expected: "",
 		},

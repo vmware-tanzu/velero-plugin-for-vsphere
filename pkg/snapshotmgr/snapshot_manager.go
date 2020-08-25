@@ -190,24 +190,26 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
-	return this.createSnapshot(peID, tags, "", "")
+	peID, _, err := this.createSnapshot(peID, tags, "", "")
+	return peID, err
 }
 
 func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string,
-	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, error) {
+	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, string, error) {
 	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v, BackupRepository %s",
 		peID.String(), tags, backupRepositoryName)
 	return this.createSnapshot(peID, tags, backupRepositoryName, snapshotRef)
 }
 
-func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string, backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, error) {
+func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string,
+	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, string, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var snapshotPEID astrolabe.ProtectedEntityID
 	ctx := context.Background()
 	pe, err := this.Pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to GetProtectedEntity for %s", peID.String())
-		return astrolabe.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, "", err
 	}
 
 	// Snapshot params
@@ -237,7 +239,14 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 	if err != nil {
 		this.WithError(err).Errorf("Failed to Snapshot PE for %s", peID.String())
-		return astrolabe.ProtectedEntityID{}, err
+		return astrolabe.ProtectedEntityID{}, "", err
+	}
+
+	// Set the supervisor snapshot name is exists
+	svcSnapshotName := ""
+	if _, ok := guestSnapshotParams[paravirt.SnapshotParamSvcSnapshotName]; ok {
+		svcSnapshotName = fmt.Sprintf("%v", guestSnapshotParams[paravirt.SnapshotParamSvcSnapshotName])
+		this.Infof("Supervisor snapshot is created, %s", svcSnapshotName)
 	}
 
 	this.Debugf("constructing the returned PE snapshot id, %s", peSnapID.GetID())
@@ -249,16 +258,16 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
 	if isLocalMode {
 		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
-		return snapshotPEID, nil
+		return snapshotPEID, svcSnapshotName, nil
 	}
 
 	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
 	_, err = this.UploadSnapshot(snapshotPE, ctx, backupRepositoryName, snapshotRef)
 	if err != nil {
-		return astrolabe.ProtectedEntityID{}, err
+		return snapshotPEID, svcSnapshotName, err
 	}
 
-	return snapshotPEID, nil
+	return snapshotPEID, svcSnapshotName, nil
 }
 
 /*
@@ -318,7 +327,6 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 		SnapshotReference(snapshotRef).
 		SnapshotID(uploadSnapshotPEID.String())
 
-
 	if backupRepositoryName != "" {
 		this.Infof("Create upload CR with backup repository %s", backupRepositoryName)
 		uploadBuilder = uploadBuilder.BackupRepositoryName(backupRepositoryName)
@@ -326,7 +334,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	upload := uploadBuilder.Result()
 	this.Infof("Ready to create upload CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
 	var retUpload *v1api.Upload
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
 		retUpload, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(upload)
 		if err != nil {
 			return false, err
@@ -550,7 +558,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 	}
 	download := downloadBuilder.Result()
 	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
 		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(download)
 		if err != nil {
 			return false, nil

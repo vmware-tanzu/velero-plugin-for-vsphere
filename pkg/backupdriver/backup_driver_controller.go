@@ -74,7 +74,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 		brName = br.SvcBackupRepositoryName
 	}
 
-	peID, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name)
+	peID, svcSnapshotName, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name)
 	if err != nil {
 		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
 		ctrl.logger.Error(errMsg)
@@ -99,6 +99,9 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	snapshotClone.Status.Progress.TotalBytes = 0
 	snapshotClone.Status.Progress.BytesDone = 0
 	snapshotClone.Status.SnapshotID = snapshotID
+	if svcSnapshotName != "" {
+		snapshotClone.Status.SvcSnapshotName = svcSnapshotName
+	}
 
 	ctx := context.Background()
 	pe, err := ctrl.snapManager.Pem.GetProtectedEntity(ctx, peID)
