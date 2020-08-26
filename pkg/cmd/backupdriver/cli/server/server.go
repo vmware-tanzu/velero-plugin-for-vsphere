@@ -166,6 +166,8 @@ type server struct {
 }
 
 func (s *server) run() error {
+	s.ctx, s.cancelFunc = context.WithCancel(context.Background())
+	defer s.cancelFunc() // We shouldn't exit until everything is shutdown anyhow, but this ensures there are no leaks
 	s.logger.Infof("backup-driver server is up and running")
 	signals.CancelOnShutdown(s.cancelFunc, s.logger)
 
@@ -235,7 +237,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
 	snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
 	var svcConfig *rest.Config
@@ -318,8 +319,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		kubeInformerFactory:            kubeInformerFactory,
 		svcKubeInformerFactory:         svcKubeInformerFactory,
 		svcBackupdriverInformerFactory: svcBackupdriverInformerFactory,
-		ctx:                            ctx,
-		cancelFunc:                     cancelFunc,
 		logger:                         logger,
 		logLevel:                       logger.Level,
 		config:                         config,

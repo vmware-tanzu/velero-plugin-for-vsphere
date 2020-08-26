@@ -73,7 +73,8 @@ func TestWaitForPhases(t *testing.T) {
 		t.Fatalf("writtenSnapshot =%v, err = %v", writtenSnapshot, err)
 	}
 
-	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	timeoutContext, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	defer cancelFunc()
 	updatedSnapshot, err := WaitForPhases(timeoutContext, clientSet, testSnapshot, []backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted}, "backup-driver", logger)
 	if err != nil {
 		t.Fatalf("WaitForPhases returned err = %v\n", err)
@@ -139,7 +140,8 @@ func TestWaitForClonePhases(t *testing.T) {
 		t.Fatalf("writtenClone =%v, err = %v", writtenClone, err)
 	}
 
-	timeoutContext, _ := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	timeoutContext, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	defer cancelFunc()
 	updatedClone, err := WaitForClonePhases(timeoutContext, clientSet, testClone, []backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted}, "backup-driver", logger)
 	if err != nil {
 		t.Fatalf("WaitForClonePhases returned err = %v\n", err)
