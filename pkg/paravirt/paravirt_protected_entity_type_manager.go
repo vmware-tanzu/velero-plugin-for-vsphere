@@ -30,6 +30,7 @@ const (
 
 const (
 	SnapshotParamBackupRepository = "BackupRepository"
+	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
 )
 
 type ParaVirtProtectedEntityTypeManager struct {

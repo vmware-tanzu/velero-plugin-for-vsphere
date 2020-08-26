@@ -83,7 +83,8 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
-
+	// Return the supervisor snapshot name as part of the param map.
+	params[astrolabe.PvcPEType][SnapshotParamSvcSnapshotName] = snapshot.Name
 	return astrolabe.NewProtectedEntitySnapshotID(snapshot.Name), nil
 }
 

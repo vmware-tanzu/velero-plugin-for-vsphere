@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-
 	"k8s.io/client-go/rest"
 
 	"github.com/sirupsen/logrus"
@@ -387,16 +385,11 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 
 	// For guest clusters, add supervisor Snapshot to guest snapshot mapping if not already added
 	// The key is <supervisor snapshot CR name> and value is <guest snapshot namespace>:<guest snapshot CR name>
-	if ctrl.svcKubeConfig != nil && snapshot.Status.SnapshotID != "" {
-		svcSnapshotName, err := utils.GetSvcSnapshotName(snapshot.Status.SnapshotID)
-		if err != nil {
-			ctrl.logger.WithError(err).Debugf("Skipping snapshot, %s, which does not have valid Snapshot ID %s.",
-				snapshot.Name, snapshot.Status.SnapshotID)
-			return nil
-		}
-		if _, ok := ctrl.svcSnapshotMap[svcSnapshotName]; !ok {
-			ctrl.svcSnapshotMap[svcSnapshotName] = snapshot.Namespace + ":" + snapshot.Name
-			ctrl.logger.Infof("Added supervisor snapshot %s to guest snapshot %s mapping", svcSnapshotName, ctrl.svcSnapshotMap[svcSnapshotName])
+	if ctrl.svcKubeConfig != nil && snapshot.Status.SvcSnapshotName != "" {
+		if _, ok := ctrl.svcSnapshotMap[snapshot.Status.SvcSnapshotName]; !ok {
+			ctrl.svcSnapshotMap[snapshot.Status.SvcSnapshotName] = snapshot.Namespace + ":" + snapshot.Name
+			ctrl.logger.Infof("Added supervisor snapshot %s to guest snapshot %s mapping",
+				snapshot.Status.SvcSnapshotName, ctrl.svcSnapshotMap[snapshot.Status.SvcSnapshotName])
 		}
 	}
 
@@ -440,16 +433,11 @@ func (ctrl *backupDriverController) delSnapshot(obj interface{}) {
 			obj = unknown.Obj
 		}
 		if snapshot, ok := obj.(*backupdriverapi.Snapshot); ok {
-			if snapshot.Status.SnapshotID != "" {
-				svcSnapshotName, err := utils.GetSvcSnapshotName(snapshot.Status.SnapshotID)
-				if err != nil {
-					ctrl.logger.WithError(err).Debugf("Skipping snapshot, %s, which does not have valid Snapshot ID %s.",
-						snapshot.Name, snapshot.Status.SnapshotID)
-				}
-				if _, ok := ctrl.svcSnapshotMap[svcSnapshotName]; ok {
+			if snapshot.Status.SvcSnapshotName != "" {
+				if _, ok := ctrl.svcSnapshotMap[snapshot.Status.SvcSnapshotName]; ok {
 					ctrl.logger.Infof("Deleting supervisor snapshot %s to guest snapshot %s mapping",
-						svcSnapshotName, ctrl.svcSnapshotMap[svcSnapshotName])
-					delete(ctrl.svcSnapshotMap, svcSnapshotName)
+						snapshot.Status.SvcSnapshotName, ctrl.svcSnapshotMap[snapshot.Status.SvcSnapshotName])
+					delete(ctrl.svcSnapshotMap, snapshot.Status.SvcSnapshotName)
 				}
 			}
 		}
