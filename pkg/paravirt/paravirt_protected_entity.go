@@ -129,7 +129,7 @@ func (this ParaVirtProtectedEntity) Overwrite(ctx context.Context, sourcePE astr
 }
 
 func (this ParaVirtProtectedEntity) getVolumeHandleFromPV() (string, error) {
-	pv, err := this.pvpetm.gcKubeClientSet.CoreV1().PersistentVolumes().Get(this.id.GetID(), metav1.GetOptions{})
+	pv, err := this.pvpetm.gcKubeClientSet.CoreV1().PersistentVolumes().Get(context.TODO(), this.id.GetID(), metav1.GetOptions{})
 	if err != nil {
 		return "", errors.Wrapf(err, "Could not retrieve pv with name %s", this.id.GetID())
 	}

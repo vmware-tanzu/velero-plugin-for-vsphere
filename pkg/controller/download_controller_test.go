@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/agiledragon/gomonkey"
@@ -318,7 +319,7 @@ func TestProcessedDownloadItem(t *testing.T) {
 			c.processDownloadFunc = c.processDownload
 			err := c.processDownloadItem(test.key)
 			require.Equal(t, test.expectedErr == nil, err == nil)
-			res, err := c.downloadClient.Downloads(test.download.Namespace).Get(test.download.Name, metav1.GetOptions{})
+			res, err := c.downloadClient.Downloads(test.download.Namespace).Get(context.TODO(), test.download.Name, metav1.GetOptions{})
 			require.Nil(t, err)
 			require.Equal(t, test.expectedPhase, res.Status.Phase)
 		})

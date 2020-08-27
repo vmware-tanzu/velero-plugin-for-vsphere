@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var clonefromsnapshotsResource = schema.GroupVersionResource{Group: "backupdrive
 var clonefromsnapshotsKind = schema.GroupVersionKind{Group: "backupdriver.io", Version: "v1", Kind: "CloneFromSnapshot"}
 
 // Get takes name of the cloneFromSnapshot, and returns the corresponding cloneFromSnapshot object, and an error if there is any.
-func (c *FakeCloneFromSnapshots) Get(name string, options v1.GetOptions) (result *backupdriverv1.CloneFromSnapshot, err error) {
+func (c *FakeCloneFromSnapshots) Get(ctx context.Context, name string, options v1.GetOptions) (result *backupdriverv1.CloneFromSnapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(clonefromsnapshotsResource, c.ns, name), &backupdriverv1.CloneFromSnapshot{})
 
@@ -50,7 +52,7 @@ func (c *FakeCloneFromSnapshots) Get(name string, options v1.GetOptions) (result
 }
 
 // List takes label and field selectors, and returns the list of CloneFromSnapshots that match those selectors.
-func (c *FakeCloneFromSnapshots) List(opts v1.ListOptions) (result *backupdriverv1.CloneFromSnapshotList, err error) {
+func (c *FakeCloneFromSnapshots) List(ctx context.Context, opts v1.ListOptions) (result *backupdriverv1.CloneFromSnapshotList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(clonefromsnapshotsResource, clonefromsnapshotsKind, c.ns, opts), &backupdriverv1.CloneFromSnapshotList{})
 
@@ -72,14 +74,14 @@ func (c *FakeCloneFromSnapshots) List(opts v1.ListOptions) (result *backupdriver
 }
 
 // Watch returns a watch.Interface that watches the requested cloneFromSnapshots.
-func (c *FakeCloneFromSnapshots) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeCloneFromSnapshots) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(clonefromsnapshotsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a cloneFromSnapshot and creates it.  Returns the server's representation of the cloneFromSnapshot, and an error, if there is any.
-func (c *FakeCloneFromSnapshots) Create(cloneFromSnapshot *backupdriverv1.CloneFromSnapshot) (result *backupdriverv1.CloneFromSnapshot, err error) {
+func (c *FakeCloneFromSnapshots) Create(ctx context.Context, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot, opts v1.CreateOptions) (result *backupdriverv1.CloneFromSnapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(clonefromsnapshotsResource, c.ns, cloneFromSnapshot), &backupdriverv1.CloneFromSnapshot{})
 
@@ -90,7 +92,7 @@ func (c *FakeCloneFromSnapshots) Create(cloneFromSnapshot *backupdriverv1.CloneF
 }
 
 // Update takes the representation of a cloneFromSnapshot and updates it. Returns the server's representation of the cloneFromSnapshot, and an error, if there is any.
-func (c *FakeCloneFromSnapshots) Update(cloneFromSnapshot *backupdriverv1.CloneFromSnapshot) (result *backupdriverv1.CloneFromSnapshot, err error) {
+func (c *FakeCloneFromSnapshots) Update(ctx context.Context, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot, opts v1.UpdateOptions) (result *backupdriverv1.CloneFromSnapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(clonefromsnapshotsResource, c.ns, cloneFromSnapshot), &backupdriverv1.CloneFromSnapshot{})
 
@@ -102,7 +104,7 @@ func (c *FakeCloneFromSnapshots) Update(cloneFromSnapshot *backupdriverv1.CloneF
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeCloneFromSnapshots) UpdateStatus(cloneFromSnapshot *backupdriverv1.CloneFromSnapshot) (*backupdriverv1.CloneFromSnapshot, error) {
+func (c *FakeCloneFromSnapshots) UpdateStatus(ctx context.Context, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot, opts v1.UpdateOptions) (*backupdriverv1.CloneFromSnapshot, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(clonefromsnapshotsResource, "status", c.ns, cloneFromSnapshot), &backupdriverv1.CloneFromSnapshot{})
 
@@ -113,7 +115,7 @@ func (c *FakeCloneFromSnapshots) UpdateStatus(cloneFromSnapshot *backupdriverv1.
 }
 
 // Delete takes name of the cloneFromSnapshot and deletes it. Returns an error if one occurs.
-func (c *FakeCloneFromSnapshots) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeCloneFromSnapshots) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(clonefromsnapshotsResource, c.ns, name), &backupdriverv1.CloneFromSnapshot{})
 
@@ -121,15 +123,15 @@ func (c *FakeCloneFromSnapshots) Delete(name string, options *v1.DeleteOptions) 
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeCloneFromSnapshots) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(clonefromsnapshotsResource, c.ns, listOptions)
+func (c *FakeCloneFromSnapshots) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(clonefromsnapshotsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &backupdriverv1.CloneFromSnapshotList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched cloneFromSnapshot.
-func (c *FakeCloneFromSnapshots) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *backupdriverv1.CloneFromSnapshot, err error) {
+func (c *FakeCloneFromSnapshots) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *backupdriverv1.CloneFromSnapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(clonefromsnapshotsResource, c.ns, name, pt, data, subresources...), &backupdriverv1.CloneFromSnapshot{})
 

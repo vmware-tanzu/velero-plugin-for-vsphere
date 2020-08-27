@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -61,13 +62,13 @@ func NewFilteredSnapshotInformer(client versioned.Interface, namespace string, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.BackupdriverV1().Snapshots(namespace).List(options)
+				return client.BackupdriverV1().Snapshots(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.BackupdriverV1().Snapshots(namespace).Watch(options)
+				return client.BackupdriverV1().Snapshots(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&backupdriverv1.Snapshot{},

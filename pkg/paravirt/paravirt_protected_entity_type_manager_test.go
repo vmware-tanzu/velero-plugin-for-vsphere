@@ -68,7 +68,7 @@ func getSupervisorConfig(gcClientSet *kubernetes.Clientset, secretDataMap map[st
 }
 
 func parseCSIConfigmapData(gcClientSet *kubernetes.Clientset, csiNamespace, csiConfigmapName string, params map[string]string) error {
-	csiConfigmap, err := gcClientSet.CoreV1().ConfigMaps(csiNamespace).Get(csiConfigmapName, metav1.GetOptions{})
+	csiConfigmap, err := gcClientSet.CoreV1().ConfigMaps(csiNamespace).Get(context.TODO(), csiConfigmapName, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrap(err, "Failed to get the pvCSI config map as expected")
 	}
@@ -118,7 +118,7 @@ func TestGetProtectedEntity(t *testing.T) {
 	}
 
 	// Prerequisite checks on the availability of GCM credential via the providerserviceaccount CRD
-	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(TARGETSECRETNAME, metav1.GetOptions{})
+	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(context.TODO(), TARGETSECRETNAME, metav1.GetOptions{})
 	if err != nil {
 		t.Skipf("Failed to get the required gcm credential: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestSnapshotOps(t *testing.T) {
 	}
 
 	// Prerequisite checks on the availability of GCM credential via the providerserviceaccount CRD
-	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(TARGETSECRETNAME, metav1.GetOptions{})
+	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(context.TODO(), TARGETSECRETNAME, metav1.GetOptions{})
 	if err != nil {
 		t.Skipf("Failed to get the required gcm credential: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestPVCSnapshotOps(t *testing.T) {
 	}
 
 	// Prerequisite checks on the availability of GCM credential via the providerserviceaccount CRD
-	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(TARGETSECRETNAME, metav1.GetOptions{})
+	gcmSecret, err := gcClientSet.CoreV1().Secrets(TARGETNAMESPACE).Get(context.TODO(), TARGETSECRETNAME, metav1.GetOptions{})
 	if err != nil {
 		t.Skipf("Failed to get the required gcm credential: %v", err)
 	}

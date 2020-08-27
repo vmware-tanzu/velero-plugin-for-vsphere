@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -87,7 +88,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	vsphere_secrets := []string{VCSecret, VCSecretTKG}
 	var secret *k8sv1.Secret
 	for _, vsphere_secret := range vsphere_secrets {
-		secret, err = secretApis.Get(vsphere_secret, metav1.GetOptions{})
+		secret, err = secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
 		if err == nil {
 			logger.Infof("Retrieved k8s secret, %s", vsphere_secret)
 			break
@@ -163,7 +164,7 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 	}
 
 	secretsClient := clientset.CoreV1().Secrets(veleroNs)
-	secret, err := secretsClient.Get(CloudCredentialSecretName, metav1.GetOptions{})
+	secret, err := secretsClient.Get(context.TODO(), CloudCredentialSecretName, metav1.GetOptions{})
 	if err != nil {
 		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", CloudCredentialSecretName)
 		return err
@@ -229,12 +230,12 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 
 	var backupStorageLocation *v1.BackupStorageLocation
 	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations(veleroNs).
-		Get(bslName, metav1.GetOptions{})
+		Get(context.TODO(), bslName, metav1.GetOptions{})
 
 	if err != nil {
 		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero %s backup storage location,"+
 			" attempting to find available BSL", bslName)
-		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
+		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
 		if err != nil || len(backupStorageLocationList.Items) <= 0 {
 			logger.WithError(err).Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 			return err
@@ -409,7 +410,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 		return "", err
 	}
 
-	pvList, err := clientset.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	pvList, err := clientset.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -427,7 +428,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 		return "", NewNotFoundError(errMsg)
 	}
 
-	podList, err := clientset.CoreV1().Pods(claimRefNs).List(metav1.ListOptions{})
+	podList, err := clientset.CoreV1().Pods(claimRefNs).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -479,7 +480,7 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 		return nil, errors.Wrapf(err, "Failed to creat json merge patch for Upload")
 	}
 
-	req, err = uploadClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	req, err = uploadClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to patch Upload")
 	}
@@ -510,7 +511,7 @@ func PatchBackupRepositoryClaim(req *backupdriverapi.BackupRepositoryClaim,
 		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepositoryClaim")
 	}
 
-	req, err = backupRepoClaimClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	req, err = backupRepoClaimClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to patch BackupRepositoryClaim")
 	}
@@ -541,7 +542,7 @@ func PatchBackupRepository(req *backupdriverapi.BackupRepository,
 		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepository")
 	}
 
-	req, err = backupRepoClient.Patch(req.Name, types.MergePatchType, patchBytes)
+	req, err = backupRepoClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to patch BackupRepository")
 	}
@@ -569,7 +570,7 @@ func GetClusterFlavor(config *rest.Config) (ClusterFlavor, error) {
 	secretApis := clientset.CoreV1().Secrets(ns)
 	vsphere_secrets := []string{VCSecret, VCSecretTKG}
 	for _, vsphere_secret := range vsphere_secrets {
-		_, err := secretApis.Get(vsphere_secret, metav1.GetOptions{})
+		_, err := secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
 		if err == nil {
 			return VSphere, nil
 		}
@@ -579,7 +580,7 @@ func GetClusterFlavor(config *rest.Config) (ClusterFlavor, error) {
 	// Check if vSphere secret is available in appropriate namespace.
 	ns = VCSecretNsSupervisor
 	secretApis = clientset.CoreV1().Secrets(ns)
-	_, err = secretApis.Get(VCSecret, metav1.GetOptions{})
+	_, err = secretApis.Get(context.TODO(), VCSecret, metav1.GetOptions{})
 	if err == nil {
 		return Supervisor, nil
 	}
@@ -587,7 +588,7 @@ func GetClusterFlavor(config *rest.Config) (ClusterFlavor, error) {
 	// Check if in guest cluster.
 	// Check for the supervisor service in the guest cluster.
 	serviceApi := clientset.CoreV1().Services("default")
-	_, err = serviceApi.Get(TkgSupervisorService, metav1.GetOptions{})
+	_, err = serviceApi.Get(context.TODO(), TkgSupervisorService, metav1.GetOptions{})
 	if err == nil {
 		return TkgGuest, nil
 	}
@@ -663,7 +664,7 @@ func GetSupervisorParameters(config *rest.Config, ns string, logger logrus.Field
 		return params, err
 	}
 
-	nsapi, err := clientset.CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
+	nsapi, err := clientset.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
 	if err != nil {
 		logger.WithError(err).Errorf("Could not get namespace object for supervisor namespace %s", ns)
 		return params, err
@@ -705,7 +706,7 @@ func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*
 		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
 		return nil, errors.Wrapf(err, errMsg)
 	}
-	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(backupRepositoryName, metav1.GetOptions{})
+	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 	if err != nil {
 		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 		return nil, errors.Wrapf(err, errMsg)

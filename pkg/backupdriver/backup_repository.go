@@ -43,7 +43,7 @@ func ClaimBackupRepository(ctx context.Context,
 	// Any BR that references any of the BRC in the map can be returned.
 	brcMap := make(map[string]*backupdriverv1.BackupRepositoryClaim)
 
-	brcList, err := backupdriverV1Client.BackupRepositoryClaims(ns).List(metav1.ListOptions{})
+	brcList, err := backupdriverV1Client.BackupRepositoryClaims(ns).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return "", errors.Errorf("Failed to list backup repository claims from the %v namespace", ns)
 	}
@@ -78,7 +78,7 @@ func ClaimBackupRepository(ctx context.Context,
 		backupRepositoryClaimReq := builder.ForBackupRepositoryClaim(ns, backupRepoClaimName).
 			RepositoryParameters(repositoryParameters).RepositoryDriver().
 			AllowedNamespaces(allowedNamespaces).Result()
-		backupRepositoryClaim, err := backupdriverV1Client.BackupRepositoryClaims(ns).Create(backupRepositoryClaimReq)
+		backupRepositoryClaim, err := backupdriverV1Client.BackupRepositoryClaims(ns).Create(context.TODO(), backupRepositoryClaimReq, metav1.CreateOptions{})
 		if err != nil {
 			return "", errors.Errorf("Failed to create backup repository claim with name %v in namespace %v", backupRepoClaimName, ns)
 		}
@@ -128,7 +128,7 @@ func CreateBackupRepository(ctx context.Context,
 	var backupRepoReq *backupdriverv1.BackupRepository
 	// Check if the BackupRepository already exists.
 	backupRepoReq, err := backupdriverV1Client.BackupRepositories().
-		Get(backupRepoName, metav1.GetOptions{})
+		Get(context.TODO(), backupRepoName, metav1.GetOptions{})
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			logger.Errorf("Error occurred trying to retrieve BackupRepository API object %s: %v",
@@ -146,7 +146,7 @@ func CreateBackupRepository(ctx context.Context,
 			RepositoryParameters(brc.RepositoryParameters).
 			RepositoryDriver().
 			SvcBackupRepositoryName(svcBrName).Result()
-		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(backupRepoReq)
+		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(context.TODO(), backupRepoReq,metav1.CreateOptions{})
 		if err != nil {
 			logger.Errorf("Failed to create the BackupRepository API object: %v", err)
 			return nil, err

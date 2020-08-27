@@ -332,7 +332,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 func (s *server) namespaceExists(namespace string) error {
 	s.logger.WithField("namespace", namespace).Info("Checking existence of namespace")
 
-	if _, err := s.kubeClient.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{}); err != nil {
+	if _, err := s.kubeClient.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{}); err != nil {
 		return errors.WithStack(err)
 	}
 

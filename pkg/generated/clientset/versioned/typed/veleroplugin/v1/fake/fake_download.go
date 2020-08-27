@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var downloadsResource = schema.GroupVersionResource{Group: "veleroplugin.io", Ve
 var downloadsKind = schema.GroupVersionKind{Group: "veleroplugin.io", Version: "v1", Kind: "Download"}
 
 // Get takes name of the download, and returns the corresponding download object, and an error if there is any.
-func (c *FakeDownloads) Get(name string, options v1.GetOptions) (result *veleropluginv1.Download, err error) {
+func (c *FakeDownloads) Get(ctx context.Context, name string, options v1.GetOptions) (result *veleropluginv1.Download, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(downloadsResource, c.ns, name), &veleropluginv1.Download{})
 
@@ -50,7 +52,7 @@ func (c *FakeDownloads) Get(name string, options v1.GetOptions) (result *velerop
 }
 
 // List takes label and field selectors, and returns the list of Downloads that match those selectors.
-func (c *FakeDownloads) List(opts v1.ListOptions) (result *veleropluginv1.DownloadList, err error) {
+func (c *FakeDownloads) List(ctx context.Context, opts v1.ListOptions) (result *veleropluginv1.DownloadList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(downloadsResource, downloadsKind, c.ns, opts), &veleropluginv1.DownloadList{})
 
@@ -72,14 +74,14 @@ func (c *FakeDownloads) List(opts v1.ListOptions) (result *veleropluginv1.Downlo
 }
 
 // Watch returns a watch.Interface that watches the requested downloads.
-func (c *FakeDownloads) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeDownloads) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(downloadsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a download and creates it.  Returns the server's representation of the download, and an error, if there is any.
-func (c *FakeDownloads) Create(download *veleropluginv1.Download) (result *veleropluginv1.Download, err error) {
+func (c *FakeDownloads) Create(ctx context.Context, download *veleropluginv1.Download, opts v1.CreateOptions) (result *veleropluginv1.Download, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(downloadsResource, c.ns, download), &veleropluginv1.Download{})
 
@@ -90,7 +92,7 @@ func (c *FakeDownloads) Create(download *veleropluginv1.Download) (result *veler
 }
 
 // Update takes the representation of a download and updates it. Returns the server's representation of the download, and an error, if there is any.
-func (c *FakeDownloads) Update(download *veleropluginv1.Download) (result *veleropluginv1.Download, err error) {
+func (c *FakeDownloads) Update(ctx context.Context, download *veleropluginv1.Download, opts v1.UpdateOptions) (result *veleropluginv1.Download, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(downloadsResource, c.ns, download), &veleropluginv1.Download{})
 
@@ -102,7 +104,7 @@ func (c *FakeDownloads) Update(download *veleropluginv1.Download) (result *veler
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeDownloads) UpdateStatus(download *veleropluginv1.Download) (*veleropluginv1.Download, error) {
+func (c *FakeDownloads) UpdateStatus(ctx context.Context, download *veleropluginv1.Download, opts v1.UpdateOptions) (*veleropluginv1.Download, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(downloadsResource, "status", c.ns, download), &veleropluginv1.Download{})
 
@@ -113,7 +115,7 @@ func (c *FakeDownloads) UpdateStatus(download *veleropluginv1.Download) (*velero
 }
 
 // Delete takes name of the download and deletes it. Returns an error if one occurs.
-func (c *FakeDownloads) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeDownloads) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(downloadsResource, c.ns, name), &veleropluginv1.Download{})
 
@@ -121,15 +123,15 @@ func (c *FakeDownloads) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeDownloads) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(downloadsResource, c.ns, listOptions)
+func (c *FakeDownloads) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(downloadsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &veleropluginv1.DownloadList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched download.
-func (c *FakeDownloads) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *veleropluginv1.Download, err error) {
+func (c *FakeDownloads) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *veleropluginv1.Download, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(downloadsResource, c.ns, name, pt, data, subresources...), &veleropluginv1.Download{})
 

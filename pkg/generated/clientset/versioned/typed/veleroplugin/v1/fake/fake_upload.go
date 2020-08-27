@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var uploadsResource = schema.GroupVersionResource{Group: "veleroplugin.io", Vers
 var uploadsKind = schema.GroupVersionKind{Group: "veleroplugin.io", Version: "v1", Kind: "Upload"}
 
 // Get takes name of the upload, and returns the corresponding upload object, and an error if there is any.
-func (c *FakeUploads) Get(name string, options v1.GetOptions) (result *veleropluginv1.Upload, err error) {
+func (c *FakeUploads) Get(ctx context.Context, name string, options v1.GetOptions) (result *veleropluginv1.Upload, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(uploadsResource, c.ns, name), &veleropluginv1.Upload{})
 
@@ -50,7 +52,7 @@ func (c *FakeUploads) Get(name string, options v1.GetOptions) (result *veleroplu
 }
 
 // List takes label and field selectors, and returns the list of Uploads that match those selectors.
-func (c *FakeUploads) List(opts v1.ListOptions) (result *veleropluginv1.UploadList, err error) {
+func (c *FakeUploads) List(ctx context.Context, opts v1.ListOptions) (result *veleropluginv1.UploadList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(uploadsResource, uploadsKind, c.ns, opts), &veleropluginv1.UploadList{})
 
@@ -72,14 +74,14 @@ func (c *FakeUploads) List(opts v1.ListOptions) (result *veleropluginv1.UploadLi
 }
 
 // Watch returns a watch.Interface that watches the requested uploads.
-func (c *FakeUploads) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeUploads) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(uploadsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a upload and creates it.  Returns the server's representation of the upload, and an error, if there is any.
-func (c *FakeUploads) Create(upload *veleropluginv1.Upload) (result *veleropluginv1.Upload, err error) {
+func (c *FakeUploads) Create(ctx context.Context, upload *veleropluginv1.Upload, opts v1.CreateOptions) (result *veleropluginv1.Upload, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(uploadsResource, c.ns, upload), &veleropluginv1.Upload{})
 
@@ -90,7 +92,7 @@ func (c *FakeUploads) Create(upload *veleropluginv1.Upload) (result *veleroplugi
 }
 
 // Update takes the representation of a upload and updates it. Returns the server's representation of the upload, and an error, if there is any.
-func (c *FakeUploads) Update(upload *veleropluginv1.Upload) (result *veleropluginv1.Upload, err error) {
+func (c *FakeUploads) Update(ctx context.Context, upload *veleropluginv1.Upload, opts v1.UpdateOptions) (result *veleropluginv1.Upload, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(uploadsResource, c.ns, upload), &veleropluginv1.Upload{})
 
@@ -102,7 +104,7 @@ func (c *FakeUploads) Update(upload *veleropluginv1.Upload) (result *veleroplugi
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeUploads) UpdateStatus(upload *veleropluginv1.Upload) (*veleropluginv1.Upload, error) {
+func (c *FakeUploads) UpdateStatus(ctx context.Context, upload *veleropluginv1.Upload, opts v1.UpdateOptions) (*veleropluginv1.Upload, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(uploadsResource, "status", c.ns, upload), &veleropluginv1.Upload{})
 
@@ -113,7 +115,7 @@ func (c *FakeUploads) UpdateStatus(upload *veleropluginv1.Upload) (*veleroplugin
 }
 
 // Delete takes name of the upload and deletes it. Returns an error if one occurs.
-func (c *FakeUploads) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeUploads) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(uploadsResource, c.ns, name), &veleropluginv1.Upload{})
 
@@ -121,15 +123,15 @@ func (c *FakeUploads) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeUploads) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(uploadsResource, c.ns, listOptions)
+func (c *FakeUploads) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(uploadsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &veleropluginv1.UploadList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched upload.
-func (c *FakeUploads) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *veleropluginv1.Upload, err error) {
+func (c *FakeUploads) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *veleropluginv1.Upload, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(uploadsResource, c.ns, name, pt, data, subresources...), &veleropluginv1.Upload{})
 

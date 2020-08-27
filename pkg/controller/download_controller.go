@@ -201,7 +201,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	var err error
 
 	// retrieve download request for its updated status from k8s api server and filter out completed one
-	req, err = c.downloadClient.Downloads(req.Namespace).Get(req.Name, metav1.GetOptions{})
+	req, err = c.downloadClient.Downloads(req.Namespace).Get(context.TODO(), req.Name, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Error("Failed to retrieve download CR from kubernetes API server")
 		return errors.WithStack(err)
@@ -311,7 +311,7 @@ func (c *downloadController) patchDownload(req *pluginv1api.Download, mutate fun
 		return nil, err
 	}
 
-	req, err = c.downloadClient.Downloads(req.Namespace).Patch(req.Name, types.MergePatchType, patchBytes)
+	req, err = c.downloadClient.Downloads(req.Namespace).Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		log.WithError(err).Error("Failed to patch Download")
 		return nil, err

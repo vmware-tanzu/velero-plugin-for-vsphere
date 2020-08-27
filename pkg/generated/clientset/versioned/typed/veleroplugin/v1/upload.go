@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
@@ -37,15 +38,15 @@ type UploadsGetter interface {
 
 // UploadInterface has methods to work with Upload resources.
 type UploadInterface interface {
-	Create(*v1.Upload) (*v1.Upload, error)
-	Update(*v1.Upload) (*v1.Upload, error)
-	UpdateStatus(*v1.Upload) (*v1.Upload, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.Upload, error)
-	List(opts metav1.ListOptions) (*v1.UploadList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Upload, err error)
+	Create(ctx context.Context, upload *v1.Upload, opts metav1.CreateOptions) (*v1.Upload, error)
+	Update(ctx context.Context, upload *v1.Upload, opts metav1.UpdateOptions) (*v1.Upload, error)
+	UpdateStatus(ctx context.Context, upload *v1.Upload, opts metav1.UpdateOptions) (*v1.Upload, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Upload, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.UploadList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Upload, err error)
 	UploadExpansion
 }
 
@@ -64,20 +65,20 @@ func newUploads(c *VeleropluginV1Client, namespace string) *uploads {
 }
 
 // Get takes name of the upload, and returns the corresponding upload object, and an error if there is any.
-func (c *uploads) Get(name string, options metav1.GetOptions) (result *v1.Upload, err error) {
+func (c *uploads) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Upload, err error) {
 	result = &v1.Upload{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("uploads").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of Uploads that match those selectors.
-func (c *uploads) List(opts metav1.ListOptions) (result *v1.UploadList, err error) {
+func (c *uploads) List(ctx context.Context, opts metav1.ListOptions) (result *v1.UploadList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -88,13 +89,13 @@ func (c *uploads) List(opts metav1.ListOptions) (result *v1.UploadList, err erro
 		Resource("uploads").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested uploads.
-func (c *uploads) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *uploads) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -105,87 +106,90 @@ func (c *uploads) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 		Resource("uploads").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a upload and creates it.  Returns the server's representation of the upload, and an error, if there is any.
-func (c *uploads) Create(upload *v1.Upload) (result *v1.Upload, err error) {
+func (c *uploads) Create(ctx context.Context, upload *v1.Upload, opts metav1.CreateOptions) (result *v1.Upload, err error) {
 	result = &v1.Upload{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("uploads").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(upload).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a upload and updates it. Returns the server's representation of the upload, and an error, if there is any.
-func (c *uploads) Update(upload *v1.Upload) (result *v1.Upload, err error) {
+func (c *uploads) Update(ctx context.Context, upload *v1.Upload, opts metav1.UpdateOptions) (result *v1.Upload, err error) {
 	result = &v1.Upload{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("uploads").
 		Name(upload.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(upload).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *uploads) UpdateStatus(upload *v1.Upload) (result *v1.Upload, err error) {
+func (c *uploads) UpdateStatus(ctx context.Context, upload *v1.Upload, opts metav1.UpdateOptions) (result *v1.Upload, err error) {
 	result = &v1.Upload{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("uploads").
 		Name(upload.Name).
 		SubResource("status").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(upload).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the upload and deletes it. Returns an error if one occurs.
-func (c *uploads) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *uploads) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("uploads").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *uploads) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *uploads) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("uploads").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched upload.
-func (c *uploads) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.Upload, err error) {
+func (c *uploads) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.Upload, err error) {
 	result = &v1.Upload{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("uploads").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

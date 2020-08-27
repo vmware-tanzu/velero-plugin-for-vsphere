@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -217,7 +218,7 @@ func TestRetrieveParamsFromBSL(t *testing.T) {
 		t.Fatalf("Failed to retrieve backupdriverClient from config: %v", config)
 	}
 
-	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(metav1.ListOptions{})
+	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
 	if err != nil || len(backupStorageLocationList.Items) <= 0 {
 		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 	}
