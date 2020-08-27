@@ -61,14 +61,14 @@ func TestWaitForPhases(t *testing.T) {
 	formatter.FullTimestamp = true
 	logger.SetFormatter(formatter)
 
-	err = clientSet.Snapshots("backup-driver").Delete(testSnapshot.Name, nil)
+	err = clientSet.Snapshots("backup-driver").Delete(context.TODO(), testSnapshot.Name, metav1.DeleteOptions{})
 	if err != nil {
 		t.Fatalf("Delete error = %v\n", err)
 	}
-	writtenSnapshot, err := clientSet.Snapshots("backup-driver").Create(&testSnapshot)
+	writtenSnapshot, err := clientSet.Snapshots("backup-driver").Create(context.TODO(), &testSnapshot,metav1.CreateOptions{})
 
 	testSnapshot.ObjectMeta = writtenSnapshot.ObjectMeta
-	writtenSnapshot, err = clientSet.Snapshots("backup-driver").UpdateStatus(&testSnapshot)
+	writtenSnapshot, err = clientSet.Snapshots("backup-driver").UpdateStatus(context.TODO(), &testSnapshot, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("writtenSnapshot =%v, err = %v", writtenSnapshot, err)
 	}
@@ -128,14 +128,14 @@ func TestWaitForClonePhases(t *testing.T) {
 	formatter.FullTimestamp = true
 	logger.SetFormatter(formatter)
 
-	err = clientSet.Snapshots("backup-driver").Delete(testClone.Name, nil)
+	err = clientSet.Snapshots("backup-driver").Delete(context.TODO(), testClone.Name, metav1.DeleteOptions{})
 	if err != nil {
 		t.Fatalf("Delete error = %v\n", err)
 	}
-	writtenClone, err := clientSet.CloneFromSnapshots("backup-driver").Create(&testClone)
+	writtenClone, err := clientSet.CloneFromSnapshots("backup-driver").Create(context.TODO(), &testClone, metav1.CreateOptions{})
 
 	testClone.ObjectMeta = writtenClone.ObjectMeta
-	writtenClone, err = clientSet.CloneFromSnapshots("backup-driver").UpdateStatus(&testClone)
+	writtenClone, err = clientSet.CloneFromSnapshots("backup-driver").UpdateStatus(context.TODO(), &testClone, metav1.UpdateOptions{})
 	if err != nil {
 		t.Fatalf("writtenClone =%v, err = %v", writtenClone, err)
 	}

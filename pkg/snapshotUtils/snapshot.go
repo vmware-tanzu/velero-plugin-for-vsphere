@@ -2,6 +2,7 @@ package snapshotUtils
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
@@ -69,14 +70,14 @@ func SnapshotRef(ctx context.Context,
 		ObjectReference(objectToSnapshot).
 		CancelState(false).Result()
 
-	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(snapshotReq)
+	writtenSnapshot, err := clientSet.Snapshots(namespace).Create(context.TODO(), snapshotReq, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create snapshot record")
 	}
 	logger.Infof("Snapshot record, %s, created", writtenSnapshot.Name)
 
 	writtenSnapshot.Status.Phase = backupdriverv1.SnapshotPhaseNew
-	writtenSnapshot, err = clientSet.Snapshots(namespace).UpdateStatus(writtenSnapshot)
+	writtenSnapshot, err = clientSet.Snapshots(namespace).UpdateStatus(context.TODO(), writtenSnapshot, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to update status of snapshot record")
 	}

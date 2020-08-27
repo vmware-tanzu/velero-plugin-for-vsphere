@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var snapshotsResource = schema.GroupVersionResource{Group: "backupdriver.io", Ve
 var snapshotsKind = schema.GroupVersionKind{Group: "backupdriver.io", Version: "v1", Kind: "Snapshot"}
 
 // Get takes name of the snapshot, and returns the corresponding snapshot object, and an error if there is any.
-func (c *FakeSnapshots) Get(name string, options v1.GetOptions) (result *backupdriverv1.Snapshot, err error) {
+func (c *FakeSnapshots) Get(ctx context.Context, name string, options v1.GetOptions) (result *backupdriverv1.Snapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(snapshotsResource, c.ns, name), &backupdriverv1.Snapshot{})
 
@@ -50,7 +52,7 @@ func (c *FakeSnapshots) Get(name string, options v1.GetOptions) (result *backupd
 }
 
 // List takes label and field selectors, and returns the list of Snapshots that match those selectors.
-func (c *FakeSnapshots) List(opts v1.ListOptions) (result *backupdriverv1.SnapshotList, err error) {
+func (c *FakeSnapshots) List(ctx context.Context, opts v1.ListOptions) (result *backupdriverv1.SnapshotList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(snapshotsResource, snapshotsKind, c.ns, opts), &backupdriverv1.SnapshotList{})
 
@@ -72,14 +74,14 @@ func (c *FakeSnapshots) List(opts v1.ListOptions) (result *backupdriverv1.Snapsh
 }
 
 // Watch returns a watch.Interface that watches the requested snapshots.
-func (c *FakeSnapshots) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeSnapshots) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(snapshotsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a snapshot and creates it.  Returns the server's representation of the snapshot, and an error, if there is any.
-func (c *FakeSnapshots) Create(snapshot *backupdriverv1.Snapshot) (result *backupdriverv1.Snapshot, err error) {
+func (c *FakeSnapshots) Create(ctx context.Context, snapshot *backupdriverv1.Snapshot, opts v1.CreateOptions) (result *backupdriverv1.Snapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(snapshotsResource, c.ns, snapshot), &backupdriverv1.Snapshot{})
 
@@ -90,7 +92,7 @@ func (c *FakeSnapshots) Create(snapshot *backupdriverv1.Snapshot) (result *backu
 }
 
 // Update takes the representation of a snapshot and updates it. Returns the server's representation of the snapshot, and an error, if there is any.
-func (c *FakeSnapshots) Update(snapshot *backupdriverv1.Snapshot) (result *backupdriverv1.Snapshot, err error) {
+func (c *FakeSnapshots) Update(ctx context.Context, snapshot *backupdriverv1.Snapshot, opts v1.UpdateOptions) (result *backupdriverv1.Snapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(snapshotsResource, c.ns, snapshot), &backupdriverv1.Snapshot{})
 
@@ -102,7 +104,7 @@ func (c *FakeSnapshots) Update(snapshot *backupdriverv1.Snapshot) (result *backu
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeSnapshots) UpdateStatus(snapshot *backupdriverv1.Snapshot) (*backupdriverv1.Snapshot, error) {
+func (c *FakeSnapshots) UpdateStatus(ctx context.Context, snapshot *backupdriverv1.Snapshot, opts v1.UpdateOptions) (*backupdriverv1.Snapshot, error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateSubresourceAction(snapshotsResource, "status", c.ns, snapshot), &backupdriverv1.Snapshot{})
 
@@ -113,7 +115,7 @@ func (c *FakeSnapshots) UpdateStatus(snapshot *backupdriverv1.Snapshot) (*backup
 }
 
 // Delete takes name of the snapshot and deletes it. Returns an error if one occurs.
-func (c *FakeSnapshots) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeSnapshots) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(snapshotsResource, c.ns, name), &backupdriverv1.Snapshot{})
 
@@ -121,15 +123,15 @@ func (c *FakeSnapshots) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeSnapshots) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(snapshotsResource, c.ns, listOptions)
+func (c *FakeSnapshots) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(snapshotsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &backupdriverv1.SnapshotList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched snapshot.
-func (c *FakeSnapshots) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *backupdriverv1.Snapshot, err error) {
+func (c *FakeSnapshots) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *backupdriverv1.Snapshot, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(snapshotsResource, c.ns, name, pt, data, subresources...), &backupdriverv1.Snapshot{})
 

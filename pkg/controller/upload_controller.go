@@ -266,7 +266,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	var err error
 
 	// retrieve upload request for its updated status from k8s api server and filter out completed one
-	req, err = c.uploadClient.Uploads(req.Namespace).Get(req.Name, metav1.GetOptions{})
+	req, err = c.uploadClient.Uploads(req.Namespace).Get(context.TODO(), req.Name, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Error("Failed to retrieve upload CR from kubernetes API server")
 		return errors.WithStack(err)

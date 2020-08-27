@@ -8,6 +8,7 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 	"time"
@@ -50,7 +51,7 @@ func DeleteSnapshotRef(
 		BackupRepository(repo.backupRepositoryName).
 		Result()
 
-	writtenDeleteSnapCR, err := clientSet.DeleteSnapshots(namespace).Create(deleteSnapshotCR)
+	writtenDeleteSnapCR, err := clientSet.DeleteSnapshots(namespace).Create(context.TODO(), deleteSnapshotCR, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create DeleteSnapshot record")
 	}

@@ -67,14 +67,14 @@ func CloneFromSnapshopRef(ctx context.Context,
 		},
 	}
 
-	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(&cloneFromSnapshotCR)
+	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(context.TODO(), &cloneFromSnapshotCR, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create cloneFromSnapshot record")
 	}
 	logger.Infof("CloneFromSnapshot record, %s, created", writtenClone.Name)
 
 	writtenClone.Status.Phase = backupdriverv1.ClonePhaseNew
-	writtenClone, err = clientSet.CloneFromSnapshots(namespace).UpdateStatus(writtenClone)
+	writtenClone, err = clientSet.CloneFromSnapshots(namespace).UpdateStatus(context.TODO(), writtenClone, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to update status of cloneFromSnapshot record")
 	}

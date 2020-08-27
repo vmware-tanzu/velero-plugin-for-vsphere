@@ -373,7 +373,7 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 	}
 
 	// Always retrieve up-to-date snapshot CR from API server
-	snapshot, err := ctrl.backupdriverClient.Snapshots(namespace).Get(name, metav1.GetOptions{})
+	snapshot, err := ctrl.backupdriverClient.Snapshots(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("Snapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -481,7 +481,7 @@ func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error
 		return err
 	}
 
-	cloneFromSnapshot, err := ctrl.backupdriverClient.CloneFromSnapshots(namespace).Get(name, metav1.GetOptions{})
+	cloneFromSnapshot, err := ctrl.backupdriverClient.CloneFromSnapshots(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("CloneFromSnapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -644,7 +644,7 @@ func (ctrl *backupDriverController) dequeBackupRepositoryClaim(obj interface{}) 
 	// Delete BackupRepository from API server
 	if brc.BackupRepository != "" {
 		ctrl.logger.Infof("dequeBackupRepositoryClaim: Delete BackupRepository %s for BackupRepositoryClaim %s/%s", brc.BackupRepository, brc.Namespace, brc.Name)
-		err = ctrl.backupdriverClient.BackupRepositories().Delete(brc.BackupRepository, &metav1.DeleteOptions{})
+		err = ctrl.backupdriverClient.BackupRepositories().Delete(context.TODO(), brc.BackupRepository, metav1.DeleteOptions{})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			ctrl.logger.Errorf("Delete BackupRepository %s failed: %v", brc.BackupRepository, err)
 			return
@@ -681,7 +681,7 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 		return err
 	}
 
-	delSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(namespace).Get(name, metav1.GetOptions{})
+	delSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("DeleteSnapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -737,7 +737,7 @@ func (ctrl *backupDriverController) dequeDeleteSnapshot(obj interface{}) {
 	}
 	ctrl.logger.Infof("dequeDeleteSnapshot: Delete DeleteSnapshot for SnapshotID: %s with Namespace: %s Name: %s",
 		delSnap.Spec.SnapshotID, delSnap.Namespace, delSnap.Name)
-	err = ctrl.backupdriverClient.DeleteSnapshots(delSnap.Namespace).Delete(delSnap.Name, &metav1.DeleteOptions{})
+	err = ctrl.backupdriverClient.DeleteSnapshots(delSnap.Namespace).Delete(context.TODO(), delSnap.Name, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		ctrl.logger.Errorf("Delete DeleteSnapshot SnapshotID: %s Name: %s failed: %v",
 			delSnap.Spec.SnapshotID, delSnap.Name, err)
@@ -777,7 +777,7 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	}
 
 	// Always retrieve up-to-date upload CR from API server
-	upload, err := ctrl.veleropluginClient.Uploads(namespace).Get(name, metav1.GetOptions{})
+	upload, err := ctrl.veleropluginClient.Uploads(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("Upload %s/%s is deleted, no need to process it", namespace, name)
@@ -798,7 +798,7 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	}
 
 	// Get the corresponding snapshot
-	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotParts[0]).Get(snapshotParts[1], metav1.GetOptions{})
+	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotParts[0]).Get(context.TODO(), snapshotParts[1], metav1.GetOptions{})
 	if err != nil {
 		ctrl.logger.WithError(err).Info("No matching snapshot found. Skipping updating snapshot")
 		return nil
@@ -882,7 +882,7 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	}
 
 	// Always retrieve up-to-date SvcSnapshot CR from API server
-	svcSnapshot, err := ctrl.svcBackupdriverClient.Snapshots(namespace).Get(name, metav1.GetOptions{})
+	svcSnapshot, err := ctrl.svcBackupdriverClient.Snapshots(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("SvcSnapshot %s/%s is deleted, no need to process it", namespace, name)
@@ -901,7 +901,7 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	snapshotParts := strings.Split(ctrl.svcSnapshotMap[svcSnapshot.Name], ":")
 	snapshotNamespace := snapshotParts[0]
 	snapshotName := snapshotParts[1]
-	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotNamespace).Get(snapshotName, metav1.GetOptions{})
+	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotNamespace).Get(context.TODO(), snapshotName, metav1.GetOptions{})
 	if err != nil {
 		ctrl.logger.WithError(err).Info("No matching snapshot found. Skipping updating snapshot")
 		return nil

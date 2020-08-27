@@ -77,7 +77,7 @@ func GetVeleroVersion(f client.Factory) (string, error) {
 		fmt.Println("Failed to get kubeclient.")
 		return "", err
 	}
-	deploymentList, err := clientset.AppsV1().Deployments("velero").List(metav1.ListOptions{})
+	deploymentList, err := clientset.AppsV1().Deployments("velero").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Println("Failed to get deployment for velero namespace.")
 		return "", err
@@ -165,7 +165,7 @@ func CheckCSIInstalled(f client.Factory) (bool, bool, error) {
 	if err != nil {
 		return false, false, err
 	}
-	statefulsetList, err := clientset.AppsV1().StatefulSets("kube-system").List(metav1.ListOptions{})
+	statefulsetList, err := clientset.AppsV1().StatefulSets("kube-system").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return false, false, err
 	}
@@ -174,7 +174,7 @@ func CheckCSIInstalled(f client.Factory) (bool, bool, error) {
 			return CheckCSIVersion(item.Spec.Template.Spec.Containers)
 		}
 	}
-	deploymentList, err := clientset.AppsV1().Deployments("kube-system").List(metav1.ListOptions{})
+	deploymentList, err := clientset.AppsV1().Deployments("kube-system").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return false, false, err
 	}

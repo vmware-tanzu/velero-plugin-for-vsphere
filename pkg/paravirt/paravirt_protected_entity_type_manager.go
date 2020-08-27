@@ -118,7 +118,7 @@ func (this *ParaVirtProtectedEntityTypeManager) GetProtectedEntities(ctx context
 		return nil, errors.Errorf("The PE type, %v, is not supported", this.entityType)
 	}
 
-	pvList, err := this.gcKubeClientSet.CoreV1().PersistentVolumes().List(metav1.ListOptions{})
+	pvList, err := this.gcKubeClientSet.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not list PVs")
 	}

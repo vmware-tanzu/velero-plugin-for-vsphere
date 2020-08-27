@@ -17,6 +17,7 @@ limitations under the License.
 package install
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -224,7 +225,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 		errMsg := fmt.Sprint("Failed to get clientset.")
 		return errors.New(errMsg)
 	}
-	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(utils.VeleroDeployment, metav1.GetOptions{})
+	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), utils.VeleroDeployment, metav1.GetOptions{})
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
 		return errors.New(errMsg)
@@ -281,7 +282,7 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 		return errors.WithStack(err)
 	}
 
-	_, err = clientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	_, err = clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
 	if err != nil {
 		fmt.Printf("Failed to get the specified namespace, %v, for velero in the current k8s cluster\n", namespace)
 		return errors.WithStack(err)

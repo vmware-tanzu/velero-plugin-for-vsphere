@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -38,7 +40,7 @@ var backuprepositoriesResource = schema.GroupVersionResource{Group: "backupdrive
 var backuprepositoriesKind = schema.GroupVersionKind{Group: "backupdriver.io", Version: "v1", Kind: "BackupRepository"}
 
 // Get takes name of the backupRepository, and returns the corresponding backupRepository object, and an error if there is any.
-func (c *FakeBackupRepositories) Get(name string, options v1.GetOptions) (result *backupdriverv1.BackupRepository, err error) {
+func (c *FakeBackupRepositories) Get(ctx context.Context, name string, options v1.GetOptions) (result *backupdriverv1.BackupRepository, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootGetAction(backuprepositoriesResource, name), &backupdriverv1.BackupRepository{})
 	if obj == nil {
@@ -48,7 +50,7 @@ func (c *FakeBackupRepositories) Get(name string, options v1.GetOptions) (result
 }
 
 // List takes label and field selectors, and returns the list of BackupRepositories that match those selectors.
-func (c *FakeBackupRepositories) List(opts v1.ListOptions) (result *backupdriverv1.BackupRepositoryList, err error) {
+func (c *FakeBackupRepositories) List(ctx context.Context, opts v1.ListOptions) (result *backupdriverv1.BackupRepositoryList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootListAction(backuprepositoriesResource, backuprepositoriesKind, opts), &backupdriverv1.BackupRepositoryList{})
 	if obj == nil {
@@ -69,13 +71,13 @@ func (c *FakeBackupRepositories) List(opts v1.ListOptions) (result *backupdriver
 }
 
 // Watch returns a watch.Interface that watches the requested backupRepositories.
-func (c *FakeBackupRepositories) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeBackupRepositories) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewRootWatchAction(backuprepositoriesResource, opts))
 }
 
 // Create takes the representation of a backupRepository and creates it.  Returns the server's representation of the backupRepository, and an error, if there is any.
-func (c *FakeBackupRepositories) Create(backupRepository *backupdriverv1.BackupRepository) (result *backupdriverv1.BackupRepository, err error) {
+func (c *FakeBackupRepositories) Create(ctx context.Context, backupRepository *backupdriverv1.BackupRepository, opts v1.CreateOptions) (result *backupdriverv1.BackupRepository, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootCreateAction(backuprepositoriesResource, backupRepository), &backupdriverv1.BackupRepository{})
 	if obj == nil {
@@ -85,7 +87,7 @@ func (c *FakeBackupRepositories) Create(backupRepository *backupdriverv1.BackupR
 }
 
 // Update takes the representation of a backupRepository and updates it. Returns the server's representation of the backupRepository, and an error, if there is any.
-func (c *FakeBackupRepositories) Update(backupRepository *backupdriverv1.BackupRepository) (result *backupdriverv1.BackupRepository, err error) {
+func (c *FakeBackupRepositories) Update(ctx context.Context, backupRepository *backupdriverv1.BackupRepository, opts v1.UpdateOptions) (result *backupdriverv1.BackupRepository, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootUpdateAction(backuprepositoriesResource, backupRepository), &backupdriverv1.BackupRepository{})
 	if obj == nil {
@@ -95,22 +97,22 @@ func (c *FakeBackupRepositories) Update(backupRepository *backupdriverv1.BackupR
 }
 
 // Delete takes name of the backupRepository and deletes it. Returns an error if one occurs.
-func (c *FakeBackupRepositories) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeBackupRepositories) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewRootDeleteAction(backuprepositoriesResource, name), &backupdriverv1.BackupRepository{})
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeBackupRepositories) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(backuprepositoriesResource, listOptions)
+func (c *FakeBackupRepositories) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewRootDeleteCollectionAction(backuprepositoriesResource, listOpts)
 
 	_, err := c.Fake.Invokes(action, &backupdriverv1.BackupRepositoryList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched backupRepository.
-func (c *FakeBackupRepositories) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *backupdriverv1.BackupRepository, err error) {
+func (c *FakeBackupRepositories) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *backupdriverv1.BackupRepository, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootPatchSubresourceAction(backuprepositoriesResource, name, pt, data, subresources...), &backupdriverv1.BackupRepository{})
 	if obj == nil {

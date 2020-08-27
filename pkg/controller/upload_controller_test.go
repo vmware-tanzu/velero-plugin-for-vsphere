@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/agiledragon/gomonkey"
@@ -181,7 +182,7 @@ func TestProcessedUploadItem(t *testing.T) {
 			c.processUploadFunc = c.processUpload
 			err := c.processUploadItem(test.key)
 			assert.Equal(t, test.expectedErr == nil, err == nil)
-			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(test.upload.Name, metav1.GetOptions{})
+			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(context.TODO(), test.upload.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, test.expectedPhase, res.Status.Phase)
 		})
@@ -443,7 +444,7 @@ func TestUploadErrorRetry(t *testing.T) {
 
 			err = c.processUploadItem(test.key)
 			require.Nil(t, err)
-			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(test.upload.Name, metav1.GetOptions{})
+			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(context.TODO(), test.upload.Name, metav1.GetOptions{})
 			require.Nil(t, err)
 			require.Equal(t, test.expectedPhase, res.Status.Phase)
 			require.Equal(t, test.retry+1, res.Status.RetryCount)

@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
 	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
@@ -61,13 +62,13 @@ func NewFilteredDownloadInformer(client versioned.Interface, namespace string, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.VeleropluginV1().Downloads(namespace).List(options)
+				return client.VeleropluginV1().Downloads(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.VeleropluginV1().Downloads(namespace).Watch(options)
+				return client.VeleropluginV1().Downloads(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&veleropluginv1.Download{},

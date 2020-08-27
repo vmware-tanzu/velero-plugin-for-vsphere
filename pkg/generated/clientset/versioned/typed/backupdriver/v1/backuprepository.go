@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -37,14 +38,14 @@ type BackupRepositoriesGetter interface {
 
 // BackupRepositoryInterface has methods to work with BackupRepository resources.
 type BackupRepositoryInterface interface {
-	Create(*v1.BackupRepository) (*v1.BackupRepository, error)
-	Update(*v1.BackupRepository) (*v1.BackupRepository, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.BackupRepository, error)
-	List(opts metav1.ListOptions) (*v1.BackupRepositoryList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.BackupRepository, err error)
+	Create(ctx context.Context, backupRepository *v1.BackupRepository, opts metav1.CreateOptions) (*v1.BackupRepository, error)
+	Update(ctx context.Context, backupRepository *v1.BackupRepository, opts metav1.UpdateOptions) (*v1.BackupRepository, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.BackupRepository, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.BackupRepositoryList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.BackupRepository, err error)
 	BackupRepositoryExpansion
 }
 
@@ -61,19 +62,19 @@ func newBackupRepositories(c *BackupdriverV1Client) *backupRepositories {
 }
 
 // Get takes name of the backupRepository, and returns the corresponding backupRepository object, and an error if there is any.
-func (c *backupRepositories) Get(name string, options metav1.GetOptions) (result *v1.BackupRepository, err error) {
+func (c *backupRepositories) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.BackupRepository, err error) {
 	result = &v1.BackupRepository{}
 	err = c.client.Get().
 		Resource("backuprepositories").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of BackupRepositories that match those selectors.
-func (c *backupRepositories) List(opts metav1.ListOptions) (result *v1.BackupRepositoryList, err error) {
+func (c *backupRepositories) List(ctx context.Context, opts metav1.ListOptions) (result *v1.BackupRepositoryList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -83,13 +84,13 @@ func (c *backupRepositories) List(opts metav1.ListOptions) (result *v1.BackupRep
 		Resource("backuprepositories").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested backupRepositories.
-func (c *backupRepositories) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *backupRepositories) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -99,66 +100,69 @@ func (c *backupRepositories) Watch(opts metav1.ListOptions) (watch.Interface, er
 		Resource("backuprepositories").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a backupRepository and creates it.  Returns the server's representation of the backupRepository, and an error, if there is any.
-func (c *backupRepositories) Create(backupRepository *v1.BackupRepository) (result *v1.BackupRepository, err error) {
+func (c *backupRepositories) Create(ctx context.Context, backupRepository *v1.BackupRepository, opts metav1.CreateOptions) (result *v1.BackupRepository, err error) {
 	result = &v1.BackupRepository{}
 	err = c.client.Post().
 		Resource("backuprepositories").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(backupRepository).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a backupRepository and updates it. Returns the server's representation of the backupRepository, and an error, if there is any.
-func (c *backupRepositories) Update(backupRepository *v1.BackupRepository) (result *v1.BackupRepository, err error) {
+func (c *backupRepositories) Update(ctx context.Context, backupRepository *v1.BackupRepository, opts metav1.UpdateOptions) (result *v1.BackupRepository, err error) {
 	result = &v1.BackupRepository{}
 	err = c.client.Put().
 		Resource("backuprepositories").
 		Name(backupRepository.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(backupRepository).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the backupRepository and deletes it. Returns an error if one occurs.
-func (c *backupRepositories) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *backupRepositories) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Resource("backuprepositories").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *backupRepositories) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *backupRepositories) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Resource("backuprepositories").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched backupRepository.
-func (c *backupRepositories) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.BackupRepository, err error) {
+func (c *backupRepositories) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.BackupRepository, err error) {
 	result = &v1.BackupRepository{}
 	err = c.client.Patch(pt).
 		Resource("backuprepositories").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
