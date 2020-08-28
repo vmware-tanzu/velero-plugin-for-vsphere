@@ -245,7 +245,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	var svcBackupdriverInformerFactory pluginInformers.SharedInformerFactory
 	var svcNamespace string
 	if clusterFlavor == utils.TkgGuest {
-		svcConfig, svcNamespace, err = utils.SupervisorConfig(logger)
+		svcConfig, svcNamespace, err = utils.GetSupervisorConfig(clientConfig, logger)
 		if err != nil {
 			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
 			return nil, err
@@ -269,7 +269,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 		svcKubeClient, err := kubernetes.NewForConfig(svcConfig)
 		if err != nil {
-			logger.Errorf("Failed to get the kubernetes client for the supervisor cluster")
+			logger.Error("Failed to get the kubernetes client for the supervisor cluster")
 			return nil, err
 		}
 		svcKubeInformerFactory = kubeinformers.NewSharedInformerFactoryWithOptions(svcKubeClient, config.resyncPeriod,

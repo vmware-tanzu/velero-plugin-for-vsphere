@@ -407,7 +407,6 @@ func AllBackupDriverResources(o *PodOptions, withCRDs bool) (*unstructured.Unstr
 		WithAnnotations(o.PodAnnotations),
 		WithImage(o.Image),
 		WithResources(o.PodResources),
-		WithSecret(o.SecretAdd),
 		WithMasterNodeAffinity(o.MasterAffinity),
 		WithHostNetwork(o.HostNetwork),
 		WithLocalMode(o.LocalMode),

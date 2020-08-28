@@ -18,10 +18,14 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	k8sv1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -317,4 +321,89 @@ func TestGetRepo(t *testing.T) {
 			assert.Equal(t, test.expected, repo)
 		})
 	}
+}
+
+func createClientSet() (*kubernetes.Clientset, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	// if you want to change the loading rules (which files in which order), you can do so here
+
+	configOverrides := &clientcmd.ConfigOverrides{}
+	// if you want to change override values or bind them to flags, there are methods to help you
+
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	config, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, NewClientConfigNotFoundError("Could not create client config")
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not create clientset")
+	}
+	return clientset, err
+}
+
+type ClientConfigNotFoundError struct {
+	errMsg string
+}
+
+func (this ClientConfigNotFoundError) Error() string {
+	return this.errMsg
+}
+
+func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
+	err := ClientConfigNotFoundError{
+		errMsg: errMsg,
+	}
+	return err
+}
+
+/*
+ * For this test, set KUBECONFIG to point to a valid setup, with a BackupDriverNamespace created.
+ */
+func Test_waitForPvSecret(t *testing.T) {
+	clientSet, err := createClientSet()
+
+	if err != nil {
+		_, ok := err.(ClientConfigNotFoundError)
+		if ok {
+			t.Skip(err)
+		}
+		t.Fatal(err)
+	}
+	testSecret := k8sv1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: PvSecretName,
+		},
+	}
+
+	// set up logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+
+	err = clientSet.CoreV1().Secrets(BackupDriverNamespace).Delete(context.TODO(), testSecret.Name, metav1.DeleteOptions{})
+	if err != nil {
+		t.Fatalf("Delete error = %v\n", err)
+	}
+	writtenSnapshot, err := clientSet.CoreV1().Secrets(BackupDriverNamespace).Create(context.TODO(), &testSecret, metav1.CreateOptions{})
+
+	testSecret.ObjectMeta = writtenSnapshot.ObjectMeta
+
+	timeoutContext, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
+	defer cancelFunc()
+	createdSecret, err := waitForPvSecret(timeoutContext, clientSet, BackupDriverNamespace, logger)
+	if err != nil {
+		t.Fatalf("waitForPvSecret returned err = %v\n", err)
+	} else {
+		fmt.Printf("waitForPvSecret secret created %s in namespace %s\n", createdSecret.Name, createdSecret.Namespace)
+	}
+
 }

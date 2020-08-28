@@ -51,7 +51,6 @@ type InstallOptions struct {
 	PodMemRequest  string
 	PodCPULimit    string
 	PodMemLimit    string
-	PVSecret       bool
 	MasterAffinity bool
 	HostNetwork    bool
 	LocalMode      bool
@@ -92,7 +91,6 @@ func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error)
 		Image:          o.Image,
 		PodAnnotations: o.PodAnnotations.Data(),
 		PodResources:   podResources,
-		SecretAdd:      o.PVSecret,
 		MasterAffinity: o.MasterAffinity,
 		HostNetwork:    o.HostNetwork,
 		LocalMode:      o.LocalMode,
@@ -167,11 +165,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 
 	// Check cluster flavor. Add the PV secret to pod in Guest Cluster
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
-	if clusterFlavor == utils.TkgGuest {
-		fmt.Printf("Guest Cluster. Deploy pod with secret.")
-		o.PVSecret = true
-	}
-
 	// Assign master node affinity and host network to Supervisor deployment
 	if clusterFlavor == utils.Supervisor {
 		fmt.Printf("Supervisor Cluster. Assign master node affinity and enable host network.")
