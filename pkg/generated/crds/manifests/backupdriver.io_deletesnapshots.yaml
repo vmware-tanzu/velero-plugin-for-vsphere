@@ -35,14 +35,14 @@ spec:
         spec:
           description: Spec is the custom resource spec
           properties:
-            backpRepository:
+            backupRepository:
               description: The backup repository to retrieve the snapshot from. The
                 namespace the Snapshot/PVC lives in must have access to the repository
               type: string
             snapshotID:
               type: string
           required:
-          - backpRepository
+          - backupRepository
           - snapshotID
           type: object
         status:

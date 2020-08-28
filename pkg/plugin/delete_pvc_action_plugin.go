@@ -10,7 +10,6 @@ import (
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,7 +29,8 @@ func (p *NewPVCDeleteItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	}, nil
 }
 
-func (p *NewPVCDeleteItemAction) Execute(item runtime.Unstructured, backup *velerov1api.Backup) error {
+func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteInput) error {
+	item := input.Item
 	var pvc corev1.PersistentVolumeClaim
 	ctx := context.Background()
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {

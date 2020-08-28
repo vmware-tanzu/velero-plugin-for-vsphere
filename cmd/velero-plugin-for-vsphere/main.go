@@ -34,7 +34,8 @@ func main() {
 	if features.IsEnabled(utils.VSphereItemActionPluginFlag) {
 		veleroPluginServer = veleroPluginServer.
 			RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
-			RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction)
+			RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
+			RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction)
 	} else {
 		veleroPluginServer = veleroPluginServer.RegisterVolumeSnapshotter("velero.io/vsphere", newVolumeSnapshotterPlugin)
 	}
@@ -51,6 +52,10 @@ func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
 
 func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
 	return &plugins_pkg.NewPVCRestoreItemAction{Log: logger}, nil
+}
+
+func newPVCDeleteItemAction(logger logrus.FieldLogger) (interface{}, error) {
+	return &plugins_pkg.NewPVCDeleteItemAction{Log: logger}, nil
 }
 
 func enableFeatureFlagForVSpherePlugins() {
