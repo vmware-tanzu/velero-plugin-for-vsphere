@@ -99,6 +99,7 @@ const (
 const (
 	DataManagerForPlugin  string = "data-manager-for-plugin"
 	BackupDriverForPlugin string = "backup-driver"
+	BackupDriverNamespace string = "velero-vsphere-plugin-backupdriver"
 
 	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
 
@@ -140,11 +141,9 @@ const (
 
 // Para Virtual Cluster access for Guest Cluster
 const (
-	PvApiEndpoint       = "supervisor.default.svc" // TODO: get it from "kubectl get cm -n vmware-system-csi pvcsi-config"
-	PvPort              = "6443"
-	PvNamespaceLocation = "/credentials/namespace"
-	PvTokenLocation     = "/credentials/token"
-	PvCrtLocation       = "/credentials/ca.crt"
+	PvApiEndpoint = "supervisor.default.svc" // TODO: get it from "kubectl get cm -n vmware-system-csi pvcsi-config"
+	PvPort        = "6443"
+	PvSecretName  = "pvbackupdriver-provider-creds"
 )
 
 const (

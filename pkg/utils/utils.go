@@ -25,6 +25,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
+
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -47,8 +51,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
-	"k8s.io/klog"
 )
 
 /*
@@ -612,36 +614,72 @@ func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupR
 }
 
 /*
- * Get the configuration to access the Supervisor namespace from the GuestCluster Pod
+ * Get the configuration to access the Supervisor namespace from the GuestCluster.
+ * This routine will be called only for guest cluster.
+ *
+ * The secret to access the Supervisor Cluster will be written in the backup driver
+ * namespace. The steps to get the Supervisor cluster config are:
+ * 1. Create the backup-driver namespace if it does not exist. This is a fixed namespace
+ * where the para virt backup driver secret will be written.
+ * 2. Wait for the para virt backup driver secret to be written.
+ * 3. Get the supervisor cluster configuration from the cert and token in the secret.
+ * TODO: Handle update of the para virt backup driver secret
  */
-func SupervisorConfig(logger logrus.FieldLogger) (*rest.Config, string, error) {
-	token, err := ioutil.ReadFile(PvTokenLocation)
+func GetSupervisorConfig(guestConfig *rest.Config, logger logrus.FieldLogger) (*rest.Config, string, error) {
+	var err error
+	if guestConfig == nil {
+		guestConfig, err = rest.InClusterConfig()
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+			return nil, "", errors.Wrap(err, "Could not retrieve in-cluster config")
+		}
+	}
+	clientset, err := kubernetes.NewForConfig(guestConfig)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to read the Para Virtual token from the credentials file %s", PvNamespaceLocation)
+		logger.WithError(err).Error("Failed to get k8s clientset from the given config")
+		return nil, "", errors.Wrap(err, "Could not retrieve in-cluster config client")
+	}
+
+	// Create Backup driver namespace if it does not exist
+	err = checkAndCreateNamespace(guestConfig, BackupDriverNamespace, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to create namespace %s", BackupDriverNamespace)
 		return nil, "", err
 	}
 
-	ns, err := ioutil.ReadFile(PvNamespaceLocation)
-	if err != nil {
-		logger.WithError(err).Errorf("Failed to read the Para Virtual namespace from the credentials file %s", PvNamespaceLocation)
-		return nil, "", err
-	}
-
-	tlsClientConfig := rest.TLSClientConfig{}
-
-	if _, err := certutil.NewPool(PvCrtLocation); err != nil {
-		klog.Errorf("Expected to load root CA config from %s, but got err: %v", PvCrtLocation, err)
+	// Check for the para virt secret. If it does not exist, wait for the secret to be written.
+	// We wait indefinitely for the secret to be written. It can happen if the backup driver
+	// is installed in the guest cluster without velero being installed in the supervisor cluster.
+	secretApis := clientset.CoreV1().Secrets(BackupDriverNamespace)
+	secret, err := secretApis.Get(context.TODO(), PvSecretName, metav1.GetOptions{})
+	if err == nil {
+		logger.Infof("Retrieved k8s secret %s in namespace %s", PvSecretName, BackupDriverNamespace)
 	} else {
-		tlsClientConfig.CAFile = PvCrtLocation
+		logger.Infof("Waiting for secret %s to be created in namespace %s", PvSecretName, BackupDriverNamespace)
+		ctx := context.Background()
+		secret, err = waitForPvSecret(ctx, clientset, BackupDriverNamespace, logger)
+		// Failed to get para virt secret
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get k8s secret %s in namespace %s", PvSecretName, BackupDriverNamespace)
+			return nil, "", err
+		}
 	}
+
+	// Get data from the secret
+	svcNamespace := string(secret.Data["namespace"])
+	svcCrt := secret.Data["ca.crt"]
+	svcToken := string(secret.Data["token"])
+
+	// Create supervisor config from the data in the secret
+	tlsClientConfig := rest.TLSClientConfig{}
+	tlsClientConfig.CAData = svcCrt
 
 	return &rest.Config{
 		// TODO: switch to using cluster DNS.
 		Host:            "https://" + net.JoinHostPort(PvApiEndpoint, PvPort),
 		TLSClientConfig: tlsClientConfig,
-		BearerToken:     string(token),
-		BearerTokenFile: PvTokenLocation,
-	}, string(ns), nil
+		BearerToken:     svcToken,
+	}, svcNamespace, nil
 }
 
 /*
@@ -652,7 +690,7 @@ func GetSupervisorParameters(config *rest.Config, ns string, logger logrus.Field
 	params := make(map[string]string)
 	var err error
 	if config == nil || ns == "" {
-		config, ns, err = SupervisorConfig(logger)
+		config, ns, err = GetSupervisorConfig(nil, logger)
 		if err != nil {
 			logger.WithError(err).Error("Could not get supervisor config")
 			return params, err
@@ -726,4 +764,96 @@ func GetRepo(image string) string {
 		return ""
 	}
 	return image[:lastIndex]
+}
+
+/*
+ * Create the namespace if it does not already exist.
+ */
+func checkAndCreateNamespace(config *rest.Config, ns string, logger logrus.FieldLogger) error {
+	var err error
+	if config == nil {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+			return errors.Wrap(err, "Could not retrieve in-cluster config")
+		}
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get k8s clientset from the given config")
+		return err
+	}
+
+	// Check if namespace already exists. Return success if namespace already exists.
+	_, err = clientset.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
+	if err == nil {
+		logger.Infof("Namespace %s already exists", ns)
+		return nil
+	}
+
+	// Namespace does not exist. Create it.
+	nsSpec := &k8sv1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
+	_, err = clientset.CoreV1().Namespaces().Create(context.TODO(), nsSpec, metav1.CreateOptions{})
+	if err != nil {
+		logger.WithError(err).Errorf("Could not create namespace %s", ns)
+		return err
+	}
+
+	logger.Infof("Created namespace %s", ns)
+	return nil
+}
+
+type waitResult struct {
+	item interface{}
+	err  error
+}
+
+/*
+ * Wait for the the para virtual secret to be written in backup driver namespace.
+ * The secret will be written by velero-app-operator in the supervisor cluster.
+ */
+func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, namespace string, logger logrus.FieldLogger) (*k8sv1.Secret, error) {
+	results := make(chan waitResult)
+	watchlist := cache.NewListWatchFromClient(clientSet.CoreV1().RESTClient(), "Secrets", namespace,
+		fields.OneTermEqualSelector("metadata.name", PvSecretName))
+	_, controller := cache.NewInformer(
+		watchlist,
+		&k8sv1.Secret{},
+		time.Second*0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				secret := obj.(*k8sv1.Secret)
+				logger.Infof("secret created: %s", secret.Name)
+				results <- waitResult{
+					item: secret,
+					err:  nil,
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				logger.Infof("secret deleted: %s", PvSecretName)
+				results <- waitResult{
+					item: nil,
+					err:  errors.New("Not implemented"),
+				}
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				logger.Infof("secret updated: %s", PvSecretName)
+				results <- waitResult{
+					item: nil,
+					err:  errors.New("Not implemented"),
+				}
+			},
+		},
+	)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	go controller.Run(stop)
+	select {
+	case <-ctx.Done():
+		stop <- struct{}{}
+		return nil, ctx.Err()
+	case result := <-results:
+		return result.item.(*k8sv1.Secret), result.err
+	}
 }
