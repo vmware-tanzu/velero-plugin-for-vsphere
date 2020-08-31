@@ -437,6 +437,8 @@ github.com/vmware-tanzu/astrolabe v0.1.1-0.20200519042640-570f84703079 h1:2hU79K
 github.com/vmware-tanzu/astrolabe v0.1.1-0.20200519042640-570f84703079/go.mod h1:SChYb3UPGc4UpCOs/9IhPb5Fpxd+8C9blc0RG5KfxtY=
 github.com/vmware-tanzu/astrolabe v0.1.2-0.20200831172741-bb29bb208305 h1:IbIkft09Ktvu+JrJOCxgwE0dhq6xhNUjbFZTHKD+c8A=
 github.com/vmware-tanzu/astrolabe v0.1.2-0.20200831172741-bb29bb208305/go.mod h1:SChYb3UPGc4UpCOs/9IhPb5Fpxd+8C9blc0RG5KfxtY=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200831203631-116155c23bec h1:uKSI67pvwdfJvDW2wK3i8WDElo0NalO5wkTJEZVkdDs=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20200831203631-116155c23bec/go.mod h1:SChYb3UPGc4UpCOs/9IhPb5Fpxd+8C9blc0RG5KfxtY=
 github.com/vmware-tanzu/velero v1.3.2 h1:Rhn37gjxn6Hwg6OFZUsW1CTuRaVuHEL8p/eiXrcKNGw=
 github.com/vmware-tanzu/velero v1.3.2/go.mod h1:s+8IqUKWcprcMVOfZKNC+jFY3tr/ElJfaMCcAfhThts=
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f h1:6LIYlihC1/LDUhZ7zYVp1WOEY5owzsvogiaHBqvBzPU=
