@@ -75,22 +75,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 	sEnc := string(secret.Data["csi-vsphere.conf"])
 	lines := strings.Split(sEnc, "\n")
 
-	for _, line := range lines {
-		if strings.Contains(line, "VirtualCenter") {
-			parts := strings.Split(line, "\"")
-			params["VirtualCenter"] = parts[1]
-		} else if strings.Contains(line, "=") {
-			parts := strings.Split(line, "=")
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			// Skip the quotes in the value if present
-			if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
-				params[key] = value[1 : len(value)-1]
-			} else {
-				params[key] = value
-			}
-		}
-	}
+	ParseLines(lines, params, logger)
 
 	// If port is missing, add an entry in the params to use the standard https port
 	if _, ok := params["port"]; !ok {
@@ -98,6 +83,27 @@ func RetrieveVcConfigSecret(params map[string]interface{}, logger logrus.FieldLo
 	}
 
 	return nil
+}
+
+func ParseLines(lines []string, params map[string]interface{}, logger logrus.FieldLogger) {
+	for _, line := range lines {
+		if strings.Contains(line, "VirtualCenter") {
+			parts := strings.Split(line, "\"")
+			params["VirtualCenter"] = parts[1]
+		} else if strings.Contains(line, "=") {
+			parts := strings.SplitN(line, "=", 2)
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Skip the quotes in the value if present
+			unquotedValue, err := strconv.Unquote(string(value))
+			if err != nil {
+				logger.WithError(err).Errorf("Failed to unquote value %v for key %v. Just store the original value string", value, key)
+				params[key] = string(value)
+				continue
+			}
+			params[key] = unquotedValue
+		}
+	}
 }
 
 /*
