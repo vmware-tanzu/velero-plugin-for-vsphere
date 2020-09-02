@@ -22,7 +22,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
-	github.com/vmware-tanzu/astrolabe v0.1.2-0.20200831235727-748c63d0fa96
+	github.com/vmware-tanzu/astrolabe v0.1.2-0.20200901212149-f20520b25c48
 	github.com/vmware-tanzu/velero v1.3.2
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.17.3
