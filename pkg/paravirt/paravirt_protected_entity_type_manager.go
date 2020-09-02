@@ -232,7 +232,11 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 		return nil, errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
 	}
 	svcPVC.Namespace = this.svcNamespace
-	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", *svcPVC.Spec.StorageClassName, svcPVC.Name, svcPVC.Namespace)
+	svcStorageClassName := ""
+	if svcPVC.Spec.StorageClassName != nil {
+		svcStorageClassName = *svcPVC.Spec.StorageClassName
+	}
+	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Name, svcPVC.Namespace)
 	svcPVCData, err := svcPVC.Marshal()
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not marshal SVC PVC data for %s/%s",
