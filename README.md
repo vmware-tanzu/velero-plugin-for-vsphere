@@ -11,6 +11,14 @@ This repository contains the Velero Plugin for vSphere.  This plugin is a volume
 * vSphere CSI/CNS driver 1.0.2 or above
 * Kubernetes 1.14 or above (note: the Velero Plug-in for vSphere does not support Guest or Supervisor clusters on vSphere yet)
 
+## Prerequisites
+### Roles and Privileges
+* Meet the prerequisites of vSphere CSI driver on vSphere roles and privileges - please refer to
+[vSphere Roles and Privileges](https://vsphere-csi-driver.sigs.k8s.io/driver-deployment/prerequisites.html#roles_and_privileges)
+of vSphere CSI Driver.
+* Meet the prerequisites of Virtual Disk Development Kit(VDDK) - please refer to
+[Credentials and Privileges for VMDK Access](https://code.vmware.com/docs/11750/virtual-disk-development-kit-programming-guide/GUID-8301C6CF-37C2-42CC-B4C5-BB1DD28F79C9.html)
+of VDDK Programming Guide. **Note: please apply privileges at the vCenter Server level**.
 
 ## Installing the plugin
 * Install Velero - please see the Velero documentation https://velero.io/docs/v1.3.1/basic-install
