@@ -37,10 +37,10 @@ the AWS plugin.  Before installing the vSphere plugin, please install and config
 velero plugin add <plugin-image>
 ```
 
-For Version 1.0.1 the command is
+For Version 1.0.2 the command is
 
 ```bash
-velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.0.1
+velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.0.2
 ```
 
 ## Create a VolumeSnapshotLocation
@@ -165,7 +165,7 @@ kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup
 
 ## Current release:
 
- *[CHANGELOG-1.0.1.md][1]
+ *[CHANGELOG-1.0.2.md][1]
 
-[1]: https://github.com/vmware-tanzu/velero-plugin-for-vsphere/blob/master/changelogs/CHANGELOG-1.0.1.md
+[1]: https://github.com/vmware-tanzu/velero-plugin-for-vsphere/blob/master/changelogs/CHANGELOG-1.0.2.md
 
