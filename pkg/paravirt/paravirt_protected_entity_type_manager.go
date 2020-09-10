@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -40,6 +41,7 @@ const (
 const (
 	SnapshotParamBackupRepository = "BackupRepository"
 	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
+	SnapshotParamBackupName       = "BackupName"
 )
 
 type ParaVirtProtectedEntityTypeManager struct {

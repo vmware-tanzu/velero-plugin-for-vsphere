@@ -27,7 +27,7 @@ type SnapshotBuilder struct {
 	object *backupdriverv1.Snapshot
 }
 
-func ForSnapshot(ns, name string) *SnapshotBuilder {
+func ForSnapshot(ns, name string, labels map[string]string) *SnapshotBuilder {
 	return &SnapshotBuilder{
 		object: &backupdriverv1.Snapshot{
 			TypeMeta: metav1.TypeMeta{
@@ -37,6 +37,7 @@ func ForSnapshot(ns, name string) *SnapshotBuilder {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
+				Labels:    labels,
 			},
 		},
 	}

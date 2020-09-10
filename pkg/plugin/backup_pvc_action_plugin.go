@@ -105,8 +105,12 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		Name:     pvc.Name,
 	}
 
+	labels := map[string]string{
+		utils.SnapshotBackupLabel: backup.Name,
+	}
+
 	p.Log.Info("Creating a Snapshot CR")
-	updatedSnapshot, err := snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository,
+	updatedSnapshot, err := snapshotUtils.SnapshotRef(ctx, backupdriverClient, objectToSnapshot, pvc.Namespace, *backupRepository, labels,
 		[]backupdriverv1.SnapshotPhase{backupdriverv1.SnapshotPhaseSnapshotted, backupdriverv1.SnapshotPhaseSnapshotFailed, backupdriverv1.SnapshotPhaseUploaded, backupdriverv1.SnapshotPhaseUploading, backupdriverv1.SnapshotPhaseUploadFailed, backupdriverv1.SnapshotPhaseCanceling, backupdriverv1.SnapshotPhaseCanceled, backupdriverv1.SnapshotPhaseCleanupFailed}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a Snapshot CR: %v", err)
