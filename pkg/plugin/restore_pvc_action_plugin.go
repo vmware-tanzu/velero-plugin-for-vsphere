@@ -37,7 +37,8 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	}
 
 	var err error
-	// get snapshot blob from PVC annotation and reset PVC annotation
+	// get snapshot blob from PVC annotation
+	p.Log.Info("Getting the snapshot blob from PVC annotation from backup")
 	snapshotAnnotation, ok := pvc.Annotations[utils.ItemSnapshotLabel]
 	if !ok {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
@@ -45,22 +46,37 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 			UpdatedItem: input.Item,
 		}, nil
 	}
-
 	var itemSnapshot backupdriverv1.Snapshot
 	if err = pluginItem.GetSnapshotFromPVCAnnotation(snapshotAnnotation, &itemSnapshot); err != nil {
 		p.Log.Errorf("Failed to parse the Snapshot object from PVC annotation: %v", err)
 		return nil, errors.WithStack(err)
 	}
 
-	p.Log.Infof("VSphere PVCRestoreItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
+	// update the target pvc namespace based on the namespace mapping option in the restore spec
+	p.Log.Info("Updating target PVC namespace based on the namespace mapping option in the Restore Spec")
+	targetNamespace := pvc.Namespace
+	if input.Restore.Spec.NamespaceMapping != nil {
+		_, pvcNsMappingExists := input.Restore.Spec.NamespaceMapping[pvc.Namespace]
+		if pvcNsMappingExists {
+			targetNamespace = input.Restore.Spec.NamespaceMapping[pvc.Namespace]
+			itemSnapshot, err = pluginItem.UpdateSnapshotWithNewNamespace(&itemSnapshot, targetNamespace)
+			if err != nil {
+				p.Log.Errorf("Failed to update snapshot blob based on the namespace mapping specified in the Restore Spec")
+				return nil, errors.WithStack(err)
+			}
+			p.Log.Infof("Updated the target PVC namespace from %s to %s based on the namespace mapping in the Restore Spec", pvc.Namespace, targetNamespace)
+		}
+	}
+
+	p.Log.Infof("VSphere PVCRestoreItemAction for PVC %s/%s started", targetNamespace, pvc.Name)
 	defer func() {
-		p.Log.Infof("VSphere PVCRestoreItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
+		p.Log.Infof("VSphere PVCRestoreItemAction for PVC %s/%s completed with err: %v", targetNamespace, pvc.Name, err)
 	}()
 
 	ctx := context.Background()
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
-		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
+		p.Log.Errorf("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, errors.WithStack(err)
 	}
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(restConfig)
@@ -75,7 +91,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	backupRepository := snapshotUtils.NewBackupRepository(itemSnapshot.Spec.BackupRepository)
 
 	p.Log.Info("Creating a CloneFromSnapshot CR")
-	updatedCloneFromSnapshot, err := snapshotUtils.CloneFromSnapshopRef(ctx, backupdriverClient, snapshotID, snapshotMetadata, apiGroup, kind, pvc.Namespace, *backupRepository,
+	updatedCloneFromSnapshot, err := snapshotUtils.CloneFromSnapshopRef(ctx, backupdriverClient, snapshotID, snapshotMetadata, apiGroup, kind, targetNamespace, *backupRepository,
 		[]backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted, backupdriverv1.ClonePhaseFailed}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a CloneFromSnapshot CR: %v", err)
@@ -86,7 +102,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		p.Log.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}
-	p.Log.Info("Restored, %v, from PVC %s/%s in the backup", updatedCloneFromSnapshot.Status.ResourceHandle, pvc.Namespace, pvc.Name)
+	p.Log.Info("Restored, %v, from PVC %s/%s in the backup to PVC %s/%s", updatedCloneFromSnapshot.Status.ResourceHandle, pvc.Namespace, pvc.Name, targetNamespace, pvc.Name)
 
 	return &velero.RestoreItemActionExecuteOutput{
 		SkipRestore: true,

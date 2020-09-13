@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/pkg/errors"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,4 +38,25 @@ func AddAnnotations(o *metav1.ObjectMeta, vals map[string]string) {
 	for k, v := range vals {
 		o.Annotations[k] = v
 	}
+}
+
+func UpdateSnapshotWithNewNamespace(itemSnapshot *backupdriverv1.Snapshot, namespace string) (backupdriverv1.Snapshot, error) {
+	var err error
+	snapshotMetadata := itemSnapshot.Status.Metadata
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err = pvc.Unmarshal(snapshotMetadata); err != nil {
+		return backupdriverv1.Snapshot{}, err
+	}
+
+	// update the PVC namespace
+	pvc.Namespace = namespace
+
+	var updatedSnapshotMetadata []byte
+	if updatedSnapshotMetadata, err = pvc.Marshal(); err != nil {
+		return backupdriverv1.Snapshot{}, err
+	}
+	itemSnapshot.Status.Metadata = updatedSnapshotMetadata
+
+	return *itemSnapshot, nil
 }
