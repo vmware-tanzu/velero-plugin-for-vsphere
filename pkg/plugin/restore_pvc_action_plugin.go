@@ -36,6 +36,15 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
+	// exit early if the RestorePVs option is disabled
+	p.Log.Info("Checking if the RestorePVs option is disabled in the Restore Spec")
+	if input.Restore.Spec.RestorePVs != nil && *input.Restore.Spec.RestorePVs == false {
+		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s since the RestorePVs option is disabled in the Restore Spec.", pvc.Namespace, pvc.Name)
+		return &velero.RestoreItemActionExecuteOutput{
+			UpdatedItem: input.Item,
+		}, nil
+	}
+
 	var err error
 	// get snapshot blob from PVC annotation and reset PVC annotation
 	snapshotAnnotation, ok := pvc.Annotations[utils.ItemSnapshotLabel]
