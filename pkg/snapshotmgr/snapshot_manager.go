@@ -20,10 +20,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"strings"
 	"time"
+
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -47,9 +48,9 @@ import (
 
 type SnapshotManager struct {
 	logrus.FieldLogger
-	config map[string]string
-	Pem    astrolabe.ProtectedEntityManager
-	s3PETM astrolabe.ProtectedEntityTypeManager
+	config        map[string]string
+	Pem           astrolabe.ProtectedEntityManager
+	s3PETM        astrolabe.ProtectedEntityTypeManager
 	clusterFlavor utils.ClusterFlavor
 }
 
@@ -128,9 +129,9 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
 
 	snapMgr := SnapshotManager{
-		FieldLogger: logger,
-		config:      config,
-		Pem:         dpem,
+		FieldLogger:   logger,
+		config:        config,
+		Pem:           dpem,
 		clusterFlavor: clusterFlavor,
 		//s3PETM:      s3PETM,
 	}
@@ -195,19 +196,19 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
-	peID, _, err := this.createSnapshot(peID, tags, "", "")
+	peID, _, err := this.createSnapshot(peID, tags, "", "", "")
 	return peID, err
 }
 
 func (this *SnapshotManager) CreateSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, tags map[string]string,
-	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, string, error) {
+	backupRepositoryName string, snapshotRef string, backupName string) (astrolabe.ProtectedEntityID, string, error) {
 	this.Infof("SnapshotManager.CreateSnapshotWithBackupRepository Called with peID %s, tags %v, BackupRepository %s",
 		peID.String(), tags, backupRepositoryName)
-	return this.createSnapshot(peID, tags, backupRepositoryName, snapshotRef)
+	return this.createSnapshot(peID, tags, backupRepositoryName, snapshotRef, backupName)
 }
 
 func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string,
-	backupRepositoryName string, snapshotRef string) (astrolabe.ProtectedEntityID, string, error) {
+	backupRepositoryName string, snapshotRef string, backupName string) (astrolabe.ProtectedEntityID, string, error) {
 	this.Infof("Step 1: Creating a snapshot in local repository")
 	var snapshotPEID astrolabe.ProtectedEntityID
 	ctx := context.Background()
@@ -222,6 +223,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	guestSnapshotParams := make(map[string]interface{})
 	// Pass the backup repository name as snapshot param.
 	guestSnapshotParams[paravirt.SnapshotParamBackupRepository] = backupRepositoryName
+	guestSnapshotParams[paravirt.SnapshotParamBackupName] = backupName
 
 	snapshotParams[peID.GetPeType()] = guestSnapshotParams
 

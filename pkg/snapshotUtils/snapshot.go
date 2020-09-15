@@ -2,8 +2,9 @@ package snapshotUtils
 
 import (
 	"context"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 
@@ -57,6 +58,7 @@ func SnapshotRef(ctx context.Context,
 	objectToSnapshot core_v1.TypedLocalObjectReference,
 	namespace string,
 	repository BackupRepository,
+	labels map[string]string,
 	waitForPhases []backupdriverv1.SnapshotPhase,
 	logger logrus.FieldLogger) (*backupdriverv1.Snapshot, error) {
 
@@ -65,7 +67,7 @@ func SnapshotRef(ctx context.Context,
 		return nil, errors.Wrapf(err, "Could not create snapshot UUID")
 	}
 	snapshotName := "snap-" + snapshotUUID.String()
-	snapshotReq := builder.ForSnapshot(namespace, snapshotName).
+	snapshotReq := builder.ForSnapshot(namespace, snapshotName, labels).
 		BackupRepository(repository.backupRepositoryName).
 		ObjectReference(objectToSnapshot).
 		CancelState(false).Result()

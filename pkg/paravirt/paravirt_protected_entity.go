@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -74,11 +76,14 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
+	labels := map[string]string{
+		utils.SnapshotBackupLabel: params[astrolabe.PvcPEType][SnapshotParamBackupName].(string),
+	}
 
 	this.logger.Info("Creating a snapshot CR")
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 	snapshot, err := snapshotUtils.SnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace,
-		*backupRepository, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
+		*backupRepository, labels, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
 	if err != nil {
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
