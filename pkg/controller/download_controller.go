@@ -100,6 +100,17 @@ func (c *downloadController) enqueueDownloadItem(obj interface{}) {
 	switch req.Status.Phase {
 	case "", pluginv1api.DownloadPhaseNew, pluginv1api.DownloadPhaseInProgress, pluginv1api.DownLoadPhaseRetry:
 		// Process New InProgress and Retry Downloads
+	case pluginv1api.DownloadPhaseCompleted:
+		// If Download CR status reaches terminal state, Download CR should be deleted after clean up window
+		now := c.clock.Now()
+		if now.After(req.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
+			log.Infof("Download CR %s has been in phase %v more than %v hours, deleting this CR.", req.Name, req.Status.Phase, constants.DefaultCRCleanUpWindow)
+			err := c.downloadClient.Downloads(req.Namespace).Delete(context.TODO(), req.Name, metav1.DeleteOptions{})
+			if err != nil {
+				log.WithError(err).Errorf("Failed to delete Download CR which is in %v phase.", req.Status.Phase)
+			}
+		}
+		return
 	default:
 		log.Debug("Download CR is not New or InProgress or Retry, skipping")
 		return
