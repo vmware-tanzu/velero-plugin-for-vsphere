@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -16,7 +18,6 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -195,13 +196,13 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 
 	// Get backupRepository from Guest, set backRepositoryName to backupRepositoryObj.SvcBackupRepositoryName
 	var backupRepo *snapshotUtils.BackupRepository
-	if backupRepositoryName != "" && backupRepositoryName != utils.WithoutBackupRepository {
+	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
 		backupRepositoryCR, err := utils.GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName)
 		if err != nil {
 			this.logger.Errorf("Failed to get BackupRepository from BackupRepositoryName %s: %v", backupRepositoryName, err)
 			return nil, errors.Wrapf(err, "failed to retrieve backupRepository")
 		}
-		if backupRepositoryCR.SvcBackupRepositoryName != "" && backupRepositoryCR.SvcBackupRepositoryName != utils.WithoutBackupRepository {
+		if backupRepositoryCR.SvcBackupRepositoryName != "" && backupRepositoryCR.SvcBackupRepositoryName != constants.WithoutBackupRepository {
 			this.logger.Info("BackupRepositoryName in Supervisor: %s", backupRepositoryCR.SvcBackupRepositoryName)
 			backupRepositoryName = backupRepositoryCR.SvcBackupRepositoryName
 		}

@@ -6,7 +6,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -14,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"os"
 )
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
@@ -48,7 +51,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	var err error
 	// get snapshot blob from PVC annotation
 	p.Log.Info("Getting the snapshot blob from PVC annotation from backup")
-	snapshotAnnotation, ok := pvc.Annotations[utils.ItemSnapshotLabel]
+	snapshotAnnotation, ok := pvc.Annotations[constants.ItemSnapshotLabel]
 	if !ok {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
 		return &velero.RestoreItemActionExecuteOutput{
@@ -83,6 +86,12 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	}()
 
 	ctx := context.Background()
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		errMsg := "Failed to lookup the ENV variable for velero namespace"
+		p.Log.Error(errMsg)
+		return nil, errors.New(errMsg)
+	}
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		p.Log.Errorf("Failed to get the rest config in k8s cluster: %v", err)
@@ -97,7 +106,24 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	snapshotMetadata := itemSnapshot.Status.Metadata
 	apiGroup := itemSnapshot.Spec.APIGroup
 	kind := itemSnapshot.Spec.Kind
-	backupRepository := snapshotUtils.NewBackupRepository(itemSnapshot.Spec.BackupRepository)
+
+	backupName := input.Restore.Spec.BackupName
+	bslName, err := utils.RetrieveBSLFromBackup(ctx, backupName, restConfig, p.Log)
+	if err != nil {
+		p.Log.Errorf("Failed to retrieve the Backup Storage Location for the Backup during restore: %v", err)
+		return nil, errors.WithStack(err)
+	}
+	var backupRepositoryName string
+	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
+	if !isLocalMode {
+		p.Log.Info("Claiming backup repository during restore")
+		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
+		if err != nil {
+			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
+			return nil, errors.WithStack(err)
+		}
+	}
+	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 
 	p.Log.Info("Creating a CloneFromSnapshot CR")
 	updatedCloneFromSnapshot, err := snapshotUtils.CloneFromSnapshopRef(ctx, backupdriverClient, snapshotID, snapshotMetadata, apiGroup, kind, targetNamespace, *backupRepository,

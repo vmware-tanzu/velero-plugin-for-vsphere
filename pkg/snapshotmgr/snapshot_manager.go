@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ type SnapshotManager struct {
 	config        map[string]string
 	Pem           astrolabe.ProtectedEntityManager
 	s3PETM        astrolabe.ProtectedEntityTypeManager
-	clusterFlavor utils.ClusterFlavor
+	clusterFlavor constants.ClusterFlavor
 }
 
 // TODO - remove in favor of NewSnapshotManagerFromConfig when callers have been converted
@@ -99,7 +100,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 		logger.Errorf("Failed to get cluster flavor")
 		return nil, err
 	}
-	if clusterFlavor != utils.TkgGuest {
+	if clusterFlavor != constants.TkgGuest {
 		if _, ok := configInfo.PEConfigs["ivd"]; !ok {
 			configInfo.PEConfigs["ivd"] = make(map[string]interface{})
 		}
@@ -122,8 +123,8 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	// TODO: Remove the use of s3RepoParams. Do not use BackupStorageLocation,
 	//  as data movement will use BackupRepositories for each upload/download job
 	// Check whether local mode is disabled or not
-	isLocalMode := utils.GetBool(config[utils.VolumeSnapshotterLocalMode], false)
-	initRemoteStorage := clusterFlavor == utils.VSphere
+	isLocalMode := utils.GetBool(config[constants.VolumeSnapshotterLocalMode], false)
+	initRemoteStorage := clusterFlavor == constants.VSphere
 
 	// Initialize the DirectProtectedEntityManager
 	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
@@ -146,7 +147,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 			s3RepoParams["region"] = region
 			s3RepoParams["bucket"] = bucket
 		} else {
-			err = utils.RetrieveVSLFromVeleroBSLs(s3RepoParams, utils.DefaultS3BackupLocation, k8sRestConfig, logger)
+			err = utils.RetrieveVSLFromVeleroBSLs(s3RepoParams, constants.DefaultS3BackupLocation, k8sRestConfig, logger)
 			if err != nil {
 				logger.WithError(err).Errorf("Could not retrieve velero default backup location")
 				return nil, err
@@ -167,7 +168,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	}
 
 	// Register external PETMs if any
-	if clusterFlavor == utils.TkgGuest {
+	if clusterFlavor == constants.TkgGuest {
 		logger.Infof("SnapshotManager: Cluster flavor: TKG Guest")
 		paravirtParams := make(map[string]interface{})
 		paravirtParams["restConfig"] = configInfo.PEConfigs[astrolabe.PvcPEType]["restConfig"]
@@ -262,7 +263,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	this.Infof("Local snapshot is created, %s", snapshotPEID.String())
 
 	// This is set for Guest Cluster or if the local mode flag is set
-	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
+	isLocalMode := utils.GetBool(this.config[constants.VolumeSnapshotterLocalMode], false)
 	if isLocalMode {
 		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
 		return snapshotPEID, svcSnapshotName, nil
@@ -341,7 +342,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	this.Infof("Ready to create upload CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
 	var retUpload *v1api.Upload
 
-	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
+	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		retUpload, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(context.TODO(), upload, metav1.CreateOptions{})
 		if err != nil {
 			return false, err
@@ -379,7 +380,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		log.WithError(err).Errorf("Failed to determine cluster flavour")
 		return err
 	}
-	if clusterFlavor == utils.Supervisor || clusterFlavor == utils.VSphere {
+	if clusterFlavor == constants.Supervisor || clusterFlavor == constants.VSphere {
 		log.Infof("Detected non-Guest Cluster, checking for on-going upload.")
 		log.Infof("Step 0: Cancel on-going upload.")
 
@@ -447,11 +448,11 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	} else {
 		log.Infof("Successfully deleted local snapshot for PE: %s", pe.GetID().String())
 	}
-	if clusterFlavor == utils.TkgGuest {
+	if clusterFlavor == constants.TkgGuest {
 		log.Infof("Guest Cluster detected during delete snapshot, nothing more to do.")
 	}
 	// Trigger remote snapshot deletion in Supervisor/Vanilla setup.
-	isLocalMode := utils.GetBool(this.config[utils.VolumeSnapshotterLocalMode], false)
+	isLocalMode := utils.GetBool(this.config[constants.VolumeSnapshotterLocalMode], false)
 	if isLocalMode {
 		log.Infof("Local Mode detected, skipping remote delete snapshot for PE: %s", peID)
 		return nil
@@ -604,7 +605,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 	}
 	download := downloadBuilder.Result()
 	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
-	err = wait.PollImmediate(utils.RetryInterval*time.Second, utils.RetryInterval*utils.RetryMaximum*time.Second, func() (bool, error) {
+	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(context.TODO(), download, metav1.CreateOptions{})
 		if err != nil {
 			return false, nil
@@ -688,10 +689,10 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 	var snapshotRepo astrolabe.ProtectedEntityTypeManager
 	snapshotRepo = nil
 	ctx := context.Background()
-	if this.clusterFlavor != utils.TkgGuest {
+	if this.clusterFlavor != constants.TkgGuest {
 		this.Infof("CreateVolumeFromSnapshotWithMetadata: not a TKG Guest Cluster")
 		// Translate the BackupRepository to a PETM (usually S3PETM)
-		if backupRepositoryName != "" && backupRepositoryName != utils.WithoutBackupRepository {
+		if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
 			config, err := rest.InClusterConfig()
 			if err != nil {
 				this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
@@ -703,7 +704,10 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 				return astrolabe.ProtectedEntityID{}, err
 			}
 			backupRepository, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
-
+			if err != nil {
+				this.WithError(err).Errorf("Failed to retrieve backup repository %s", backupRepositoryName)
+				return astrolabe.ProtectedEntityID{}, err
+			}
 			snapshotRepo, err = utils.GetRepositoryFromBackupRepository(backupRepository, this)
 			if err != nil {
 				this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)

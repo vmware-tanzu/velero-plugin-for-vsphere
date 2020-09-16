@@ -18,6 +18,7 @@ package dataMover
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -53,7 +54,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool
 	// using the BackupRepositories
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	if !externalDataMgr {
-		err := utils.RetrieveVSLFromVeleroBSLs(params, utils.DefaultS3BackupLocation, nil, logger)
+		err := utils.RetrieveVSLFromVeleroBSLs(params, constants.DefaultS3BackupLocation, nil, logger)
 		if err != nil {
 			logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
 			return nil, err
@@ -93,7 +94,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool
 }
 
 func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
-	backupRepository := builder.ForBackupRepository(utils.WithoutBackupRepository).Result()
+	backupRepository := builder.ForBackupRepository(constants.WithoutBackupRepository).Result()
 	return this.copyToRepo(peID, backupRepository)
 }
 
@@ -116,7 +117,7 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 	this.RegisterOngoingUpload(peID, cancelFunc)
 
 	log.Debugf("Ready to call s3 PETM copy API for local PE")
-	if backupRepository.Name != utils.WithoutBackupRepository {
+	if backupRepository.Name != constants.WithoutBackupRepository {
 		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
@@ -139,7 +140,7 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 }
 
 func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
-	backupRepository := builder.ForBackupRepository(utils.WithoutBackupRepository).Result()
+	backupRepository := builder.ForBackupRepository(constants.WithoutBackupRepository).Result()
 	return this.copyFromRepo(peID, targetPEID, backupRepository, options)
 }
 
@@ -150,7 +151,7 @@ func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.Protected
 func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
 	log := this.WithField("Remote PEID", peID.String())
 	log.Infof("Copying the snapshot from remote repository to local. Copy options: %d", options)
-	if backupRepository.Name != utils.WithoutBackupRepository {
+	if backupRepository.Name != constants.WithoutBackupRepository {
 		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)

@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -77,7 +78,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			clientBurst:        cmd.DefaultClientBurst,
 			profilerAddress:    cmd.DefaultProfilerAddress,
 			formatFlag:         logging.NewFormatFlag(),
-			port:               utils.DefaultVCenterPort,
+			port:               constants.DefaultVCenterPort,
 			insecureFlag:       cmd.DefaultInsecureFlag,
 			vcConfigFromSecret: cmd.DefaultVCConfigFromSecret,
 		}
@@ -247,7 +248,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 
 	snapshotMgrConfig := make(map[string]string)
-	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
+	snapshotMgrConfig[constants.VolumeSnapshotterManagerLocation] = constants.VolumeSnapshotterDataServer
 
 	peConfigs := make(map[string]map[string]interface{})
 	peConfigs["ivd"] = ivdParams // Even an empty map here will force NewSnapshotManagerFromConfig to use the default VC config
@@ -272,7 +273,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 	// In supervisor/guest cluster, data manager is remote
 	externalDataMgr := false
-	if clusterFlavor != utils.VSphere {
+	if clusterFlavor != constants.VSphere {
 		externalDataMgr = true
 	}
 
@@ -287,7 +288,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		kubeClient:            kubeClient,
 		veleroClient:          veleroClient,
 		pluginClient:          pluginClient,
-		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, utils.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
+		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, constants.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
 		kubeInformerFactory:   kubeinformers.NewSharedInformerFactory(kubeClient, 0),
 		logger:                logger,
 		logLevel:              logger.Level,

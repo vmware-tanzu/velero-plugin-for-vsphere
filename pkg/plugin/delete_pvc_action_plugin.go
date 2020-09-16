@@ -6,7 +6,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -14,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"os"
 )
 
 // PVCDeleteItemAction is a delete item action plugin for Velero.
@@ -39,7 +42,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 
 	var err error
 	// get snapshot blob from PVC annotation
-	snapshotAnnotation, ok := pvc.Annotations[utils.ItemSnapshotLabel]
+	snapshotAnnotation, ok := pvc.Annotations[constants.ItemSnapshotLabel]
 	if !ok {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
 		return nil
@@ -55,6 +58,12 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 		p.Log.Infof("VSphere PVCDeleteItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
 	}()
 
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		errMsg := "Failed to lookup the ENV variable for velero namespace"
+		p.Log.Error(errMsg)
+		return errors.New(errMsg)
+	}
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
@@ -66,7 +75,20 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 	}
 
 	snapshotID := itemSnapshot.Status.SnapshotID
-	backupRepository := snapshotUtils.NewBackupRepository(itemSnapshot.Spec.BackupRepository)
+	bslName := input.Backup.Spec.StorageLocation
+
+	var backupRepositoryName string
+	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
+	if !isLocalMode {
+		p.Log.Info("Claiming backup repository during delete")
+		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
+		if err != nil {
+			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
+			return errors.WithStack(err)
+		}
+	}
+	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
+
 	p.Log.Info("Creating a DeleteSnapshot CR")
 
 	updatedDeleteSnapshot, err := snapshotUtils.DeleteSnapshotRef(ctx, backupdriverClient, snapshotID, pvc.Namespace, *backupRepository,

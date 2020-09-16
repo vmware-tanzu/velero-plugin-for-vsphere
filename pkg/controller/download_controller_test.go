@@ -26,11 +26,11 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,7 +44,7 @@ import (
 )
 
 func defaultDownload() *builder.DownloadBuilder {
-	return builder.ForDownload(utils.DefaultNamespace, "download-1")
+	return builder.ForDownload(constants.DefaultNamespace, "download-1")
 }
 
 func TestProcessDownloadSkipItems(t *testing.T) {
@@ -114,7 +114,7 @@ func TestPatchDownloadByStatus(t *testing.T) {
 			key:      "velero/download-1",
 			oldPhase: v1.DownloadPhaseInProgress,
 			newPhase: v1.DownloadPhaseCompleted,
-			download: defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(utils.MIN_RETRY).Result(),
+			download: defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(constants.MIN_RETRY).Result(),
 			msg:      "Download completed",
 		},
 		{
@@ -122,7 +122,7 @@ func TestPatchDownloadByStatus(t *testing.T) {
 			key:      "velero/download-1",
 			oldPhase: v1.DownloadPhaseInProgress,
 			newPhase: v1.DownLoadPhaseRetry,
-			download: defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(utils.MIN_RETRY).Result(),
+			download: defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(constants.MIN_RETRY).Result(),
 			msg:      "Failed to download snapshot, ivd:1234:1234, from durable object storage.",
 		},
 		{
@@ -131,7 +131,7 @@ func TestPatchDownloadByStatus(t *testing.T) {
 			oldPhase:      v1.DownloadPhaseInProgress,
 			newPhase:      v1.DownLoadPhaseRetry,
 			expectedPhase: v1.DownloadPhaseFailed,
-			download:      defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(utils.DOWNLOAD_MAX_RETRY + 1).Result(),
+			download:      defaultDownload().Phase(v1.DownloadPhaseInProgress).Retry(constants.DOWNLOAD_MAX_RETRY + 1).Result(),
 			msg:           "Failed to download snapshot, ivd:1234:1234, from durable object storage.",
 		},
 	}
@@ -245,11 +245,11 @@ func TestPatchDownloadByStatus(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.msg, res.Status.Message)
 			if test.oldPhase == v1.DownloadPhaseNew {
-				require.Equal(t, int32(utils.MIN_RETRY), res.Status.RetryCount)
+				require.Equal(t, int32(constants.MIN_RETRY), res.Status.RetryCount)
 			}
 			if test.newPhase == v1.DownLoadPhaseRetry {
 				newRetry := res.Status.RetryCount
-				if newRetry > utils.DOWNLOAD_MAX_RETRY {
+				if newRetry > constants.DOWNLOAD_MAX_RETRY {
 					test.newPhase = test.expectedPhase
 				} else {
 					require.Equal(t, oldRetry+1, newRetry)
@@ -278,7 +278,7 @@ func TestProcessedDownloadItem(t *testing.T) {
 		{
 			name:          "Invalid peID should fail download ",
 			key:           "velero/download-1",
-			download:      defaultDownload().Phase(v1.DownloadPhaseNew).SnapshotID("ivd:invalid").Retry(utils.MIN_RETRY).Result(),
+			download:      defaultDownload().Phase(v1.DownloadPhaseNew).SnapshotID("ivd:invalid").Retry(constants.MIN_RETRY).Result(),
 			expectedPhase: v1.DownLoadPhaseRetry,
 			expectedErr:   errors.New("Failed to get PEID from SnapshotID, ivd:invalid"),
 		},

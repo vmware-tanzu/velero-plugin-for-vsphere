@@ -1,7 +1,10 @@
-package backupdriver
+package backuprepository
 
 import (
 	"context"
+	"encoding/json"
+	jsonpatch "github.com/evanphx/json-patch"
+	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	"time"
 
@@ -14,7 +17,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -146,7 +148,7 @@ func CreateBackupRepository(ctx context.Context,
 			RepositoryParameters(brc.RepositoryParameters).
 			RepositoryDriver().
 			SvcBackupRepositoryName(svcBrName).Result()
-		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(context.TODO(), backupRepoReq,metav1.CreateOptions{})
+		newBackupRepo, err := backupdriverV1Client.BackupRepositories().Create(context.TODO(), backupRepoReq, metav1.CreateOptions{})
 		if err != nil {
 			logger.Errorf("Failed to create the BackupRepository API object: %v", err)
 			return nil, err
@@ -216,45 +218,42 @@ func PatchBackupRepositoryClaim(backupRepositoryClaim *backupdriverv1.BackupRepo
 	mutate := func(r *backupdriverv1.BackupRepositoryClaim) {
 		backupRepositoryClaim.BackupRepository = backRepositoryName
 	}
-	_, err := utils.PatchBackupRepositoryClaim(backupRepositoryClaim, mutate, backupdriverV1Client.BackupRepositoryClaims(ns))
+	_, err := patchBackupRepositoryClaimInt(backupRepositoryClaim, mutate, backupdriverV1Client.BackupRepositoryClaims(ns))
 	if err != nil {
 		return errors.Errorf("Failed to patch backup repository claim %v with backup repository %v in namespace %v", backupRepositoryClaim.Name, backRepositoryName, ns)
 	}
 	return nil
 }
 
-// Patch the BackupRepository with the BackupRepositoryClaim name.
-func PatchBackupRepository(backupRepository *backupdriverv1.BackupRepository,
-	backRepositoryClaimName string,
-	backupdriverV1Client *v1.BackupdriverV1Client) error {
-	mutate := func(r *backupdriverv1.BackupRepository) {
-		backupRepository.BackupRepositoryClaim = backRepositoryClaimName
-	}
-	_, err := utils.PatchBackupRepository(backupRepository, mutate, backupdriverV1Client.BackupRepositories())
-	if err != nil {
-		return errors.Errorf("Failed to patch backup repository %v with backup repository claim %v", backupRepository, backRepositoryClaimName)
-	}
-	return nil
-}
+func patchBackupRepositoryClaimInt(req *backupdriverv1.BackupRepositoryClaim,
+	mutate func(*backupdriverv1.BackupRepositoryClaim),
+	backupRepoClaimClient v1.BackupRepositoryClaimInterface) (*backupdriverv1.BackupRepositoryClaim, error) {
 
-func compareBackupRepository(repositoryDriver string,
-	repositoryParameters map[string]string,
-	allowedNamespaces []string,
-	backupRepository *backupdriverv1.BackupRepository) bool {
-	// Compare the params. RepositoryDriver is always same.
-	equal := reflect.DeepEqual(repositoryParameters, backupRepository.RepositoryParameters)
-	if !equal {
-		return false
+	// Record original json
+	oldData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall original BackupRepositoryClaim")
 	}
-	equal = repositoryDriver == backupRepository.RepositoryDriver
-	if !equal {
-		return false
+
+	// Mutate
+	mutate(req)
+
+	// Record new json
+	newData, err := json.Marshal(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to marshall updated BackupRepositoryClaim")
 	}
-	equal = reflect.DeepEqual(allowedNamespaces, backupRepository.AllowedNamespaces)
-	if !equal {
-		return false
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepositoryClaim")
 	}
-	return true
+
+	req, err = backupRepoClaimClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to patch BackupRepositoryClaim")
+	}
+	return req, nil
 }
 
 func compareBackupRepositoryClaim(repositoryDriver string,

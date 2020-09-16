@@ -2,9 +2,8 @@ package paravirt
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
-
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -77,7 +76,7 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
 	labels := map[string]string{
-		utils.SnapshotBackupLabel: params[astrolabe.PvcPEType][SnapshotParamBackupName].(string),
+		constants.SnapshotBackupLabel: params[astrolabe.PvcPEType][SnapshotParamBackupName].(string),
 	}
 
 	this.logger.Info("Creating a snapshot CR")

@@ -20,8 +20,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -50,7 +50,7 @@ func (p *NewVolumeSnapshotter) Init(config map[string]string) error {
 	if config == nil {
 		config = make(map[string]string)
 	}
-	config[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterPlugin
+	config[constants.VolumeSnapshotterManagerLocation] = constants.VolumeSnapshotterPlugin
 	var err error
 	params := make(map[string]interface{})
 	p.snapMgr, err = snapshotmgr.NewSnapshotManagerFromCluster(params, config, p.FieldLogger)
@@ -98,7 +98,7 @@ func (p *NewVolumeSnapshotter) GetVolumeInfo(volumeID, volumeAZ string) (string,
 	p.Infof("GetVolumeInfo called with volumeID %s, volumeAZ %s", volumeID, volumeAZ)
 	var iops int64
 	iops = 100 // dummy iops is applied
-	return utils.CnsBlockVolumeType, &iops, nil
+	return constants.CnsBlockVolumeType, &iops, nil
 }
 
 // IsVolumeReady Check if the volume is ready.

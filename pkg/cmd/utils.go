@@ -19,6 +19,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strconv"
 	"strings"
@@ -27,7 +28,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/pkg/errors"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -141,8 +141,8 @@ func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
 		csi_driver_version = GetVersionFromImage(containers, "cloudnativestorage/vsphere-csi")
 		if csi_driver_version != "" {
 			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/vsphere-csi, setting version to min version %s\n",
-				csi_driver_version, utils.CsiMinVersion)
-			csi_driver_version = utils.CsiMinVersion
+				csi_driver_version, constants.CsiMinVersion)
+			csi_driver_version = constants.CsiMinVersion
 		}
 	}
 	csi_syncer_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/syncer")
@@ -150,11 +150,11 @@ func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
 		csi_syncer_version = GetVersionFromImage(containers, "cloudnativestorage/syncer")
 		if csi_syncer_version != "" {
 			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/syncer, setting version to min version %s\n",
-				csi_syncer_version, utils.CsiMinVersion)
-			csi_syncer_version = utils.CsiMinVersion
+				csi_syncer_version, constants.CsiMinVersion)
+			csi_syncer_version = constants.CsiMinVersion
 		}
 	}
-	if CompareVersion(csi_driver_version, utils.CsiMinVersion) >= 0 && CompareVersion(csi_syncer_version, utils.CsiMinVersion) >= 0 {
+	if CompareVersion(csi_driver_version, constants.CsiMinVersion) >= 0 && CompareVersion(csi_syncer_version, constants.CsiMinVersion) >= 0 {
 		isVersionOK = true
 	}
 	return true, isVersionOK, nil

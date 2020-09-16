@@ -19,6 +19,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -142,7 +143,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	skipDataMgr := false
 	// In case of Guest or Supervisor cluster, skip installing data manager
 	clusterFlavor, _ := utils.GetClusterFlavor(nil)
-	if clusterFlavor == utils.TkgGuest || clusterFlavor == utils.Supervisor {
+	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Supervisor {
 		fmt.Printf("The Cluster Flavor: %s\n. Skipping data manager installation.", clusterFlavor)
 		skipDataMgr = true
 	}
@@ -164,7 +165,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
 	}
 	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", utils.CsiMinVersion, utils.CsiMinVersion)
+		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", constants.CsiMinVersion, constants.CsiMinVersion)
 	}
 
 	// Check velero version
@@ -172,8 +173,8 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
 	} else {
-		if cmd.CompareVersion(veleroVersion, utils.VeleroMinVersion) == -1 {
-			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, utils.VeleroMinVersion, utils.VeleroMinVersion)
+		if cmd.CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
+			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, constants.VeleroMinVersion, constants.VeleroMinVersion)
 		}
 	}
 
@@ -215,7 +216,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	errorMsg := fmt.Sprintf("\n\nError installing data manager. Use `kubectl logs daemonset/%s -n %s` to check the logs",
-		utils.DataManagerForPlugin, o.Namespace)
+		constants.DataManagerForPlugin, o.Namespace)
 
 	err = install.Install(factory, resources, os.Stdout)
 	if err != nil {
@@ -229,7 +230,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	fmt.Printf("data manager is installed! ⛵ Use 'kubectl logs daemonset/%s -n %s' to view the status.\n",
-		utils.DataManagerForPlugin, o.Namespace)
+		constants.DataManagerForPlugin, o.Namespace)
 
 	return nil
 }
@@ -240,7 +241,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 		errMsg := fmt.Sprint("Failed to get clientset.")
 		return errors.New(errMsg)
 	}
-	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), utils.VeleroDeployment, metav1.GetOptions{})
+	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), constants.VeleroDeployment, metav1.GetOptions{})
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
 		return errors.New(errMsg)
@@ -250,7 +251,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 	tag := ""
 	image := ""
 	for _, container := range deployment.Spec.Template.Spec.InitContainers {
-		if strings.Contains(container.Image, utils.VeleroPluginForVsphere) {
+		if strings.Contains(container.Image, constants.VeleroPluginForVsphere) {
 			image = container.Image
 			repo = utils.GetRepo(container.Image)
 			tag = strings.Split(container.Image, ":")[1]
@@ -259,7 +260,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 	}
 
 	if repo != "" && tag != "" {
-		o.Image = repo + "/" + utils.DataManagerForPlugin + ":" + tag
+		o.Image = repo + "/" + constants.DataManagerForPlugin + ":" + tag
 		return nil
 	} else {
 		errMsg := fmt.Sprintf("Failed to get repo and tag from velero plugin image %s.", image)

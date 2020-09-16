@@ -20,10 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
 	"io/ioutil"
-
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -76,7 +75,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 		brName = br.SvcBackupRepositoryName
 	}
 
-	peID, svcSnapshotName, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name, snapshot.Labels[utils.SnapshotBackupLabel])
+	peID, svcSnapshotName, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name, snapshot.Labels[constants.SnapshotBackupLabel])
 	if err != nil {
 		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
 		ctrl.logger.Error(errMsg)

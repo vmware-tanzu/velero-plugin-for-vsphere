@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strings"
 	"testing"
@@ -156,7 +157,7 @@ func TestCreateRepositoryFromBackupRepository(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "default",
 				},
-				RepositoryDriver:     S3RepositoryDriver,
+				RepositoryDriver:     constants.S3RepositoryDriver,
 				RepositoryParameters: map1,
 			},
 			expectedErr: errors.New("Missing region param, cannot initialize S3 PETM"),
@@ -172,7 +173,7 @@ func TestCreateRepositoryFromBackupRepository(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "default",
 				},
-				RepositoryDriver:     S3RepositoryDriver,
+				RepositoryDriver:     constants.S3RepositoryDriver,
 				RepositoryParameters: map2,
 			},
 			expectedErr: errors.New("Missing bucket param, cannot initialize S3 PETM"),
@@ -378,7 +379,7 @@ func Test_waitForPvSecret(t *testing.T) {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: PvSecretName,
+			Name: constants.PvSecretName,
 		},
 	}
 
@@ -389,17 +390,17 @@ func Test_waitForPvSecret(t *testing.T) {
 	formatter.FullTimestamp = true
 	logger.SetFormatter(formatter)
 
-	err = clientSet.CoreV1().Secrets(BackupDriverNamespace).Delete(context.TODO(), testSecret.Name, metav1.DeleteOptions{})
+	err = clientSet.CoreV1().Secrets(constants.BackupDriverNamespace).Delete(context.TODO(), testSecret.Name, metav1.DeleteOptions{})
 	if err != nil {
 		t.Fatalf("Delete error = %v\n", err)
 	}
-	writtenSnapshot, err := clientSet.CoreV1().Secrets(BackupDriverNamespace).Create(context.TODO(), &testSecret, metav1.CreateOptions{})
+	writtenSnapshot, err := clientSet.CoreV1().Secrets(constants.BackupDriverNamespace).Create(context.TODO(), &testSecret, metav1.CreateOptions{})
 
 	testSecret.ObjectMeta = writtenSnapshot.ObjectMeta
 
 	timeoutContext, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
 	defer cancelFunc()
-	createdSecret, err := waitForPvSecret(timeoutContext, clientSet, BackupDriverNamespace, logger)
+	createdSecret, err := waitForPvSecret(timeoutContext, clientSet, constants.BackupDriverNamespace, logger)
 	if err != nil {
 		t.Fatalf("waitForPvSecret returned err = %v\n", err)
 	} else {

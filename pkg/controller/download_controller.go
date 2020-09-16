@@ -20,20 +20,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
@@ -169,9 +169,9 @@ func (c *downloadController) processDownloadItem(key string) error {
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 		Lock:            lock,
 		ReleaseOnCancel: false,
-		LeaseDuration:   utils.LeaseDuration,
-		RenewDeadline:   utils.RenewDeadline,
-		RetryPeriod:     utils.RetryPeriod,
+		LeaseDuration:   constants.LeaseDuration,
+		RenewDeadline:   constants.RenewDeadline,
+		RetryPeriod:     constants.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
@@ -324,17 +324,17 @@ func (c *downloadController) patchDownloadByStatusWithRetry(req *pluginv1api.Dow
 	var updatedDownload *pluginv1api.Download
 	var err error
 	log := loggerForDownload(c.logger, req)
-	log.Infof("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", utils.RetryInterval, utils.RetryMaximum)
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	log.Infof("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", constants.RetryInterval, constants.RetryMaximum)
+	err = wait.PollImmediate(constants.RetryInterval* time.Second, constants.RetryInterval*constants.RetryMaximum* time.Second, func() (bool, error) {
 		updatedDownload, err = c.patchDownloadByStatus(req, newPhase, msg)
 		if err != nil {
 			return false, nil
 		}
 		return true, nil
 	})
-	log.Debugf("Return from patchDownloadByStatus with retry %v times.", utils.RetryMaximum)
+	log.Debugf("Return from patchDownloadByStatus with retry %v times.", constants.RetryMaximum)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to patch Download, retry time exceeds maximum %d.", utils.RetryMaximum)
+		log.WithError(err).Errorf("Failed to patch Download, retry time exceeds maximum %d.", constants.RetryMaximum)
 	}
 	return updatedDownload, err
 }
@@ -356,7 +356,7 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 			r.Status.VolumeID = msg
 		})
 	case pluginv1api.DownLoadPhaseRetry:
-		if req.Status.RetryCount > utils.DOWNLOAD_MAX_RETRY {
+		if req.Status.RetryCount > constants.DOWNLOAD_MAX_RETRY {
 			log.Debugf("Number of retry for download %s exceeds maximum limit, mark this download as DownloadPhaseFailed", req.Name)
 			req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 				r.Status.Phase = pluginv1api.DownloadPhaseFailed
@@ -366,7 +366,7 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 		} else {
 			req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 				r.Status.Phase = newPhase
-				r.Status.NextRetryTimestamp = &metav1.Time{Time: c.clock.Now().Add(utils.DOWNLOAD_BACKOFF * time.Minute)}
+				r.Status.NextRetryTimestamp = &metav1.Time{Time: c.clock.Now().Add(constants.DOWNLOAD_BACKOFF * time.Minute)}
 				r.Status.RetryCount = r.Status.RetryCount + 1
 				r.Status.Message = msg
 			})
@@ -375,7 +375,7 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 		req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 			if r.Status.Phase == pluginv1api.DownloadPhaseNew {
 				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-				r.Status.RetryCount = utils.MIN_RETRY
+				r.Status.RetryCount = constants.MIN_RETRY
 			}
 			r.Status.Phase = newPhase
 			r.Status.ProcessingNode = c.nodeName
@@ -412,6 +412,6 @@ func (c *downloadController) reEnqueueHandler(key string) error {
 	log := c.logger.WithField("key", key)
 	log.Info("Running reEnqueueHandler for re-adding failed download CR")
 	log.Infof("Re-adding failed download %s to the queue", key)
-	c.queue.AddAfter(key, utils.DOWNLOAD_BACKOFF*time.Minute)
+	c.queue.AddAfter(key, constants.DOWNLOAD_BACKOFF*time.Minute)
 	return nil
 }

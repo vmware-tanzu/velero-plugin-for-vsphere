@@ -1,7 +1,8 @@
-package backupdriver
+package backuprepository
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -49,7 +49,7 @@ func TestClaimBackupRepository(t *testing.T) {
 
 	// The following anon function triggers ClaimBackupRepository and waits for the BR
 	go func() {
-		backupRepositoryName, err := ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
+		backupRepositoryName, err := ClaimBackupRepository(ctx, constants.S3RepositoryDriver, repositoryParameters,
 			[]string{"test"}, veleroNs, backupdriverClient, logger)
 		if err != nil {
 			t.Fatalf("Failed to retrieve the BackupRepository name.")
@@ -89,6 +89,12 @@ func TestClaimBackupRepository(t *testing.T) {
 
 func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 	path := os.Getenv("KUBECONFIG")
+	veleroNs := os.Getenv("VELERO_NAMESPACE")
+	region := os.Getenv("REGION")
+	bucket := os.Getenv("BUCKET")
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+
 	ctx := context.Background()
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Skipf("The KubeConfig file, %v, is not exist", path)
@@ -107,9 +113,6 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
 
-	// using velero ns for testing.
-	veleroNs := "velero"
-
 	veleroClient, err := versioned.NewForConfig(config)
 	if err != nil {
 		t.Fatalf("Failed to retrieve veleroClient")
@@ -124,23 +127,20 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 	if err != nil || len(backupStorageLocationList.Items) <= 0 {
 		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 	}
-	for _, item := range backupStorageLocationList.Items {
-		repositoryParameters := make(map[string]string)
-		bslName := item.Name
-		err := utils.RetrieveParamsFromBSL(repositoryParameters, bslName, config, logger)
-		if err != nil {
-			logger.Errorf("RetrieveParamsFromBSL Failed %v", err)
-			t.Fatalf("RetrieveParamsFromBSL failed!")
-		}
-		logger.Infof("Repository Parameters: %v", repositoryParameters)
-		backupRepositoryName, err := ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
-			[]string{"test"}, veleroNs, backupdriverClient, logger)
-		if err != nil {
-			t.Fatalf("Failed to retrieve the BackupRepository name.")
-		}
-		logger.Infof("Successfully retrieved the BackupRepository name: %s", backupRepositoryName)
-		// TODO: Manually verify in supervisor cluster for the corresponding BR.
+	repositoryParameters := make(map[string]string)
+	repositoryParameters["region"] = region
+	repositoryParameters["bucket"] = bucket
+	repositoryParameters[constants.AWS_ACCESS_KEY_ID] = accessKeyID
+	repositoryParameters[constants.AWS_SECRET_ACCESS_KEY] = secretAccessKey
+
+	logger.Infof("Repository Parameters: %v", repositoryParameters)
+	backupRepositoryName, err := ClaimBackupRepository(ctx, constants.S3RepositoryDriver, repositoryParameters,
+		[]string{"test"}, veleroNs, backupdriverClient, logger)
+	if err != nil {
+		t.Fatalf("Failed to retrieve the BackupRepository name.")
 	}
+	logger.Infof("Successfully retrieved the BackupRepository name: %s", backupRepositoryName)
+	// TODO: Manually verify in supervisor cluster for the corresponding BR.
 }
 
 // This function creates a new BR in response to the BRC.

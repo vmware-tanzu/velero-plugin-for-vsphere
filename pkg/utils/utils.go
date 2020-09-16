@@ -20,6 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+
+	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"io/ioutil"
 	"net"
 	"os"
@@ -42,7 +46,6 @@ import (
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
@@ -75,19 +78,19 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	// Get the cluster flavor
 	var ns, secretData string
 	clusterFlavor, err := GetClusterFlavor(config)
-	if clusterFlavor == TkgGuest || clusterFlavor == Unknown {
+	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Unknown {
 		logger.Errorf("RetrieveVcConfigSecret: Cannot retrieve VC secret in cluster flavor %s", clusterFlavor)
 		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret")
-	} else if clusterFlavor == Supervisor {
-		ns = VCSecretNsSupervisor
-		secretData = VCSecretDataSupervisor
+	} else if clusterFlavor == constants.Supervisor {
+		ns = constants.VCSecretNsSupervisor
+		secretData = constants.VCSecretDataSupervisor
 	} else {
-		ns = VCSecretNs
-		secretData = VCSecretData
+		ns = constants.VCSecretNs
+		secretData = constants.VCSecretData
 	}
 
 	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secrets := []string{VCSecret, VCSecretTKG}
+	vsphere_secrets := []string{constants.VCSecret, constants.VCSecretTKG}
 	var secret *k8sv1.Secret
 	for _, vsphere_secret := range vsphere_secrets {
 		secret, err = secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
@@ -111,7 +114,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 
 	// If port is missing, add an entry in the params to use the standard https port
 	if _, ok := params["port"]; !ok {
-		params["port"] = DefaultVCenterPort
+		params["port"] = constants.DefaultVCenterPort
 	}
 
 	return nil
@@ -166,9 +169,9 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 	}
 
 	secretsClient := clientset.CoreV1().Secrets(veleroNs)
-	secret, err := secretsClient.Get(context.TODO(), CloudCredentialSecretName, metav1.GetOptions{})
+	secret, err := secretsClient.Get(context.TODO(), constants.CloudCredentialSecretName, metav1.GetOptions{})
 	if err != nil {
-		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", CloudCredentialSecretName)
+		logger.Errorf("RetrieveParamsFromBSL: Failed to retrieve the Secret for %s", constants.CloudCredentialSecretName)
 		return err
 	}
 
@@ -195,14 +198,66 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 			logger.Errorf("RetrieveParamsFromBSL: Failed to extract credentials for profile :%s", repositoryParams["profile"])
 			return err
 		}
-		repositoryParams[AWS_ACCESS_KEY_ID] = awsPlainCred.AccessKeyID
-		repositoryParams[AWS_SECRET_ACCESS_KEY] = awsPlainCred.SecretAccessKey
+		repositoryParams[constants.AWS_ACCESS_KEY_ID] = awsPlainCred.AccessKeyID
+		repositoryParams[constants.AWS_SECRET_ACCESS_KEY] = awsPlainCred.SecretAccessKey
 		logger.Infof("Successfully retrieved AWS credentials for the BackupStorageLocation.")
 		//Breaking since its expected to have only one kv pair for the secret data.
 		break
 	}
 
 	return nil
+}
+
+func RetrieveBackupRepositoryFromBSL(ctx context.Context, bslName string, pvcNamespace string, veleroNs string,
+	backupdriverClient *backupdriverv1client.BackupdriverV1Client, restConfig *rest.Config, logger logrus.FieldLogger) (string, error) {
+	var backupRepositoryName string
+	logger.Info("Claiming backup repository")
+
+	repositoryParameters := make(map[string]string)
+	err := RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, logger)
+	if err != nil {
+		logger.Errorf("Failed to translate BSL to repository parameters: %v", err)
+		return backupRepositoryName, errors.WithStack(err)
+	}
+	backupRepositoryName, err = backuprepository.ClaimBackupRepository(ctx, constants.S3RepositoryDriver, repositoryParameters,
+		[]string{pvcNamespace}, veleroNs, backupdriverClient, logger)
+	if err != nil {
+		logger.Errorf("Failed to claim backup repository: %v", err)
+		return backupRepositoryName, errors.WithStack(err)
+	}
+	return backupRepositoryName, nil
+}
+
+func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.Config, logger logrus.FieldLogger) (string, error) {
+	var err error
+	var bslName string
+	if config == nil {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return bslName, errors.Wrap(err, "Could not retrieve in-cluster config")
+		}
+	}
+
+	veleroClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		return bslName, err
+	}
+
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		logger.Errorf("RetrieveBSLFromBackup: Failed to lookup the env variable for velero namespace")
+		return bslName, err
+	}
+
+	backup, err := veleroClient.VeleroV1().Backups(veleroNs).Get(ctx, backupName, metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("RetrieveBSLFromBackup: Backup %s not found", backupName)
+		return bslName, err
+	}
+	bslName = backup.Spec.StorageLocation
+	logger.Infof("Found Backup Storage Location %s for the Backup %s", bslName, backupName)
+
+	return bslName, nil
 }
 
 /*
@@ -309,12 +364,12 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 	// If the credentials are explicitly provided in params, use it.
 	// else let aws API pick the default credential provider.
 	var sess *session.Session
-	if _, ok := params[AWS_ACCESS_KEY_ID]; ok {
-		s3AccessKeyId, ok := GetStringFromParamsMap(params, AWS_ACCESS_KEY_ID, logger)
+	if _, ok := params[constants.AWS_ACCESS_KEY_ID]; ok {
+		s3AccessKeyId, ok := GetStringFromParamsMap(params, constants.AWS_ACCESS_KEY_ID, logger)
 		if !ok {
 			return nil, errors.New("Failed to retrieve S3 Access Key.")
 		}
-		s3SecretAccessKey, ok := GetStringFromParamsMap(params, AWS_SECRET_ACCESS_KEY, logger)
+		s3SecretAccessKey, ok := GetStringFromParamsMap(params, constants.AWS_SECRET_ACCESS_KEY, logger)
 		if !ok {
 			return nil, errors.New("Failed to retrieve S3 Secret Access Key.")
 		}
@@ -347,7 +402,7 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 
 	prefix, ok := params["prefix"].(string)
 	if !ok {
-		prefix = DefaultS3RepoPrefix
+		prefix = constants.DefaultS3RepoPrefix
 	}
 	s3PETM, err := s3repository.NewS3RepositoryProtectedEntityTypeManager(serviceType, *sess, bucket, prefix, logger)
 	if err != nil {
@@ -489,126 +544,64 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 	return req, nil
 }
 
-func PatchBackupRepositoryClaim(req *backupdriverapi.BackupRepositoryClaim,
-	mutate func(*backupdriverapi.BackupRepositoryClaim),
-	backupRepoClaimClient backupdriverv1client.BackupRepositoryClaimInterface) (*backupdriverapi.BackupRepositoryClaim, error) {
-
-	// Record original json
-	oldData, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to marshall original BackupRepositoryClaim")
-	}
-
-	// Mutate
-	mutate(req)
-
-	// Record new json
-	newData, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to marshall updated BackupRepositoryClaim")
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepositoryClaim")
-	}
-
-	req, err = backupRepoClaimClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to patch BackupRepositoryClaim")
-	}
-	return req, nil
-}
-
-func PatchBackupRepository(req *backupdriverapi.BackupRepository,
-	mutate func(*backupdriverapi.BackupRepository),
-	backupRepoClient backupdriverv1client.BackupRepositoryInterface) (*backupdriverapi.BackupRepository, error) {
-
-	// Record original json
-	oldData, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to marshall original BackupRepository")
-	}
-
-	// Mutate
-	mutate(req)
-
-	// Record new json
-	newData, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to marshall updated BackupRepository")
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to creat json merge patch for BackupRepository")
-	}
-
-	req, err = backupRepoClient.Patch(context.TODO(), req.Name, types.MergePatchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to patch BackupRepository")
-	}
-	return req, nil
-}
-
 // Check the cluster flavor that the plugin is deployed in
-func GetClusterFlavor(config *rest.Config) (ClusterFlavor, error) {
+func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 	var err error
 	if config == nil {
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			return Unknown, err
+			return constants.Unknown, err
 		}
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return Unknown, err
+		return constants.Unknown, err
 	}
 
 	// Direct vSphere deployment.
 	// Check if vSphere secret is available in appropriate namespace.
-	ns := VCSecretNs
+	ns := constants.VCSecretNs
 	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secrets := []string{VCSecret, VCSecretTKG}
+	vsphere_secrets := []string{constants.VCSecret, constants.VCSecretTKG}
 	for _, vsphere_secret := range vsphere_secrets {
 		_, err := secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
 		if err == nil {
-			return VSphere, nil
+			return constants.VSphere, nil
 		}
 	}
 
 	// Check if in supervisor.
 	// Check if vSphere secret is available in appropriate namespace.
-	ns = VCSecretNsSupervisor
+	ns = constants.VCSecretNsSupervisor
 	secretApis = clientset.CoreV1().Secrets(ns)
-	_, err = secretApis.Get(context.TODO(), VCSecret, metav1.GetOptions{})
+	_, err = secretApis.Get(context.TODO(), constants.VCSecret, metav1.GetOptions{})
 	if err == nil {
-		return Supervisor, nil
+		return constants.Supervisor, nil
 	}
 
 	// Check if in guest cluster.
 	// Check for the supervisor service in the guest cluster.
 	serviceApi := clientset.CoreV1().Services("default")
-	_, err = serviceApi.Get(context.TODO(), TkgSupervisorService, metav1.GetOptions{})
+	_, err = serviceApi.Get(context.TODO(), constants.TkgSupervisorService, metav1.GetOptions{})
 	if err == nil {
-		return TkgGuest, nil
+		return constants.TkgGuest, nil
 	}
 
 	// Did not match any search criteria. Unknown cluster flavor.
-	return Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
+	return constants.Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
 }
 
 func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupRepository, logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
 	switch backupRepository.RepositoryDriver {
-	case S3RepositoryDriver:
+	case constants.S3RepositoryDriver:
 		params := make(map[string]interface{})
 		for k, v := range backupRepository.RepositoryParameters {
 			params[k] = v
 		}
 		return GetS3PETMFromParamsMap(params, logger)
 	default:
-		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, S3RepositoryDriver)
+		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, constants.S3RepositoryDriver)
 		return nil, errors.New(errMsg)
 	}
 }
@@ -641,26 +634,26 @@ func GetSupervisorConfig(guestConfig *rest.Config, logger logrus.FieldLogger) (*
 	}
 
 	// Create Backup driver namespace if it does not exist
-	err = checkAndCreateNamespace(guestConfig, BackupDriverNamespace, logger)
+	err = checkAndCreateNamespace(guestConfig, constants.BackupDriverNamespace, logger)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to create namespace %s", BackupDriverNamespace)
+		logger.WithError(err).Errorf("Failed to create namespace %s", constants.BackupDriverNamespace)
 		return nil, "", err
 	}
 
 	// Check for the para virt secret. If it does not exist, wait for the secret to be written.
 	// We wait indefinitely for the secret to be written. It can happen if the backup driver
 	// is installed in the guest cluster without velero being installed in the supervisor cluster.
-	secretApis := clientset.CoreV1().Secrets(BackupDriverNamespace)
-	secret, err := secretApis.Get(context.TODO(), PvSecretName, metav1.GetOptions{})
+	secretApis := clientset.CoreV1().Secrets(constants.BackupDriverNamespace)
+	secret, err := secretApis.Get(context.TODO(), constants.PvSecretName, metav1.GetOptions{})
 	if err == nil {
-		logger.Infof("Retrieved k8s secret %s in namespace %s", PvSecretName, BackupDriverNamespace)
+		logger.Infof("Retrieved k8s secret %s in namespace %s", constants.PvSecretName, constants.BackupDriverNamespace)
 	} else {
-		logger.Infof("Waiting for secret %s to be created in namespace %s", PvSecretName, BackupDriverNamespace)
+		logger.Infof("Waiting for secret %s to be created in namespace %s", constants.PvSecretName, constants.BackupDriverNamespace)
 		ctx := context.Background()
-		secret, err = waitForPvSecret(ctx, clientset, BackupDriverNamespace, logger)
+		secret, err = waitForPvSecret(ctx, clientset, constants.BackupDriverNamespace, logger)
 		// Failed to get para virt secret
 		if err != nil {
-			logger.WithError(err).Errorf("Failed to get k8s secret %s in namespace %s", PvSecretName, BackupDriverNamespace)
+			logger.WithError(err).Errorf("Failed to get k8s secret %s in namespace %s", constants.PvSecretName, constants.BackupDriverNamespace)
 			return nil, "", err
 		}
 	}
@@ -676,7 +669,7 @@ func GetSupervisorConfig(guestConfig *rest.Config, logger logrus.FieldLogger) (*
 
 	return &rest.Config{
 		// TODO: switch to using cluster DNS.
-		Host:            "https://" + net.JoinHostPort(PvApiEndpoint, PvPort),
+		Host:            "https://" + net.JoinHostPort(constants.PvApiEndpoint, constants.PvPort),
 		TLSClientConfig: tlsClientConfig,
 		BearerToken:     svcToken,
 	}, svcNamespace, nil
@@ -712,23 +705,23 @@ func GetSupervisorParameters(config *rest.Config, ns string, logger logrus.Field
 
 	// Resource pool
 	if resPool, ok := nsAnnotations["vmware-system-resource-pool"]; !ok {
-		logrus.Warnf("%s information is not present in supervisor namespace %s annotations", SupervisorResourcePoolKey, ns)
+		logrus.Warnf("%s information is not present in supervisor namespace %s annotations", constants.SupervisorResourcePoolKey, ns)
 	} else {
-		params[SupervisorResourcePoolKey] = resPool
+		params[constants.SupervisorResourcePoolKey] = resPool
 	}
 
 	// vCenter UUID and cluster ID
 	if svcClusterInfo, ok := nsAnnotations["ncp/extpoolid"]; !ok {
-		logrus.Warnf("%s and %s information is not present in supervisor namespace %s annotations", VCuuidKey, SupervisorClusterIdKey, ns)
+		logrus.Warnf("%s and %s information is not present in supervisor namespace %s annotations", constants.VCuuidKey, constants.SupervisorClusterIdKey, ns)
 	} else {
 		// Format: <cluster ID>:<vCenter UUID>-ippool-<ip pool range>
 		svcClusterParts := strings.Split(svcClusterInfo, ":")
 		if len(svcClusterParts) < 2 {
 			logrus.Warnf("Invalid ncp/extpoolid %s in supervisor namespace %s annotations", svcClusterInfo, ns)
 		} else {
-			params[SupervisorClusterIdKey] = svcClusterParts[0]
+			params[constants.SupervisorClusterIdKey] = svcClusterParts[0]
 			vcIdParts := strings.Split(svcClusterParts[1], "-ippool")
-			params[VCuuidKey] = vcIdParts[0]
+			params[constants.VCuuidKey] = vcIdParts[0]
 		}
 	}
 	return params, nil
@@ -815,7 +808,7 @@ type waitResult struct {
 func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, namespace string, logger logrus.FieldLogger) (*k8sv1.Secret, error) {
 	results := make(chan waitResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.CoreV1().RESTClient(), "Secrets", namespace,
-		fields.OneTermEqualSelector("metadata.name", PvSecretName))
+		fields.OneTermEqualSelector("metadata.name", constants.PvSecretName))
 	_, controller := cache.NewInformer(
 		watchlist,
 		&k8sv1.Secret{},
@@ -830,14 +823,14 @@ func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, names
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
-				logger.Infof("secret deleted: %s", PvSecretName)
+				logger.Infof("secret deleted: %s", constants.PvSecretName)
 				results <- waitResult{
 					item: nil,
 					err:  errors.New("Not implemented"),
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				logger.Infof("secret updated: %s", PvSecretName)
+				logger.Infof("secret updated: %s", constants.PvSecretName)
 				results <- waitResult{
 					item: nil,
 					err:  errors.New("Not implemented"),

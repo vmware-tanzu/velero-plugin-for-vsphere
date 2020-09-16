@@ -17,13 +17,13 @@
 package main
 
 import (
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	plugins_pkg "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/features"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
 )
@@ -31,7 +31,7 @@ import (
 func main() {
 	enableFeatureFlagForVSpherePlugins()
 	veleroPluginServer := veleroplugin.NewServer()
-	if features.IsEnabled(utils.VSphereItemActionPluginFlag) {
+	if features.IsEnabled(constants.VSphereItemActionPluginFlag) {
 		veleroPluginServer = veleroPluginServer.
 			RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
 			RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
