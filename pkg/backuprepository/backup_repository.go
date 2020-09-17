@@ -3,7 +3,12 @@ package backuprepository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	"time"
@@ -279,3 +284,56 @@ func compareBackupRepositoryClaim(repositoryDriver string,
 	}
 	return true
 }
+
+func GetRepositoryFromBackupRepository(backupRepository *backupdriverv1.BackupRepository, logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
+	switch backupRepository.RepositoryDriver {
+	case constants.S3RepositoryDriver:
+		params := make(map[string]interface{})
+		for k, v := range backupRepository.RepositoryParameters {
+			params[k] = v
+		}
+		return utils.GetS3PETMFromParamsMap(params, logger)
+	default:
+		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, constants.S3RepositoryDriver)
+		return nil, errors.New(errMsg)
+	}
+}
+
+func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*backupdriverv1.BackupRepository, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get k8s inClusterConfig")
+	}
+	pluginClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
+		return nil, errors.Wrapf(err, errMsg)
+	}
+	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
+		return nil, errors.Wrapf(err, errMsg)
+	}
+	return backupRepositoryCR, nil
+}
+
+func RetrieveBackupRepositoryFromBSL(ctx context.Context, bslName string, pvcNamespace string, veleroNs string,
+	backupdriverClient *v1.BackupdriverV1Client, restConfig *rest.Config, logger logrus.FieldLogger) (string, error) {
+	var backupRepositoryName string
+	logger.Info("Claiming backup repository")
+
+	repositoryParameters := make(map[string]string)
+	err := utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, logger)
+	if err != nil {
+		logger.Errorf("Failed to translate BSL to repository parameters: %v", err)
+		return backupRepositoryName, errors.WithStack(err)
+	}
+	backupRepositoryName, err = ClaimBackupRepository(ctx, constants.S3RepositoryDriver, repositoryParameters,
+		[]string{pvcNamespace}, veleroNs, backupdriverClient, logger)
+	if err != nil {
+		logger.Errorf("Failed to claim backup repository: %v", err)
+		return backupRepositoryName, errors.WithStack(err)
+	}
+	return backupRepositoryName, nil
+}
+

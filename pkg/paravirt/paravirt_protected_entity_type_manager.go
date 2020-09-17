@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/pvc"
@@ -197,7 +196,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 	// Get backupRepository from Guest, set backRepositoryName to backupRepositoryObj.SvcBackupRepositoryName
 	var backupRepo *snapshotUtils.BackupRepository
 	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
-		backupRepositoryCR, err := utils.GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName)
+		backupRepositoryCR, err := backuprepository.GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName)
 		if err != nil {
 			this.logger.Errorf("Failed to get BackupRepository from BackupRepositoryName %s: %v", backupRepositoryName, err)
 			return nil, errors.Wrapf(err, "failed to retrieve backupRepository")

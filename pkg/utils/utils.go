@@ -20,11 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
-	backupdriverv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"net"
 	"os"
 	"strconv"
@@ -43,9 +44,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
-	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
@@ -206,26 +205,6 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 	}
 
 	return nil
-}
-
-func RetrieveBackupRepositoryFromBSL(ctx context.Context, bslName string, pvcNamespace string, veleroNs string,
-	backupdriverClient *backupdriverv1client.BackupdriverV1Client, restConfig *rest.Config, logger logrus.FieldLogger) (string, error) {
-	var backupRepositoryName string
-	logger.Info("Claiming backup repository")
-
-	repositoryParameters := make(map[string]string)
-	err := RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, logger)
-	if err != nil {
-		logger.Errorf("Failed to translate BSL to repository parameters: %v", err)
-		return backupRepositoryName, errors.WithStack(err)
-	}
-	backupRepositoryName, err = backuprepository.ClaimBackupRepository(ctx, constants.S3RepositoryDriver, repositoryParameters,
-		[]string{pvcNamespace}, veleroNs, backupdriverClient, logger)
-	if err != nil {
-		logger.Errorf("Failed to claim backup repository: %v", err)
-		return backupRepositoryName, errors.WithStack(err)
-	}
-	return backupRepositoryName, nil
 }
 
 func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.Config, logger logrus.FieldLogger) (string, error) {
@@ -592,20 +571,6 @@ func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 	return constants.Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
 }
 
-func GetRepositoryFromBackupRepository(backupRepository *backupdriverapi.BackupRepository, logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
-	switch backupRepository.RepositoryDriver {
-	case constants.S3RepositoryDriver:
-		params := make(map[string]interface{})
-		for k, v := range backupRepository.RepositoryParameters {
-			params[k] = v
-		}
-		return GetS3PETMFromParamsMap(params, logger)
-	default:
-		errMsg := fmt.Sprintf("Unsupported backuprepository driver type: %s. Only support %s.", backupRepository.RepositoryDriver, constants.S3RepositoryDriver)
-		return nil, errors.New(errMsg)
-	}
-}
-
 /*
  * Get the configuration to access the Supervisor namespace from the GuestCluster.
  * This routine will be called only for guest cluster.
@@ -727,24 +692,6 @@ func GetSupervisorParameters(config *rest.Config, ns string, logger logrus.Field
 	return params, nil
 }
 
-func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*backupdriverapi.BackupRepository, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get k8s inClusterConfig")
-	}
-	pluginClient, err := plugin_clientset.NewForConfig(config)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
-		return nil, errors.Wrapf(err, errMsg)
-	}
-	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
-		return nil, errors.Wrapf(err, errMsg)
-	}
-	return backupRepositoryCR, nil
-}
-
 // Retrieve image repository from image name here. We expect the following format
 // for image name: <repo-level1>/<repo-level2>/.../<plugin-bin-name>:<tag>. plugin-bin-name
 // and tag should not include '/'.
@@ -850,3 +797,52 @@ func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, names
 		return result.item.(*k8sv1.Secret), result.err
 	}
 }
+
+/*
+ Adds the Velero label to exclude this K8S resource from the backup
+ */
+func AddVeleroExcludeLabelToObjectMeta(objectMeta *metav1.ObjectMeta) {
+	objectMeta.Labels = AppendVeleroExcludeLabels(objectMeta.Labels)
+}
+
+func AppendVeleroExcludeLabels(origLabels map[string]string) map[string]string{
+	if origLabels == nil {
+		origLabels = make(map[string]string)
+	}
+	origLabels[constants.VeleroExcludeLabel] = "true"
+	return origLabels
+}
+
+func GetResources() []string {
+	desiredResources := make([]string, len(constants.ResourcesToHandle)+len(constants.ResourcesToBlock))
+	for resourceToHandle, _ := range constants.ResourcesToHandle {
+		desiredResources = append(desiredResources, resourceToHandle)
+	}
+	for resourceToBlock, _ := range constants.ResourcesToBlock {
+		desiredResources = append(desiredResources, resourceToBlock)
+	}
+	return desiredResources
+}
+
+func IsResourceBlocked(resourceName string) bool {
+	return constants.ResourcesToBlock[resourceName]
+}
+
+func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
+	// Retrieve the common object metadata and check to see if this is a blocked type
+	accessor := meta.NewAccessor()
+
+	selfLink, err := accessor.SelfLink(item)
+	if err != nil {
+		return false, "", errors.Wrap(err, "Failed to retrieve SelfLink")
+	}
+	crdName := util.SelfLinkToCRDName(selfLink)
+	if crdName == "" {
+		return false, "", errors.Errorf("Could not translate selfLink %s to CRD name", selfLink)
+	}
+	if IsResourceBlocked(crdName) {
+		return true, crdName, nil
+	}
+	return false, crdName, nil
+}
+

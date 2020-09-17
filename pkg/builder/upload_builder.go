@@ -17,6 +17,7 @@ limitations under the License.
 package builder
 
 import (
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"time"
 
 	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
@@ -39,6 +40,7 @@ func ForUpload(ns, name string) *UploadBuilder {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ns,
 				Name:      name,
+				Labels:		utils.AppendVeleroExcludeLabels(nil),
 			},
 		},
 	}

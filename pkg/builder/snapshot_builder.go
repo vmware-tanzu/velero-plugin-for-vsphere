@@ -18,6 +18,7 @@ package builder
 
 import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,7 +38,7 @@ func ForSnapshot(ns, name string, labels map[string]string) *SnapshotBuilder {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
-				Labels:    labels,
+				Labels:    utils.AppendVeleroExcludeLabels(labels),
 			},
 		},
 	}

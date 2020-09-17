@@ -163,6 +163,88 @@ back up:
 kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup-volumes=FILE_VOLUME_NAME_1,FILE_VOLUME_NAME_2,...
 ```
 
+## vSphere with Kubernetes notes
+### Restricted resources
+Certain resources with the vSphere with Kubernetes Supervisor Cluster need to be created by the Supervisor Cluster and cannot be restored.  The Velero Plugin for vSphere blocks
+backup and restore of these resources and will generate errors if an attempt is made to backup or restore these resources and the backup or restore will be marked as
+"Partially Failed".  To avoid these errors, exclude the resources from your backups.  The current list of blocked resources is:
+
+#### Kubernetes with vSphere Supervisor Cluster resources
+	agentinstalls.installers.tmc.cloud.vmware.com               
+	certificaterequests.cert-manager.io                         
+	certificates.cert-manager.io                                
+	challenges.acme.cert-manager.io                             
+	clusterissuers.cert-manager.io                              
+	clusterresourcesetbindings.addons.cluster.x-k8s.io          
+	clusterresourcesets.addons.cluster.x-k8s.io                 
+	clusters.cluster.x-k8s.io                                   
+	cnsnodevmattachments.cns.vmware.com                         
+	cnsregistervolumes.cns.vmware.com                           
+	cnsvolumemetadatas.cns.vmware.com                           
+	compatibilities.run.tanzu.vmware.com                        
+	contentlibraryproviders.vmoperator.vmware.com               
+	contentsources.vmoperator.vmware.com                        
+	imagedisks.imagecontroller.vmware.com                       
+	images.imagecontroller.vmware.com                           
+	installoptions.appplatform.wcp.vmware.com                   
+	installrequirements.appplatform.wcp.vmware.com              
+	issuers.cert-manager.io                                     
+	kubeadmconfigs.bootstrap.cluster.x-k8s.io                   
+	kubeadmconfigtemplates.bootstrap.cluster.x-k8s.io           
+	kubeadmcontrolplanes.controlplane.cluster.x-k8s.io          
+	kuberneteslicenses.licenseoperator.vmware.com               
+	loadbalancers.vmware.com                                    
+	machinedeployments.cluster.x-k8s.io                         
+	machinehealthchecks.cluster.x-k8s.io                        
+	machinepools.exp.cluster.x-k8s.io                           
+	machines.cluster.x-k8s.io                                   
+	machinesets.cluster.x-k8s.io                                
+	members.registryagent.vmware.com                            
+	ncpconfigs.nsx.vmware.com                                   
+	network-attachment-definitions.k8s.cni.cncf.io              
+	nsxerrors.nsx.vmware.com                                    
+	nsxlbmonitors.vmware.com                                    
+	nsxlocks.nsx.vmware.com                                     
+	nsxnetworkinterfaces.nsx.vmware.com                         
+	orders.acme.cert-manager.io                                 
+	projects.registryagent.vmware.com                           
+	providerserviceaccounts.run.tanzu.vmware.com                
+	registries.registryagent.vmware.com                         
+	storagepolicies.appplatform.wcp.vmware.com                  
+	storagepools.cns.vmware.com                                 
+	supervisorservices.appplatform.wcp.vmware.com               
+	tanzukubernetesclusters.run.tanzu.vmware.com                
+	tanzukubernetesreleases.run.tanzu.vmware.com                
+	tkgserviceconfigurations.run.tanzu.vmware.com               
+	vcuiplugins.appplatform.wcp.vmware.com                      
+	veleroservices.veleroappoperator.vmware.com                 
+	virtualmachineclasses.vmoperator.vmware.com                 
+	virtualmachineimages.vmoperator.vmware.com                  
+	virtualmachineservices.vmoperator.vmware.com                
+	virtualmachinesetresourcepolicies.vmoperator.vmware.com     
+	virtualmachines.vmoperator.vmware.com                       
+	virtualnetworkinterfaces.vmware.com                         
+	virtualnetworks.vmware.com                                  
+	wcpclusters.infrastructure.cluster.vmware.com               
+	wcpmachines.infrastructure.cluster.vmware.com               
+	wcpmachinetemplates.infrastructure.cluster.vmware.com       
+
+The Velero Plug-in for vSphere also has internal resources.  These are 
+automatically tagged with the Velero velero.io/exclude-from-backup label
+and will not be part of backups.  Additionally, the plugin will block these
+as well, if you see errors related to these resource, the exclude-from-backup
+label has probably been removed from them.
+
+#### Plugin resources
+
+	backuprepositories.backupdriver.io     
+	backuprepositoryclaims.backupdriver.io 
+	clonefromsnapshots.backupdriver.io     
+	deletesnapshots.backupdriver.io        
+	downloads.veleroplugin.io              
+	snapshots.backupdriver.io              
+	uploads.veleroplugin.io                
+
 ## Current release:
 
  *[CHANGELOG-1.0.2.md][1]

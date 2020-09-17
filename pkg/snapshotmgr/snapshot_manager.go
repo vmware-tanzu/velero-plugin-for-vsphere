@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strings"
@@ -508,7 +509,7 @@ func (this *SnapshotManager) DeleteRemoteSnapshot(peID astrolabe.ProtectedEntity
 
 func (this *SnapshotManager) DeleteRemoteSnapshotFromRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) error {
 	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteRemoteSnapshotFromRepo Called")
-	s3PETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, this.FieldLogger)
+	s3PETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, this.FieldLogger)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to create s3PETM from backup repository %s", backupRepository.Name)
 	}
@@ -708,7 +709,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 				this.WithError(err).Errorf("Failed to retrieve backup repository %s", backupRepositoryName)
 				return astrolabe.ProtectedEntityID{}, err
 			}
-			snapshotRepo, err = utils.GetRepositoryFromBackupRepository(backupRepository, this)
+			snapshotRepo, err = backuprepository.GetRepositoryFromBackupRepository(backupRepository, this)
 			if err != nil {
 				this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
 				return astrolabe.ProtectedEntityID{}, err

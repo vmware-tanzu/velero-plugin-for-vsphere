@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"math"
@@ -317,7 +318,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 
 	if req.Spec.BackupRepositoryName != ""  && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository{
 		var backupRepositoryCR *backupdriverapi.BackupRepository
-		backupRepositoryCR, err = utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
+		backupRepositoryCR, err = backuprepository.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get BackupRepository from BackupRepositoryName %s", req.Spec.BackupRepositoryName)
 			return err

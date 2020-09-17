@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -120,6 +121,8 @@ func TestWaitForClonePhases(t *testing.T) {
 			},
 		},
 	}
+
+	utils.AddVeleroExcludeLabelToObjectMeta(&testClone.ObjectMeta)
 
 	// set up logger
 	logger := logrus.New()
