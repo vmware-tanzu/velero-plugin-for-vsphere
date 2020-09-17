@@ -19,27 +19,23 @@ package dataMover
 import (
 	"context"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"sync"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 )
 
 type DataMover struct {
-	logrus.FieldLogger
+	logger				logrus.FieldLogger
 	ivdPETM             *ivd.IVDProtectedEntityTypeManager
-	s3PETM              *s3repository.ProtectedEntityTypeManager
 	inProgressCancelMap *sync.Map
 }
 
-func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool, logger logrus.FieldLogger) (*DataMover, error) {
+func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
 	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
 	if _, ok := params[ivd.HostVcParamKey]; !ok {
 		err := utils.RetrieveVcConfigSecret(params, nil, logger)
@@ -49,27 +45,6 @@ func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool
 			return nil, err
 		}
 		logger.Infof("DataMover: vSphere VC credential is retrieved")
-	}
-
-	// TODO: Do not initialize the data mover with the remote storage location once we move to
-	// using the BackupRepositories
-	var s3PETM *s3repository.ProtectedEntityTypeManager
-	if !externalDataMgr {
-		err := utils.RetrieveVSLFromVeleroBSLs(params, constants.DefaultS3BackupLocation, nil, logger)
-		if err != nil {
-			logger.WithError(err).Errorf("Could not retrieve velero default backup location.")
-			return nil, err
-		}
-		logger.Infof("DataMover: Velero Backup Storage Location is retrieved, region=%v, bucket=%v",
-			params["region"], params["bucket"])
-
-		s3PETM, err = utils.GetS3PETMFromParamsMap(params, logger)
-		if err != nil {
-			logger.WithError(err).Errorf("Failed to get s3PETM from params map, region=%v, bucket=%v",
-				params["region"], params["bucket"])
-			return nil, err
-		}
-		logger.Infof("DataMover: Get s3PETM from the params map")
 	}
 
 	ivdPETM, err := utils.GetIVDPETMFromParamsMap(params, logger)
@@ -84,9 +59,8 @@ func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool
 
 	var syncMap sync.Map
 	dataMover := DataMover{
-		FieldLogger:         logger,
+		logger:         	 logger,
 		ivdPETM:             ivdPETM,
-		s3PETM:              s3PETM,
 		inProgressCancelMap: &syncMap,
 	}
 
@@ -95,16 +69,29 @@ func NewDataMoverFromCluster(params map[string]interface{}, externalDataMgr bool
 }
 
 func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
-	backupRepository := builder.ForBackupRepository(constants.WithoutBackupRepository).Result()
-	return this.copyToRepo(peID, backupRepository)
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	logger := this.logger
+	s3PETM, err := utils.GetDefaultS3PETM(logger)
+	if err != nil {
+		logger.Errorf("CopyToRepo: Failed to get Default S3 repository")
+		return astrolabe.ProtectedEntityID{}, err
+	}
+	return this.copyToRepo(peID, s3PETM)
 }
 
 func (this *DataMover) CopyToRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
-	return this.copyToRepo(peID, backupRepository)
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	logger := this.logger
+	s3PETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, logger)
+	if err != nil {
+		logger.Errorf("CopyToRepoWithBackupRepository: Failed to get S3 repository from backup repository %s", backupRepository.Name)
+		return astrolabe.ProtectedEntityID{}, err
+	}
+	return this.copyToRepo(peID, s3PETM)
 }
 
-func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
-	log := this.WithField("Local PEID", peID.String())
+func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, s3PETM *s3repository.ProtectedEntityTypeManager) (astrolabe.ProtectedEntityID, error) {
+	log := this.logger.WithField("Local PEID", peID.String())
 	log.Infof("Copying the snapshot from local to remote repository")
 	ctx := context.Background()
 	updatedPE, err := this.ivdPETM.GetProtectedEntity(ctx, peID)
@@ -118,18 +105,8 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 	this.RegisterOngoingUpload(peID, cancelFunc)
 
 	log.Debugf("Ready to call s3 PETM copy API for local PE")
-	if backupRepository.Name != constants.WithoutBackupRepository {
-		repoPETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, log)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
-			return astrolabe.ProtectedEntityID{}, err
-		}
-		this.s3PETM = repoPETM
-	}
-
 	var params map[string]map[string]interface{}
-	s3PE, err := this.s3PETM.Copy(ctx, updatedPE, params, astrolabe.AllocateNewObject)
-
+	s3PE, err := s3PETM.Copy(ctx, updatedPE, params, astrolabe.AllocateNewObject)
 	log.Debugf("Return from the call of s3 PETM copy API for local PE")
 	if err != nil {
 		log.WithError(err).Errorf("Failed at copying to remote repository")
@@ -141,27 +118,32 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 }
 
 func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
-	backupRepository := builder.ForBackupRepository(constants.WithoutBackupRepository).Result()
-	return this.copyFromRepo(peID, targetPEID, backupRepository, options)
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	logger := this.logger
+	s3PETM, err := utils.GetDefaultS3PETM(logger)
+	if err != nil {
+		logger.Errorf("CopyFromRepo: Failed to get Default S3 repository")
+		return astrolabe.ProtectedEntityID{}, err
+	}
+	return this.copyFromRepo(peID, targetPEID, s3PETM, options)
 }
 
 func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
-	return this.copyFromRepo(peID, targetPEID, backupRepository, options)
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	logger := this.logger
+	s3PETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, logger)
+	if err != nil {
+		logger.Errorf("CopyFromRepoWithBackupRepository: Failed to get S3 repository from backup repository %s", backupRepository.Name)
+		return astrolabe.ProtectedEntityID{}, err
+	}
+	return this.copyFromRepo(peID, targetPEID, s3PETM, options)
 }
 
-func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
-	log := this.WithField("Remote PEID", peID.String())
+func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, s3PETM *s3repository.ProtectedEntityTypeManager, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
+	log := this.logger.WithField("Remote PEID", peID.String())
 	log.Infof("Copying the snapshot from remote repository to local. Copy options: %d", options)
-	if backupRepository.Name != constants.WithoutBackupRepository {
-		repoPETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, log)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
-			return astrolabe.ProtectedEntityID{}, err
-		}
-		this.s3PETM = repoPETM
-	}
 	ctx := context.Background()
-	pe, err := this.s3PETM.GetProtectedEntity(ctx, peID)
+	pe, err := s3PETM.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to get ProtectedEntity from remote PEID")
 		return astrolabe.ProtectedEntityID{}, err
@@ -204,14 +186,14 @@ func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID
 }
 
 func (this *DataMover) IsUploading(peID astrolabe.ProtectedEntityID) bool {
-	log := this.WithField("PEID", peID.String())
+	log := this.logger.WithField("PEID", peID.String())
 	log.Infof("Checking if the node is uploading")
 	_, ok := this.inProgressCancelMap.Load(peID)
 	return ok
 }
 
 func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) error {
-	log := this.WithField("PEID", peID.String())
+	log := this.logger.WithField("PEID", peID.String())
 	if value, ok := this.inProgressCancelMap.Load(peID); ok {
 		log.Infof("Triggering cancellation of the upload.")
 		// Cast it to the cancel function, followed by invoking it.
@@ -228,13 +210,13 @@ func (this *DataMover) CancelUpload(peID astrolabe.ProtectedEntityID) error {
 }
 
 func (this *DataMover) RegisterOngoingUpload(peID astrolabe.ProtectedEntityID, cancelFunc context.CancelFunc) {
-	log := this.WithField("PEID", peID.String())
+	log := this.logger.WithField("PEID", peID.String())
 	this.inProgressCancelMap.Store(peID, cancelFunc)
 	log.Infof("Registered a on-going cancel function.")
 }
 
 func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID) {
-	log := this.WithField("PEID", peID.String())
+	log := this.logger.WithField("PEID", peID.String())
 	if _, ok := this.inProgressCancelMap.Load(peID); !ok {
 		log.Infof("The peID was unregistered previously mostly due to a triggered cancel")
 	} else {

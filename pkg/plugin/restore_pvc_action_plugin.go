@@ -11,7 +11,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -134,6 +133,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		p.Log.Errorf("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, errors.WithStack(err)
 	}
+
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(restConfig)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -151,7 +151,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 	var backupRepositoryName string
-	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
+	isLocalMode := utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, p.Log)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during restore")
 		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)

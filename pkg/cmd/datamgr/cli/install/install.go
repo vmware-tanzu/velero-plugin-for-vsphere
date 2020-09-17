@@ -19,12 +19,10 @@ package install
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-
+	"github.com/vmware-tanzu/velero/pkg/features"
+	"strings"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -142,15 +140,25 @@ func NewCommand(f client.Factory) *cobra.Command {
 
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	skipDataMgr := false
+
 	// In case of Guest or Supervisor cluster, skip installing data manager
 	clusterFlavor, _ := utils.GetClusterFlavor(nil)
 	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Supervisor {
-		fmt.Printf("The Cluster Flavor: %s\n. Skipping data manager installation.", clusterFlavor)
+		fmt.Printf("The Cluster Flavor: %s. Skipping data manager installation.\n", clusterFlavor)
 		skipDataMgr = true
 	}
-	isLocalMode := utils.GetBool(install.DefaultDatamgrImageLocalMode, false)
-	fmt.Printf("The Image LocalMode: %v\n", isLocalMode)
-	if isLocalMode || skipDataMgr {
+
+	featureFlags, err := cmd.GetVeleroFeatureFlags(f, o.Namespace)
+	if err != nil {
+		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
+	}
+	features.Enable(featureFlags...)
+	if features.IsEnabled(constants.VSphereLocalModeFlag) {
+		fmt.Printf("Detected %s feature flag, setting local mode \n", constants.VSphereLocalModeFlag)
+		skipDataMgr = true
+	}
+
+	if skipDataMgr {
 		fmt.Println("Local mode set, skipping data manager installation")
 		return nil
 	}

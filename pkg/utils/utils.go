@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -393,6 +392,26 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 	return s3PETM, nil
 }
 
+func GetDefaultS3PETM(logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager , error) {
+	var s3PETM *s3repository.ProtectedEntityTypeManager
+	var params map[string]interface{}
+	err := RetrieveVSLFromVeleroBSLs(params, constants.DefaultS3BackupLocation, nil, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("GetDefaultS3PETM: Could not retrieve velero default backup location.")
+		return nil, err
+	}
+	logger.Infof("GetDefaultS3PETM: Velero Backup Storage Location is retrieved, region=%s, bucket=%s",
+		params["region"], params["bucket"])
+
+	s3PETM, err = GetS3PETMFromParamsMap(params, logger)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to get s3PETM from params map, region=%s, bucket=%s",
+			params["region"], params["bucket"])
+		return nil, err
+	}
+	return s3PETM, nil
+}
+
 func GetStringFromParamsMap(params map[string]interface{}, key string, logger logrus.FieldLogger) (value string, ok bool) {
 	valueIF, ok := params[key]
 	if ok {
@@ -419,6 +438,42 @@ func GetBool(str string, defValue bool) bool {
 	}
 
 	return res
+}
+
+func IsFeatureEnabled(feature string, defValue bool, logger logrus.FieldLogger) bool {
+	ctx := context.Background()
+	if feature == "" {
+		return defValue
+	}
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logger.Errorf("Failed to retrieve cluster config: %v", err)
+		return defValue
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.Errorf("Failed to retrieve client set: %v", err)
+		return defValue
+	}
+
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		logger.Errorf("VELERO_NAMESPACE environment variable not found: %v", err)
+		return defValue
+	}
+	featureConfigMap, err := clientset.CoreV1().ConfigMaps(veleroNs).Get(ctx, constants.VSpherePluginFeatureStates, metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("Failed to retrieve feature state config map, recreation may be necessary: %v", err)
+		return defValue
+	}
+	featureData := featureConfigMap.Data
+	featureState, err := strconv.ParseBool(featureData[feature])
+	if err != nil {
+		logger.Errorf("Failed to read feature state from config map using default value, error: %v", err)
+		featureState = defValue
+	}
+	logger.Debugf("Feature: %s Status: %v", feature, featureState)
+	return featureState
 }
 
 type NotFoundError struct {

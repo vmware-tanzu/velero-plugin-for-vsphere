@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	v1 "k8s.io/api/core/v1"
 	"os"
 	"strings"
 	"time"
@@ -41,7 +42,6 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -198,7 +198,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 
 func (this *SnapshotManager) CreateSnapshot(peID astrolabe.ProtectedEntityID, tags map[string]string) (astrolabe.ProtectedEntityID, error) {
 	this.Infof("SnapshotManager.CreateSnapshot Called with peID %s, tags %v", peID.String(), tags)
-	peID, _, err := this.createSnapshot(peID, tags, "", "", "")
+	peID, _, err := this.createSnapshot(peID, tags, constants.WithoutBackupRepository, "", "")
 	return peID, err
 }
 
@@ -263,10 +263,18 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 	this.Infof("Local snapshot is created, %s", snapshotPEID.String())
 
-	// This is set for Guest Cluster or if the local mode flag is set
-	isLocalMode := utils.GetBool(this.config[constants.VolumeSnapshotterLocalMode], false)
+	var isLocalMode bool
+	if backupRepositoryName == constants.WithoutBackupRepository {
+		// This occurs only if the volume snapshotter plugin is registered
+		// && EnableVSphereItemActionPlugin is not used in feature flag.
+		// In this scenario we explicitly read the feature flags to determine local mode.
+		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
+	} else if backupRepositoryName == "" {
+		// If the br name is not set its implied that its in local mode.
+		isLocalMode = true
+	}
 	if isLocalMode {
-		this.Infof("Skipping the remote copy in the local mode of Velero plugin for vSphere")
+		this.Infof("Skipping the remote copy as the local mode is inferred for Velero plugin for vSphere")
 		return snapshotPEID, svcSnapshotName, nil
 	}
 	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
@@ -359,7 +367,7 @@ func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.P
 }
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
-	return this.deleteSnapshot(peID, "")
+	return this.deleteSnapshot(peID, constants.WithoutBackupRepository)
 }
 
 func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepositoryName string) error {
@@ -453,7 +461,16 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		log.Infof("Guest Cluster detected during delete snapshot, nothing more to do.")
 	}
 	// Trigger remote snapshot deletion in Supervisor/Vanilla setup.
-	isLocalMode := utils.GetBool(this.config[constants.VolumeSnapshotterLocalMode], false)
+	var isLocalMode bool
+	if backupRepositoryName == constants.WithoutBackupRepository {
+		// This occurs only if the volume snapshotter plugin is registered
+		// && EnableVSphereItemActionPlugin is not used in feature flag.
+		// In this scenario we explicitly read the feature flags to determine local mode.
+		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
+	} else if backupRepositoryName == "" {
+		// If the br name is not set its implied that its in local mode.
+		isLocalMode = true
+	}
 	if isLocalMode {
 		log.Infof("Local Mode detected, skipping remote delete snapshot for PE: %s", peID)
 		return nil
@@ -469,7 +486,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	log.Infof("Retrieved components to delete remote snapshot component ID: %s", components[0].GetID().String())
 
 	log.Infof("Step 2: Deleting the durable snapshot from s3")
-	if backupRepositoryName != "" {
+	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository{
 		backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
@@ -504,7 +521,14 @@ func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityI
 // Eventually will use DeleteRemoteSnapshotFromRepo instead of this
 func (this *SnapshotManager) DeleteRemoteSnapshot(peID astrolabe.ProtectedEntityID) error {
 	this.WithField("peID", peID.String()).Infof("SnapshotManager.deleteRemoteSnapshot Called")
-	return this.deleteSnapshotFromRepo(peID, this.s3PETM)
+	var s3PETM astrolabe.ProtectedEntityTypeManager
+	logger := this.FieldLogger
+	s3PETM, err := utils.GetDefaultS3PETM(logger)
+	if err != nil {
+		logger.Errorf("DeleteRemoteSnapshot: Failed to get Default S3 repository")
+		return  err
+	}
+	return this.deleteSnapshotFromRepo(peID, s3PETM)
 }
 
 func (this *SnapshotManager) DeleteRemoteSnapshotFromRepo(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) error {
@@ -585,22 +609,30 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 		return
 	}
 
-	uuid, _ := uuid.NewRandom()
-	cloneParams := params["CloneFromSnapshotReference"]
-	cloneFromSnapshotNamespace, ok := cloneParams["CloneFromSnapshotNamespace"].(string)
-	if !ok {
-		cloneFromSnapshotNamespace = "INVALID_CLONE_NAMESPACE"
+	uuID, err := uuid.NewRandom()
+	if err != nil {
+		this.Errorf("CreateVolumeFromSnapshot: Failed to generate random UUID.")
+		return
 	}
-	cloneFromSnapshotName, ok := cloneParams["CloneFromSnapshotName"].(string)
+	var cloneFromSnapshotNamespaceExists, cloneFromSnapshotNameExists bool
+	cloneParams := params["CloneFromSnapshotReference"]
+	cloneFromSnapshotNamespace, cloneFromSnapshotNamespaceExists := cloneParams["CloneFromSnapshotNamespace"].(string)
+	cloneFromSnapshotName, cloneFromSnapshotNameExists := cloneParams["CloneFromSnapshotName"].(string)
+	backupRepositoryName, ok := cloneParams["BackupRepositoryName"].(string)
 	if !ok {
-		cloneFromSnapshotName = "INVALID_CLONE_NAME"
+		backupRepositoryName = constants.WithoutBackupRepository
 	}
 	cloneRef := fmt.Sprintf("%s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
 	this.Infof("CloneFromSnapshotReference: %s", cloneRef)
-	downloadRecordName := "download-" + sourcePEID.GetSnapshotID().GetID() + "-" + uuid.String()
+	downloadRecordName := "download-" + sourcePEID.GetSnapshotID().GetID() + "-" + uuID.String()
 	this.Infof("Creating Download CR: %s/%s", veleroNs, downloadRecordName)
 	downloadBuilder := builder.ForDownload(veleroNs, downloadRecordName).
-		RestoreTimestamp(time.Now()).NextRetryTimestamp(time.Now()).SnapshotID(sourcePEID.String()).Phase(v1api.DownloadPhaseNew).CloneFromSnapshotReference(cloneRef)
+		RestoreTimestamp(time.Now()).
+		NextRetryTimestamp(time.Now()).
+		SnapshotID(sourcePEID.String()).
+		Phase(v1api.DownloadPhaseNew).
+		CloneFromSnapshotReference(cloneRef).
+		BackupRepositoryName(backupRepositoryName)
 	if destinationPEID != (astrolabe.ProtectedEntityID{}) {
 		downloadBuilder = downloadBuilder.ProtectedEntityID(destinationPEID.String())
 	}
@@ -649,31 +681,36 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 		return
 	}
 	updatedID, err = astrolabe.NewProtectedEntityIDFromString(download.Status.VolumeID)
-
-	// TODO(xyang): Watch for Download status and update CloneFromSnapshot status accordingly in Backupdriver
-	cloneFromSnap, err := pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
 	if err != nil {
-		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to get CloneFromSnapshot %s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
-		return
-	}
-	clone := cloneFromSnap.DeepCopy()
-	// Since we wait until download is complete here,
-	// download.Status.Phase should be up to date.
-	clone.Status.Phase = backupdriverv1.ClonePhase(download.Status.Phase)
-	clone.Status.Message = download.Status.Message
-	apiGroup := ""
-	clone.Status.ResourceHandle = &v1.TypedLocalObjectReference{
-		APIGroup: &apiGroup,
-		Kind:     "PersistentVolumeClaim",
-		Name:     download.Status.VolumeID,
-	}
-
-	_, err = pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
-	if err != nil {
-		this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+		this.WithError(err).Errorf("Failed to create PE-ID from %s volumeID", download.Status.VolumeID)
 		return
 	}
 
+	if cloneFromSnapshotNameExists && cloneFromSnapshotNamespaceExists {
+		// TODO(xyang): Watch for Download status and update CloneFromSnapshot status accordingly in Backupdriver
+		cloneFromSnap, err := pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
+		if err != nil {
+			this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to get CloneFromSnapshot %s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
+			return updatedID, err
+		}
+		clone := cloneFromSnap.DeepCopy()
+		// Since we wait until download is complete here,
+		// download.Status.Phase should be up to date.
+		clone.Status.Phase = backupdriverv1.ClonePhase(download.Status.Phase)
+		clone.Status.Message = download.Status.Message
+		apiGroup := ""
+		clone.Status.ResourceHandle = &v1.TypedLocalObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     "PersistentVolumeClaim",
+			Name:     download.Status.VolumeID,
+		}
+
+		_, err = pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
+		if err != nil {
+			this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+			return updatedID, err
+		}
+	}
 	return
 }
 
@@ -688,23 +725,11 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 	this.Infof("CreateVolumeFromSnapshotWithMetadata: snapshot ID %s", snapshotID.String())
 
 	var snapshotRepo astrolabe.ProtectedEntityTypeManager
-	snapshotRepo = nil
 	ctx := context.Background()
 	if this.clusterFlavor != constants.TkgGuest {
 		this.Infof("CreateVolumeFromSnapshotWithMetadata: not a TKG Guest Cluster")
-		// Translate the BackupRepository to a PETM (usually S3PETM)
 		if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
-			config, err := rest.InClusterConfig()
-			if err != nil {
-				this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-				return astrolabe.ProtectedEntityID{}, err
-			}
-			pluginClient, err := plugin_clientset.NewForConfig(config)
-			if err != nil {
-				this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
-				return astrolabe.ProtectedEntityID{}, err
-			}
-			backupRepository, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+			backupRepository, err := backuprepository.GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName)
 			if err != nil {
 				this.WithError(err).Errorf("Failed to retrieve backup repository %s", backupRepositoryName)
 				return astrolabe.ProtectedEntityID{}, err
@@ -714,40 +739,36 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 				this.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
 				return astrolabe.ProtectedEntityID{}, err
 			}
+
+			peTM := this.Pem.GetProtectedEntityTypeManager(peID.GetPeType())
+			pvcPETM := peTM.(*astrolabe_pvc.PVCProtectedEntityTypeManager)
+
+			this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
+			pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
+			if err != nil {
+				this.WithError(err).Errorf("Error creating volume from metadata")
+				return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
+			}
+			this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
+			return pe.GetID(), err
+		} else {
+			errMsg := "BackupRepository unset during restore, local mode set during restore is unsupported."
+			this.Errorf(errMsg)
+			return astrolabe.ProtectedEntityID{}, errors.Errorf(errMsg)
 		}
-
-		peTM := this.Pem.GetProtectedEntityTypeManager(peID.GetPeType())
-		pvcPETM := peTM.(*astrolabe_pvc.PVCProtectedEntityTypeManager)
-
-		this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
-		pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
-		if err != nil {
-			this.WithError(err).Errorf("Error creating volume from metadata")
-			return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
-		}
-
-		this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
-
-		return pe.GetID(), err
 	}
 
 	peTM := this.Pem.GetProtectedEntityTypeManager("paravirt-pv")
-	pvcPETM := peTM.(*paravirt.ParaVirtProtectedEntityTypeManager)
+	paravirtPETM := peTM.(*paravirt.ParaVirtProtectedEntityTypeManager)
 	this.Infof("CreateVolumeFromSnapshotWithMetadata: TKG Guest Cluster")
 
 	this.Infof("Ready to call astrolabe CreateFromMetadata API: snapshot ID %s", snapshotID.String())
-	pe, err := pvcPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
+	pe, err := paravirtPETM.CreateFromMetadata(ctx, metadata, snapshotID, snapshotRepo, cloneFromSnapshotNamespace, cloneFromSnapshotName, backupRepositoryName)
 	if err != nil {
-		this.WithError(err).Errorf("Error creating volume from metadata")
+		this.WithError(err).Errorf("Failed to CreateFromMetadata for PE %s", peID.String())
 		return astrolabe.ProtectedEntityID{}, errors.Wrap(err, "Error creating volume from metadata")
 	}
 	this.Infof("Return from the call of astrolabe CreateFromMetadata API for PE %s", peID.String())
-
-	if err != nil {
-		this.WithError(err).Errorf("Failed to CreateFromMetadata for PE %s", peID.String())
-		return astrolabe.ProtectedEntityID{}, err
-	}
-
 	this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
 
 	return pe.GetID(), err

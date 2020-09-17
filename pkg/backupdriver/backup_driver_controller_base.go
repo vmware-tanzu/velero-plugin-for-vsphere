@@ -135,7 +135,6 @@ func NewBackupDriverController(
 	backupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
 	svcInformerFactory informers.SharedInformerFactory,
 	svcBackupdriverInformerFactory backupdriverinformers.SharedInformerFactory,
-	localMode bool,
 	snapManager *snapshotmgr.SnapshotManager,
 	rateLimiter workqueue.RateLimiter) BackupDriverController {
 
@@ -173,7 +172,7 @@ func NewBackupDriverController(
 
 	// Configure supervisor cluster queues and caches in the guest
 	// We watch supervisor snapshot CRs for the upload status. If local mode is set, we do not have to watch for upload status
-	if svcKubeConfig != nil && !localMode {
+	if svcKubeConfig != nil {
 		svcSnapshotMap = make(map[string]string)
 		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1().Snapshots()
 
@@ -276,7 +275,7 @@ func NewBackupDriverController(
 	)
 
 	// Configure supervisor cluster informers in the guest
-	if svcKubeConfig != nil && !localMode {
+	if svcKubeConfig != nil {
 		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1().Snapshots()
 		svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{

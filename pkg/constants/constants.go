@@ -129,14 +129,18 @@ type ClusterFlavor string
 const (
 	Unknown    ClusterFlavor = "Unknown"
 	Supervisor               = "Supervisor Cluster"
-	TkgGuest                 = "TGK Guest Cluster"
+	TkgGuest                 = "TKG Guest Cluster"
 	VSphere                  = "vSphere Kubernetes Cluster"
 )
 
 // feature flog constants
 const (
-	// VSphereItemActionPluginFlag is the feature flag string that defines whether or not vSphere ItemActionPlugin features are being used.
-	VSphereItemActionPluginFlag = "EnableVSphereItemActionPlugin"
+	VSphereItemActionPluginFlag = "vsphere-item-action-plugin"
+	VSphereLocalModeFlag        = "local-mode"
+)
+
+const (
+	VSpherePluginFeatureStates = "velero-vsphere-plugin-feature-states"
 )
 
 // Para Virtual Cluster access for Guest Cluster

@@ -9,7 +9,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -89,7 +88,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 	bslName := input.Backup.Spec.StorageLocation
 
 	var backupRepositoryName string
-	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
+	isLocalMode := utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, p.Log)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during delete")
 		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)

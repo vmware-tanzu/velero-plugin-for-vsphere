@@ -33,7 +33,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
-	"github.com/vmware-tanzu/velero/pkg/features"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -55,8 +54,6 @@ type InstallOptions struct {
 	PodMemLimit    string
 	MasterAffinity bool
 	HostNetwork    bool
-	LocalMode      bool
-	Features       string
 }
 
 func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
@@ -66,7 +63,6 @@ func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&o.PodMemRequest, "pod-mem-request", o.PodMemRequest, `memory request for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
 	flags.StringVar(&o.PodCPULimit, "pod-cpu-limit", o.PodCPULimit, `CPU limit for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
 	flags.StringVar(&o.PodMemLimit, "pod-mem-limit", o.PodMemLimit, `memory limit for backup-driver pod. A value of "0" is treated as unbounded. Optional.`)
-	flags.StringVar(&o.Features, "features", o.Features, "comma separated list of backup-driver feature flags. Optional.")
 }
 
 func NewInstallOptions() *InstallOptions {
@@ -95,7 +91,6 @@ func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error)
 		PodResources:   podResources,
 		MasterAffinity: o.MasterAffinity,
 		HostNetwork:    o.HostNetwork,
-		LocalMode:      o.LocalMode,
 	}, nil
 }
 
@@ -120,17 +115,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 }
 
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
-	// Check if ItemActionPlugin feature is enabled.
-	featureFlags := strings.Split(o.Features, ",")
-	features.Enable(featureFlags...)
-	if !features.IsEnabled(constants.VSphereItemActionPluginFlag) {
-		fmt.Printf("Feature %s is not enabled. Skipping backup-driver installation", constants.VSphereItemActionPluginFlag)
-		return nil
-	}
-
-	// Check local mode
-	o.LocalMode = utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
-
 	var resources *unstructured.UnstructuredList
 
 	// Check vSphere CSI driver version
@@ -174,6 +158,18 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		o.HostNetwork = true
 	}
 
+	// Get feature flags from velero deployed in the namespace.
+	featureFlags, err := cmd.GetVeleroFeatureFlags(f, o.Namespace)
+	if err != nil {
+		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
+	}
+
+	// Create Config Map with the feature states.
+	err = cmd.CreateFeatureStateConfigMap(featureFlags, f, o.Namespace)
+	if err != nil {
+		fmt.Printf("Failed to create feature state config map from velero feature flags: %v.\n", err)
+		return err
+	}
 	vo, err := o.AsBackupDriverOptions()
 	if err != nil {
 		return err

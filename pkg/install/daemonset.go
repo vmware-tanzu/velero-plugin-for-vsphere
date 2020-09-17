@@ -35,7 +35,6 @@ type podTemplateConfig struct {
 	withSecret     bool
 	masterAffinity bool
 	hostNetwork    bool
-	localMode      bool
 }
 
 func WithImage(image string) podTemplateOption {
@@ -77,12 +76,6 @@ func WithMasterNodeAffinity(affinity bool) podTemplateOption {
 func WithHostNetwork(hostNetwork bool) podTemplateOption {
 	return func(c *podTemplateConfig) {
 		c.hostNetwork = hostNetwork
-	}
-}
-
-func WithLocalMode(localMode bool) podTemplateOption {
-	return func(c *podTemplateConfig) {
-		c.localMode = localMode
 	}
 }
 

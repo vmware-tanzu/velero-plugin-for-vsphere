@@ -17,7 +17,6 @@
 package main
 
 import (
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strings"
 
@@ -31,7 +30,8 @@ import (
 func main() {
 	enableFeatureFlagForVSpherePlugins()
 	veleroPluginServer := veleroplugin.NewServer()
-	if features.IsEnabled(constants.VSphereItemActionPluginFlag) {
+	// Feature flag read directly from velero server args.
+	if features.IsEnabled("EnableVSphereItemActionPlugin") {
 		veleroPluginServer = veleroPluginServer.
 			RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
 			RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
