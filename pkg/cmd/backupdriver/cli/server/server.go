@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -80,7 +81,7 @@ func NewCommand(f client.Factory) *cobra.Command {
 			formatFlag:         logging.NewFormatFlag(),
 			master:             "",
 			kubeConfig:         "",
-			resyncPeriod:       utils.ResyncPeriod,
+			resyncPeriod:       constants.ResyncPeriod,
 			workers:            cmd.DefaultBackupWorkers,
 			retryIntervalStart: cmd.DefaultRetryIntervalStart,
 			retryIntervalMax:   cmd.DefaultRetryIntervalMax,
@@ -234,8 +235,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	// Set snapshot manager configuration information
 	snapshotMgrConfig := make(map[string]string)
-	snapshotMgrConfig[utils.VolumeSnapshotterManagerLocation] = utils.VolumeSnapshotterDataServer
-	snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
+	snapshotMgrConfig[constants.VolumeSnapshotterManagerLocation] = constants.VolumeSnapshotterDataServer
+	snapshotMgrConfig[constants.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
 
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
@@ -244,7 +245,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	var svcKubeInformerFactory kubeinformers.SharedInformerFactory
 	var svcBackupdriverInformerFactory pluginInformers.SharedInformerFactory
 	var svcNamespace string
-	if clusterFlavor == utils.TkgGuest {
+	if clusterFlavor == constants.TkgGuest {
 		svcConfig, svcNamespace, err = utils.GetSupervisorConfig(clientConfig, logger)
 		if err != nil {
 			logger.Error("Failed to get the supervisor config for the guest kubernetes cluster")
@@ -280,7 +281,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		pvcConfig["svcNamespace"] = svcNamespace
 
 		// Set the mode to local as the data movement job is assigned to the supervisor cluster
-		snapshotMgrConfig[utils.VolumeSnapshotterLocalMode] = "true"
+		snapshotMgrConfig[constants.VolumeSnapshotterLocalMode] = "true"
 
 		// Log supervisor namespace annotations
 		if params, err := utils.GetSupervisorParameters(svcConfig, svcNamespace, logger); err != nil {

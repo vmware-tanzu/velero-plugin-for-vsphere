@@ -18,6 +18,7 @@ package backupdriver
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"strings"
 	"time"
 
@@ -581,7 +582,7 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 		var svcBackupRepositoryName string
 		// In case of guest clusters, create BackupRepositoryClaim in the supervisor namespace
 		if ctrl.svcKubeConfig != nil {
-			svcBackupRepositoryName, err = ClaimSvcBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.svcNamespace, ctrl.logger)
+			svcBackupRepositoryName, err = backuprepository.ClaimSvcBackupRepository(ctx, brc, ctrl.svcKubeConfig, ctrl.svcNamespace, ctrl.logger)
 			if err != nil {
 				ctrl.logger.Errorf("Failed to create Supervisor BackupRepositoryClaim")
 				return err
@@ -593,13 +594,13 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 		// Save the supervisor backup repository name to be passed to snapshot manager
 		ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Create BackupRepository for BackupRepositoryClaim %s/%s", brc.Namespace, brc.Name)
 		// Create BackupRepository when a new BackupRepositoryClaim is added and if the BackupRepository is not already created
-		br, err := CreateBackupRepository(ctx, brc, svcBackupRepositoryName, ctrl.backupdriverClient, ctrl.logger)
+		br, err := backuprepository.CreateBackupRepository(ctx, brc, svcBackupRepositoryName, ctrl.backupdriverClient, ctrl.logger)
 		if err != nil {
 			ctrl.logger.Errorf("Failed to create BackupRepository")
 			return err
 		}
 
-		err = PatchBackupRepositoryClaim(brc, br.Name, brc.Namespace, ctrl.backupdriverClient)
+		err = backuprepository.PatchBackupRepositoryClaim(brc, br.Name, brc.Namespace, ctrl.backupdriverClient)
 		if err != nil {
 			return err
 		}

@@ -18,12 +18,12 @@ package install
 
 import (
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
 	"strings"
 	"time"
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/crds"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -67,14 +67,14 @@ var CRDsList = []string{
 
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
-	DefaultDatamgrImage          = imageRegistry() + "/" + utils.DataManagerForPlugin + ":" + imageVersion()
+	DefaultDatamgrImage          = imageRegistry() + "/" + constants.DataManagerForPlugin + ":" + imageVersion()
 	DefaultDatamgrImageLocalMode = imageLocalMode()
 	DefaultDatamgrPodCPURequest  = "0"
 	DefaultDatamgrPodMemRequest  = "0"
 	DefaultDatamgrPodCPULimit    = "0"
 	DefaultDatamgrPodMemLimit    = "0"
 
-	DefaultBackupDriverImage          = imageRegistry() + "/" + utils.BackupDriverForPlugin + ":" + imageVersion()
+	DefaultBackupDriverImage          = imageRegistry() + "/" + constants.BackupDriverForPlugin + ":" + imageVersion()
 	DefaultBackupDriverImageLocalMode = imageLocalMode()
 	DefaultBackupDriverPodCPURequest  = "0"
 	DefaultBackupDriverPodMemRequest  = "0"

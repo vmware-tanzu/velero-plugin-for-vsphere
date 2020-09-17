@@ -19,6 +19,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -121,8 +122,8 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	// Check if ItemActionPlugin feature is enabled.
 	featureFlags := strings.Split(o.Features, ",")
 	features.Enable(featureFlags...)
-	if !features.IsEnabled(utils.VSphereItemActionPluginFlag) {
-		fmt.Printf("Feature %s is not enabled. Skipping backup-driver installation", utils.VSphereItemActionPluginFlag)
+	if !features.IsEnabled(constants.VSphereItemActionPluginFlag) {
+		fmt.Printf("Feature %s is not enabled. Skipping backup-driver installation", constants.VSphereItemActionPluginFlag)
 		return nil
 	}
 
@@ -142,7 +143,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
 	}
 	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", utils.CsiMinVersion, utils.CsiMinVersion)
+		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", constants.CsiMinVersion, constants.CsiMinVersion)
 	}
 
 	// Check velero version
@@ -150,8 +151,8 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
 	} else {
-		if cmd.CompareVersion(veleroVersion, utils.VeleroMinVersion) == -1 {
-			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, utils.VeleroMinVersion, utils.VeleroMinVersion)
+		if cmd.CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
+			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, constants.VeleroMinVersion, constants.VeleroMinVersion)
 		}
 	}
 
@@ -166,7 +167,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	// Check cluster flavor. Add the PV secret to pod in Guest Cluster
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
 	// Assign master node affinity and host network to Supervisor deployment
-	if clusterFlavor == utils.Supervisor {
+	if clusterFlavor == constants.Supervisor {
 		fmt.Printf("Supervisor Cluster. Assign master node affinity and enable host network.")
 		o.MasterAffinity = true
 		o.HostNetwork = true
@@ -193,21 +194,21 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	factory := client.NewDynamicFactory(dynamicClient)
 
 	errorMsg := fmt.Sprintf("\n\nError installing backup-driver. Use `kubectl logs deploy/%s -n %s` to check the logs",
-		utils.BackupDriverForPlugin, o.Namespace)
+		constants.BackupDriverForPlugin, o.Namespace)
 
 	err = install.Install(factory, resources, os.Stdout)
 	if err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
-	fmt.Printf("Waiting for %s deployment to be ready.\n", utils.BackupDriverForPlugin)
+	fmt.Printf("Waiting for %s deployment to be ready.\n", constants.BackupDriverForPlugin)
 
 	if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
 	fmt.Printf("backup-driver is installed! ⛵ Use 'kubectl logs deployment/%s -n %s' to view the status.\n",
-		utils.BackupDriverForPlugin, o.Namespace)
+		constants.BackupDriverForPlugin, o.Namespace)
 
 	return nil
 }
@@ -218,7 +219,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 		errMsg := fmt.Sprint("Failed to get clientset.")
 		return errors.New(errMsg)
 	}
-	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), utils.VeleroDeployment, metav1.GetOptions{})
+	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), constants.VeleroDeployment, metav1.GetOptions{})
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
 		return errors.New(errMsg)
@@ -227,7 +228,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 	repo := ""
 	tag := ""
 	for _, container := range deployment.Spec.Template.Spec.InitContainers {
-		if strings.Contains(container.Image, utils.VeleroPluginForVsphere) {
+		if strings.Contains(container.Image, constants.VeleroPluginForVsphere) {
 			repo = strings.Split(container.Image, "/")[0]
 			tag = strings.Split(container.Image, ":")[1]
 			break
@@ -235,7 +236,7 @@ func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
 	}
 
 	if repo != "" && tag != "" {
-		o.Image = repo + "/" + utils.BackupDriverForPlugin + ":" + tag
+		o.Image = repo + "/" + constants.BackupDriverForPlugin + ":" + tag
 		return nil
 	} else {
 		errMsg := fmt.Sprint("Failed to get repo and tag from velero plugin image.")

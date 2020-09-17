@@ -2,7 +2,7 @@ package builder
 
 import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,7 +40,7 @@ func (b *BackupRepositoryBuilder) AllowedNamespaces(allowedNamespaces []string) 
 // RepositoryDriver sets the repository driver the backup repository. Currently only s3 is supported.
 func (b *BackupRepositoryBuilder) RepositoryDriver() *BackupRepositoryBuilder {
 	// TODO: Change this when other drivers are supported.
-	b.object.RepositoryDriver = utils.S3RepositoryDriver
+	b.object.RepositoryDriver = constants.S3RepositoryDriver
 	return b
 }
 

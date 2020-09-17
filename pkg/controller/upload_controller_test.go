@@ -26,12 +26,12 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,7 +45,7 @@ import (
 )
 
 func defaultUpload() *builder.UploadBuilder {
-	return builder.ForUpload(utils.DefaultNamespace, "upload-1")
+	return builder.ForUpload(constants.DefaultNamespace, "upload-1")
 }
 
 func TestProcessUploadNonProcessedItems(t *testing.T) {
@@ -211,7 +211,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			key:      "velero/upload-1",
 			oldPhase: v1.UploadPhaseInProgress,
 			newPhase: v1.UploadPhaseCompleted,
-			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(utils.MIN_RETRY).Result(),
+			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.MIN_RETRY).Result(),
 			msg:      "Upload completed",
 		},
 		{
@@ -219,7 +219,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			key:      "velero/upload-1",
 			oldPhase: v1.UploadPhaseInProgress,
 			newPhase: v1.UploadPhaseUploadError,
-			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(utils.MIN_RETRY).Result(),
+			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.MIN_RETRY).Result(),
 			msg:      "Failed to upload snapshot, ivd:1234:1234, to durable object storage.",
 		},
 		{
@@ -227,7 +227,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			key:      "velero/upload-1",
 			oldPhase: v1.UploadPhaseInProgress,
 			newPhase: v1.UploadPhaseCleanupFailed,
-			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(utils.MIN_RETRY).Result(),
+			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.MIN_RETRY).Result(),
 			msg:      "Failed to clean up local snapshot after uploading snapshot, ivd:1234:1234",
 		},
 		{
@@ -235,7 +235,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			key:      "velero/upload-1",
 			oldPhase: v1.UploadPhaseInProgress,
 			newPhase: v1.UploadPhaseUploadError,
-			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(utils.RETRY_WARNING_COUNT).Result(),
+			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.RETRY_WARNING_COUNT).Result(),
 			msg:      "Failed to upload snapshot, ivd:1234:1234, to durable object storage.",
 		},
 		{
@@ -369,12 +369,12 @@ func TestPatchUploadByStatus(t *testing.T) {
 			require.Equal(t, test.newPhase, res.Status.Phase)
 			require.Equal(t, test.msg, res.Status.Message)
 			if test.oldPhase == v1.UploadPhaseNew {
-				require.Equal(t, int32(utils.MIN_RETRY), res.Status.RetryCount)
+				require.Equal(t, int32(constants.MIN_RETRY), res.Status.RetryCount)
 			}
 			if test.newPhase == v1.UploadPhaseUploadError {
 				newRetry := res.Status.RetryCount
 				require.Equal(t, oldRetry+1, newRetry)
-				require.LessOrEqual(t, res.Status.CurrentBackOff, int32(utils.UPLOAD_MAX_BACKOFF))
+				require.LessOrEqual(t, res.Status.CurrentBackOff, int32(constants.UPLOAD_MAX_BACKOFF))
 			}
 		})
 	}
@@ -392,7 +392,7 @@ func TestUploadErrorRetry(t *testing.T) {
 		{
 			name:          "Test retry for upload with uploaderror",
 			key:           "velero/upload-1",
-			retry:         utils.MIN_RETRY,
+			retry:         constants.MIN_RETRY,
 			upload:        defaultUpload().Phase(v1.UploadPhaseInProgress).SnapshotID("ivd:1234:1234").Retry(0).Result(),
 			expectedPhase: v1.UploadPhaseCompleted,
 			expectedErr:   errors.New("Failed to upload snapshot, ivd:1234:1234, to durable object storage. Failed at copying to remote repository"),

@@ -3,12 +3,12 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginUtil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
@@ -80,20 +80,11 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	var backupRepositoryName string
 	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
 	if !isLocalMode {
-		p.Log.Info("Claiming backup repository for snapshot")
+		p.Log.Info("Claiming backup repository during backup")
 		bslName := backup.Spec.StorageLocation
-		repositoryParameters := make(map[string]string)
-
-		err = utils.RetrieveParamsFromBSL(repositoryParameters, bslName, restConfig, p.Log)
+		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
 		if err != nil {
-			p.Log.Errorf("Failed to translate BSL to repository parameters: %v", err)
-			return nil, nil, errors.WithStack(err)
-		}
-
-		backupRepositoryName, err = backupdriver.ClaimBackupRepository(ctx, utils.S3RepositoryDriver, repositoryParameters,
-			[]string{pvc.Namespace}, veleroNs, backupdriverClient, p.Log)
-		if err != nil {
-			p.Log.Errorf("Failed to claim backup repository: %v", err)
+			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
 			return nil, nil, errors.WithStack(err)
 		}
 	}
@@ -106,7 +97,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	labels := map[string]string{
-		utils.SnapshotBackupLabel: backup.Name,
+		constants.SnapshotBackupLabel: backup.Name,
 	}
 
 	p.Log.Info("Creating a Snapshot CR")
@@ -135,7 +126,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		// return nil, nil, errors.New(errMsg)
 	}
 
-	p.Log.Infof("Persisting snapshot with snapshotID :%s under label: %s Snapshot: %v", updatedSnapshot.Status.SnapshotID, utils.ItemSnapshotLabel, updatedSnapshot)
+	p.Log.Infof("Persisting snapshot with snapshotID :%s under label: %s Snapshot: %v", updatedSnapshot.Status.SnapshotID, constants.ItemSnapshotLabel, updatedSnapshot)
 	// Persist the snapshot blob as an annotation of PVC
 	snapshotAnnotation, err := pluginUtil.GetAnnotationFromSnapshot(updatedSnapshot)
 	if err != nil {
@@ -143,7 +134,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 	vals := map[string]string{
-		utils.ItemSnapshotLabel: snapshotAnnotation,
+		constants.ItemSnapshotLabel: snapshotAnnotation,
 	}
 	pluginUtil.AddAnnotations(&pvc.ObjectMeta, vals)
 

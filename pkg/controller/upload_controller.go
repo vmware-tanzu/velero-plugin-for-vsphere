@@ -19,8 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"math"
 	"time"
 
@@ -232,9 +233,9 @@ func (c *uploadController) processUploadItem(key string) error {
 	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 		Lock:            lock,
 		ReleaseOnCancel: false,
-		LeaseDuration:   utils.LeaseDuration,
-		RenewDeadline:   utils.RenewDeadline,
-		RetryPeriod:     utils.RetryPeriod,
+		LeaseDuration:   constants.LeaseDuration,
+		RenewDeadline:   constants.RenewDeadline,
+		RetryPeriod:     constants.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
@@ -386,17 +387,17 @@ func (c *uploadController) patchUploadByStatusWithRetry(req *pluginv1api.Upload,
 	var updatedUpload *pluginv1api.Upload
 	var err error
 	log := loggerForUpload(c.logger, req)
-	log.Infof("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", utils.RetryInterval, utils.RetryMaximum)
-	err = wait.PollImmediate(utils.RetryInterval * time.Second, utils.RetryInterval * utils.RetryMaximum * time.Second, func() (bool, error) {
+	log.Infof("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", constants.RetryInterval, constants.RetryMaximum)
+	err = wait.PollImmediate(constants.RetryInterval* time.Second, constants.RetryInterval*constants.RetryMaximum* time.Second, func() (bool, error) {
 		updatedUpload, err = c.patchUploadByStatus(req, newPhase, msg)
 		if err != nil {
 			return false, nil
 		}
 		return true, nil
 	})
-	log.Debugf("Return from patchUploadByStatus with retry %v times.", utils.RetryMaximum)
+	log.Debugf("Return from patchUploadByStatus with retry %v times.", constants.RetryMaximum)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to patch Upload, retry time exceeds maximum %d.", utils.RetryMaximum)
+		log.WithError(err).Errorf("Failed to patch Upload, retry time exceeds maximum %d.", constants.RetryMaximum)
 	}
 	return updatedUpload, err
 }
@@ -424,13 +425,13 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			log.Infof("Retry for %d times", r.Status.RetryCount)
 			retry = r.Status.RetryCount
 			currentBackOff := math.Exp2(float64(retry - 1))
-			if currentBackOff >= utils.UPLOAD_MAX_BACKOFF {
-				currentBackOff = utils.UPLOAD_MAX_BACKOFF
+			if currentBackOff >= constants.UPLOAD_MAX_BACKOFF {
+				currentBackOff = constants.UPLOAD_MAX_BACKOFF
 			}
 			r.Status.CurrentBackOff = int32(currentBackOff)
 			r.Status.NextRetryTimestamp = &metav1.Time{Time: c.clock.Now().Add(time.Duration(currentBackOff) * time.Minute)}
 		})
-		if retry > utils.RETRY_WARNING_COUNT {
+		if retry > constants.RETRY_WARNING_COUNT {
 			errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
 			log.Warningf(errMsg)
 		}
@@ -444,7 +445,7 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			if r.Status.Phase == pluginv1api.UploadPhaseNew {
 				r.Status.StartTimestamp = &metav1.Time{Time: c.clock.Now()}
-				r.Status.RetryCount = utils.MIN_RETRY
+				r.Status.RetryCount = constants.MIN_RETRY
 			}
 			r.Status.Phase = newPhase
 			r.Status.ProcessingNode = c.nodeName
