@@ -234,6 +234,15 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
 	}
+	// Construct Supervisor Cluster PVC name
+	pvcUUID, err := uuid.NewRandom()
+	if err != nil {
+		// NOTE: svcPVC is marshaled from metadata which is originally
+		// from the Guest Cluster PVC
+		return nil, errors.Wrapf(err, "Could not generate PVC name in the Supervisor Cluster for Guest Cluster PVC %s/%s",
+			svcPVC.Name, svcPVC.Namespace)
+	}
+	svcPVC.Name = svcPVC.Name[4:] + "-" + pvcUUID.String()
 	svcPVC.Namespace = this.svcNamespace
 	svcStorageClassName := ""
 	if svcPVC.Spec.StorageClassName != nil {
@@ -287,6 +296,10 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 	namespace := cloneFromSnapshotNamespace
 	pvcName := svcPVC.Name
 	pvUUID, err := uuid.NewRandom()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not generate PV name in the Guest Cluster for Supervisor Cluster PVC %s/%s",
+			svcPVC.Name, svcPVC.Namespace)
+	}
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvcName + pvUUID.String(),
