@@ -6,8 +6,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -50,26 +50,11 @@ func CloneFromSnapshopRef(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create cloneFromSnapshot UUID")
 	}
-	cloneFromSnapshotCR := backupdriverv1.CloneFromSnapshot{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CloneFromSnapshot",
-			APIVersion: "backupdriver.io/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:		cloneFromSnapshotUUID.String(),
-		},
-		Spec: backupdriverv1.CloneFromSnapshotSpec{
-			SnapshotID:       snapshotID,
-			Metadata:         metadata,
-			APIGroup:         apiGroup,
-			Kind:             kind,
-			BackupRepository: repo.backupRepositoryName,
-			CloneCancel:      false,
-		},
-	}
 
-	utils.AddVeleroExcludeLabelToObjectMeta(&cloneFromSnapshotCR.ObjectMeta)
-	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(context.TODO(), &cloneFromSnapshotCR, metav1.CreateOptions{})
+	cloneFromSnapshotCR := builder.ForCloneFromSnapshot(namespace, cloneFromSnapshotUUID.String(), nil).SnapshotID(snapshotID).
+		Metadata(metadata).APIGroup(apiGroup).Kind(kind).BackupRepository(repo.backupRepositoryName).Result()
+
+	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(context.TODO(), cloneFromSnapshotCR, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create cloneFromSnapshot record")
 	}
