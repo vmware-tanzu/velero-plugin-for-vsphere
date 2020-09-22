@@ -24,12 +24,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
 	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -253,7 +255,19 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 		}
 	}
 	log.Infof("Copy options: %v, source PEID: %s, target PEID: %s", options, peID.String(), targetPEID.String())
-	returnPeId, err := c.dataMover.CopyFromRepo(peID, targetPEID, options)
+	var returnPeId astrolabe.ProtectedEntityID
+	if req.Spec.BackupRepositoryName != "" && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository{
+		var backupRepositoryCR *backupdriverapi.BackupRepository
+		backupRepositoryCR, err = utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to get BackupRepository from BackupRepositoryName %s", req.Spec.BackupRepositoryName)
+			return err
+		}
+		returnPeId, err = c.dataMover.CopyFromRepoWithBackupRepository(peID, targetPEID, backupRepositoryCR, options)
+	} else {
+		returnPeId, err =c.dataMover.CopyFromRepo(peID, targetPEID, options)
+	}
+
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to download snapshot, %v, from durable object storage. %v", peID.String(), errors.WithStack(err))
 		_, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownLoadPhaseRetry, errMsg)
