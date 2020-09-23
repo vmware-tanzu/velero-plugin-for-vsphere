@@ -315,7 +315,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		return errors.New(errMsg)
 	}
 
-	if req.Spec.BackupRepositoryName != "" {
+	if req.Spec.BackupRepositoryName != ""  && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository{
 		var backupRepositoryCR *backupdriverapi.BackupRepository
 		backupRepositoryCR, err = utils.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
 		if err != nil {
