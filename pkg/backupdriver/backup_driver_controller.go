@@ -218,10 +218,6 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 
 	// cloneFromSnapshot.Spec.Kind should be "PersistentVolumeClaim" for now
 	peId = astrolabe.NewProtectedEntityIDWithNamespace(cloneFromSnapshot.Spec.Kind, pvc.Name, pvc.Namespace)
-	if err != nil {
-		ctrl.logger.WithError(err).Errorf("Fail to construct new PE ID for %s/%s", pvc.Namespace, pvc.Name)
-		return err
-	}
 	ctrl.logger.Infof("cloneFromSnapshot: Generated PE ID: %s", peId.String())
 
 	returnPeId, err = ctrl.snapManager.CreateVolumeFromSnapshotWithMetadata(peId, cloneFromSnapshot.Spec.Metadata,
