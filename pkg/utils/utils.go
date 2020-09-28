@@ -800,12 +800,12 @@ func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, names
 
 /*
  Adds the Velero label to exclude this K8S resource from the backup
- */
+*/
 func AddVeleroExcludeLabelToObjectMeta(objectMeta *metav1.ObjectMeta) {
 	objectMeta.Labels = AppendVeleroExcludeLabels(objectMeta.Labels)
 }
 
-func AppendVeleroExcludeLabels(origLabels map[string]string) map[string]string{
+func AppendVeleroExcludeLabels(origLabels map[string]string) map[string]string {
 	if origLabels == nil {
 		origLabels = make(map[string]string)
 	}
@@ -828,6 +828,10 @@ func IsResourceBlocked(resourceName string) bool {
 	return constants.ResourcesToBlock[resourceName]
 }
 
+func IsResourceBlockedOnRestore(resourceName string) bool {
+	return constants.ResourcesToBlockOnRestore[resourceName]
+}
+
 func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
 	// Retrieve the common object metadata and check to see if this is a blocked type
 	accessor := meta.NewAccessor()
@@ -845,4 +849,3 @@ func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
 	}
 	return false, crdName, nil
 }
-

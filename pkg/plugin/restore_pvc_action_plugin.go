@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
@@ -15,9 +17,10 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"os"
 )
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
@@ -33,6 +36,9 @@ func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	for resourceToBlock, _ := range constants.ResourcesToBlock {
 		resources = append(resources, resourceToBlock)
 	}
+	for resourceToBlockOnRestore, _ := range constants.ResourcesToBlockOnRestore {
+		resources = append(resources, resourceToBlockOnRestore)
+	}
 	return velero.ResourceSelector{
 		IncludedResources: resources,
 	}, nil
@@ -46,7 +52,21 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
 	}
 
+	if blocked == false {
+		// "pods" and "images" are two additional resources
+		// blocked on restore only for now
+		blocked = utils.IsResourceBlockedOnRestore(crdName)
+	}
+
 	if blocked {
+		if crdName == "pods" {
+			return p.createPod(item)
+		} else if crdName == "images.imagecontroller.vmware.com" {
+			// Skip the restore of image resources on Supervisor Cluster
+			return &velero.RestoreItemActionExecuteOutput{
+				SkipRestore: true,
+			}, nil
+		}
 		return nil, errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
 	}
 
@@ -160,3 +180,103 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	}, nil
 }
 
+func (p *NewPVCRestoreItemAction) createPod(item runtime.Unstructured) (*velero.RestoreItemActionExecuteOutput, error) {
+	var pod corev1.Pod
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pod); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if metav1.HasAnnotation(pod.ObjectMeta, constants.VMwareSystemVMUUID) {
+		newPod := &corev1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Pod",
+				APIVersion: "v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      pod.Name,
+				Namespace: pod.Namespace,
+				Labels:    pod.Labels,
+			},
+			Spec: corev1.PodSpec{
+				DNSPolicy:                     pod.Spec.DNSPolicy,
+				EnableServiceLinks:            pod.Spec.EnableServiceLinks,
+				Hostname:                      pod.Spec.Hostname,
+				Priority:                      pod.Spec.Priority,
+				RestartPolicy:                 pod.Spec.RestartPolicy,
+				SecurityContext:               pod.Spec.SecurityContext,
+				ServiceAccountName:            pod.Spec.ServiceAccountName,
+				Subdomain:                     pod.Spec.Subdomain,
+				TerminationGracePeriodSeconds: pod.Spec.TerminationGracePeriodSeconds,
+				Tolerations:                   pod.Spec.Tolerations,
+			},
+		}
+
+		// Remove secret volume from Pod spec as it will be created automatically when pod is created
+		var volumes []corev1.Volume
+		var skippedSecretVolNames []string
+		for _, vol := range pod.Spec.Volumes {
+			if vol.VolumeSource.Secret != nil {
+				p.Log.Infof("Skipping Secret volume %s", vol.Name)
+				skippedSecretVolNames = append(skippedSecretVolNames, vol.Name)
+				continue
+			}
+			volumes = append(volumes, vol)
+		}
+		// Add Volumes back to the Pod spec
+		newPod.Spec.Volumes = volumes
+
+		// Remove secret volume mount from Pod spec as it will be created automatically when the secret is mounted on the pod after pod is created
+		var containers []corev1.Container
+		for _, container := range pod.Spec.Containers {
+			var volMnts []corev1.VolumeMount
+			for _, volMnt := range container.VolumeMounts {
+				skipMnt := false
+				for _, secretVolName := range skippedSecretVolNames {
+					if secretVolName == volMnt.Name {
+						p.Log.Infof("Skipping Secret volume mount %s", volMnt.Name)
+						skipMnt = true
+						break
+					}
+				}
+				if skipMnt == false {
+					volMnts = append(volMnts, volMnt)
+				}
+			}
+			container.VolumeMounts = volMnts
+			containers = append(containers, container)
+		}
+		// Add Containers back to the Pod spec
+		newPod.Spec.Containers = containers
+
+		// Only restore Pod annotations not on the list to skip
+		if pod.Annotations != nil {
+			for annKey, annVal := range pod.Annotations {
+				skip := false
+				for keyToSkip, _ := range constants.PodAnnotationsToSkip {
+					if annKey == keyToSkip {
+						// Skip the matching key
+						p.Log.Infof("creaetPod: Skipping annotation %s/%s on Pod %s/%s.", annKey, annVal, newPod.Namespace, newPod.Name)
+						skip = true
+						break
+					}
+				}
+				if skip == false {
+					metav1.SetMetaDataAnnotation(&newPod.ObjectMeta, annKey, annVal)
+					p.Log.Infof("createPod: Set annotation %s:%s on Pod %s/%s.", annKey, annVal, newPod.Namespace, newPod.Name)
+				}
+			}
+		}
+
+		podMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&newPod)
+		if err != nil {
+			p.Log.Errorf("Error converting the new pod %s/%s to unstructured. Error: %v", newPod.Namespace, newPod.Name, err)
+			return nil, errors.WithStack(err)
+		}
+
+		return &velero.RestoreItemActionExecuteOutput{
+			UpdatedItem: &unstructured.Unstructured{Object: podMap},
+		}, nil
+	}
+
+	return &velero.RestoreItemActionExecuteOutput{}, nil
+}
