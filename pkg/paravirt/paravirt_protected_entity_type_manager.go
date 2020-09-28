@@ -206,8 +206,8 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 			this.logger.Info("BackupRepositoryName in Supervisor: %s", backupRepositoryCR.SvcBackupRepositoryName)
 			backupRepositoryName = backupRepositoryCR.SvcBackupRepositoryName
 		}
-		backupRepo = snapshotUtils.NewBackupRepository(backupRepositoryName)
 	}
+	backupRepo = snapshotUtils.NewBackupRepository(backupRepositoryName)
 
 	// sourceSnapshotID from CloneFromSnapshot in Guest is in this format:
 	// pvc:test-ns-xtayual/test-pvc:cGFyYXZpcnQtcHY6cHZjLTE1ZDBhYzhmLTQxOGYtNGU1ZC05OWMxLWIxMjcyNjNlMjA1ODphWFprT2pGbE5EWmlZalJrTFdJelpqQXROREJrTlMwNVkyRTRMVE5pWVdVMlpqVTVOVGsxTlRwa01tVXlNamN4TmkwNVlUWXhMVFEyT0dFdFlqQmhZeTB4T1RKa01tSmtNV0kzWmpV
