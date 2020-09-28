@@ -32,7 +32,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
@@ -117,76 +116,6 @@ func TestGetBool(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			res := GetBool(test.str, test.defValue)
 			require.Equal(t, test.expectedVal, res)
-		})
-	}
-}
-
-func TestCreateRepositoryFromBackupRepository(t *testing.T) {
-	map1 := make(map[string]string)
-	map2 := make(map[string]string)
-	map2["region"] = "us-west-1"
-	tests := []struct {
-		name             string
-		key              string
-		backupRepository *v1.BackupRepository
-		expectedErr      error
-	}{
-		{
-			name: "Unsupported backup driver type returns error",
-			key:  "backupdriver/backuprepository-1",
-			backupRepository: &v1.BackupRepository{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1.SchemeGroupVersion.String(),
-					Kind:       "BackupRepository",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default",
-				},
-				RepositoryDriver: "unsupported-driver",
-			},
-			expectedErr: errors.New("Unsupported backuprepository driver type: unsupported-driver. Only support s3repository.astrolabe.vmware-tanzu.com."),
-		},
-		{
-			name: "Repository parameter missing region should return error",
-			key:  "miss-region",
-			backupRepository: &v1.BackupRepository{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1.SchemeGroupVersion.String(),
-					Kind:       "BackupRepository",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default",
-				},
-				RepositoryDriver:     constants.S3RepositoryDriver,
-				RepositoryParameters: map1,
-			},
-			expectedErr: errors.New("Missing region param, cannot initialize S3 PETM"),
-		},
-		{
-			name: "Repository parameter missing bucket should return error",
-			key:  "miss-bucket",
-			backupRepository: &v1.BackupRepository{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1.SchemeGroupVersion.String(),
-					Kind:       "BackupRepository",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default",
-				},
-				RepositoryDriver:     constants.S3RepositoryDriver,
-				RepositoryParameters: map2,
-			},
-			expectedErr: errors.New("Missing bucket param, cannot initialize S3 PETM"),
-		},
-	}
-	for _, test := range tests {
-		var (
-			logger = veleroplugintest.NewLogger()
-		)
-
-		t.Run(test.name, func(t *testing.T) {
-			_, err := GetRepositoryFromBackupRepository(test.backupRepository, logger)
-			assert.Equal(t, test.expectedErr.Error(), err.Error())
 		})
 	}
 }

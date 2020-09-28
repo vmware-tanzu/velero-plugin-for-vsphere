@@ -166,3 +166,83 @@ const (
 	SupervisorClusterIdKey    = "SupervisorClusterId"
 	SupervisorResourcePoolKey = "SupervisorResourcePool"
 )
+
+var ResourcesToBlock = map[string]bool{
+	// Kubernetes with vSphere Supervisor Cluster resources
+	"agentinstalls.installers.tmc.cloud.vmware.com":           true,
+	"certificaterequests.cert-manager.io":                     true,
+	"certificates.cert-manager.io":                            true,
+	"challenges.acme.cert-manager.io":                         true,
+	"clusterissuers.cert-manager.io":                          true,
+	"clusterresourcesetbindings.addons.cluster.x-k8s.io":      true,
+	"clusterresourcesets.addons.cluster.x-k8s.io":             true,
+	"clusters.cluster.x-k8s.io":                               true,
+	"cnsnodevmattachments.cns.vmware.com":                     true,
+	"cnsregistervolumes.cns.vmware.com":                       true,
+	"cnsvolumemetadatas.cns.vmware.com":                       true,
+	"compatibilities.run.tanzu.vmware.com":                    true,
+	"contentlibraryproviders.vmoperator.vmware.com":           true,
+	"contentsources.vmoperator.vmware.com":                    true,
+	"imagedisks.imagecontroller.vmware.com":                   true,
+	"images.imagecontroller.vmware.com":                       true,
+	"installoptions.appplatform.wcp.vmware.com":               true,
+	"installrequirements.appplatform.wcp.vmware.com":          true,
+	"issuers.cert-manager.io":                                 true,
+	"kubeadmconfigs.bootstrap.cluster.x-k8s.io":               true,
+	"kubeadmconfigtemplates.bootstrap.cluster.x-k8s.io":       true,
+	"kubeadmcontrolplanes.controlplane.cluster.x-k8s.io":      true,
+	"kuberneteslicenses.licenseoperator.vmware.com":           true,
+	"loadbalancers.vmware.com":                                true,
+	"machinedeployments.cluster.x-k8s.io":                     true,
+	"machinehealthchecks.cluster.x-k8s.io":                    true,
+	"machinepools.exp.cluster.x-k8s.io":                       true,
+	"machines.cluster.x-k8s.io":                               true,
+	"machinesets.cluster.x-k8s.io":                            true,
+	"members.registryagent.vmware.com":                        true,
+	"ncpconfigs.nsx.vmware.com":                               true,
+	"network-attachment-definitions.k8s.cni.cncf.io":          true,
+	"nsxerrors.nsx.vmware.com":                                true,
+	"nsxlbmonitors.vmware.com":                                true,
+	"nsxlocks.nsx.vmware.com":                                 true,
+	"nsxnetworkinterfaces.nsx.vmware.com":                     true,
+	"orders.acme.cert-manager.io":                             true,
+	"projects.registryagent.vmware.com":                       true,
+	"providerserviceaccounts.run.tanzu.vmware.com":            true,
+	"registries.registryagent.vmware.com":                     true,
+	"storagepolicies.appplatform.wcp.vmware.com":              true,
+	"storagepools.cns.vmware.com":                             true,
+	"supervisorservices.appplatform.wcp.vmware.com":           true,
+	"tanzukubernetesclusters.run.tanzu.vmware.com":            true,
+	"tanzukubernetesreleases.run.tanzu.vmware.com":            true,
+	"tkgserviceconfigurations.run.tanzu.vmware.com":           true,
+	"vcuiplugins.appplatform.wcp.vmware.com":                  true,
+	"veleroservices.veleroappoperator.vmware.com":             true,
+	"virtualmachineclasses.vmoperator.vmware.com":             true,
+	"virtualmachineimages.vmoperator.vmware.com":              true,
+	"virtualmachineservices.vmoperator.vmware.com":            true,
+	"virtualmachinesetresourcepolicies.vmoperator.vmware.com": true,
+	"virtualmachines.vmoperator.vmware.com":                   true,
+	"virtualnetworkinterfaces.vmware.com":                     true,
+	"virtualnetworks.vmware.com":                              true,
+	"wcpclusters.infrastructure.cluster.vmware.com":           true,
+	"wcpmachines.infrastructure.cluster.vmware.com":           true,
+	"wcpmachinetemplates.infrastructure.cluster.vmware.com":   true,
+
+	// plugin resources
+
+	"backuprepositories.backupdriver.io":     true,
+	"backuprepositoryclaims.backupdriver.io": true,
+	"clonefromsnapshots.backupdriver.io":     true,
+	"deletesnapshots.backupdriver.io":        true,
+	"downloads.veleroplugin.io":              true,
+	"snapshots.backupdriver.io":              true,
+	"uploads.veleroplugin.io":                true,
+}
+
+var ResourcesToHandle = map[string]bool{
+	"persistentvolumeclaims": true,
+}
+
+// Label to set for Velero to ignore resources
+const VeleroExcludeLabel = "velero.io/exclude-from-backup"
+

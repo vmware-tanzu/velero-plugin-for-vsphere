@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
@@ -34,13 +35,23 @@ func (p *NewPVCDeleteItemAction) AppliesTo() (velero.ResourceSelector, error) {
 
 func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteInput) error {
 	item := input.Item
+
+	blocked, crdName, err := utils.IsObjectBlocked(item)
+
+	if err != nil {
+		return errors.Wrap(err, "Failed during IsObjectBlocked check")
+	}
+
+	if blocked {
+		return errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
+	}
+
 	var pvc corev1.PersistentVolumeClaim
 	ctx := context.Background()
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
 		return errors.WithStack(err)
 	}
 
-	var err error
 	// get snapshot blob from PVC annotation
 	snapshotAnnotation, ok := pvc.Annotations[constants.ItemSnapshotLabel]
 	if !ok {
@@ -81,7 +92,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during delete")
-		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
+		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
 		if err != nil {
 			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
 			return errors.WithStack(err)

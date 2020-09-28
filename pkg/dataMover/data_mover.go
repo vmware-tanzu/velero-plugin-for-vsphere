@@ -18,6 +18,7 @@ package dataMover
 
 import (
 	"context"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"sync"
 
@@ -118,7 +119,7 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, backupReposi
 
 	log.Debugf("Ready to call s3 PETM copy API for local PE")
 	if backupRepository.Name != constants.WithoutBackupRepository {
-		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
+		repoPETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, log)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
 			return astrolabe.ProtectedEntityID{}, err
@@ -152,7 +153,7 @@ func (this *DataMover) copyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID
 	log := this.WithField("Remote PEID", peID.String())
 	log.Infof("Copying the snapshot from remote repository to local. Copy options: %d", options)
 	if backupRepository.Name != constants.WithoutBackupRepository {
-		repoPETM, err := utils.GetRepositoryFromBackupRepository(backupRepository, log)
+		repoPETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, log)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to get S3 repository from backup repository %s", backupRepository.Name)
 			return astrolabe.ProtectedEntityID{}, err

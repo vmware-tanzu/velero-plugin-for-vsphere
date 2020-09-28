@@ -3,12 +3,11 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"os"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	pluginUtil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
@@ -20,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"os"
 )
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
@@ -32,7 +32,7 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
-		IncludedResources: []string{"persistentvolumeclaims"},
+		IncludedResources: utils.GetResources(),
 	}, nil
 }
 
@@ -46,16 +46,25 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return item, nil, nil
 	}
 
+	blocked, crdName, err := utils.IsObjectBlocked(item)
+
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
+	}
+
+	if blocked {
+		return nil, nil, errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
+	}
+
 	var pvc corev1.PersistentVolumeClaim
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
-
 	p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
-	var err error
 	defer func() {
 		p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
 	}()
+
 
 	// get the velero namespace and the rest config in k8s cluster
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
@@ -82,7 +91,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during backup")
 		bslName := backup.Spec.StorageLocation
-		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
+		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
 		if err != nil {
 			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
 			return nil, nil, errors.WithStack(err)

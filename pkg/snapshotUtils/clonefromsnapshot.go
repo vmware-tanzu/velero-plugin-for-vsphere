@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -55,7 +56,7 @@ func CloneFromSnapshopRef(ctx context.Context,
 			APIVersion: "backupdriver.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: cloneFromSnapshotUUID.String(),
+			Name:		cloneFromSnapshotUUID.String(),
 		},
 		Spec: backupdriverv1.CloneFromSnapshotSpec{
 			SnapshotID:       snapshotID,
@@ -67,6 +68,7 @@ func CloneFromSnapshopRef(ctx context.Context,
 		},
 	}
 
+	utils.AddVeleroExcludeLabelToObjectMeta(&cloneFromSnapshotCR.ObjectMeta)
 	writtenClone, err := clientSet.CloneFromSnapshots(namespace).Create(context.TODO(), &cloneFromSnapshotCR, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to create cloneFromSnapshot record")

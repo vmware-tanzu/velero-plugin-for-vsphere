@@ -7,6 +7,7 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 )
 
 func GetSnapshotFromPVCAnnotation(snapshotAnnotation string, itemSnapshot interface{}) error {
@@ -59,4 +60,53 @@ func UpdateSnapshotWithNewNamespace(itemSnapshot *backupdriverv1.Snapshot, names
 	itemSnapshot.Status.Metadata = updatedSnapshotMetadata
 
 	return *itemSnapshot, nil
+}
+
+const (
+	minComponents     = 5
+	k8sNamespaceIndex = 3
+	crNamespaceIndex  = 4
+	crGroupIndex      = 2
+)
+
+/*
+ * Converts a K8S Self Link into the CRD name.  Supports namespaced and cluster level CRs
+ * K8S Cluster Resource Self Link format: /api/<version>/<resource plural name>/<item name>,
+ *     e.g. /api/v1/persistentvolumes/pvc-3240e5ed-9a97-446c-a6ab-b2442d852d04
+ * K8S Namespace resource Self Link format: /api/<version>/namespaces/<namespace>/<resource plural name>/<item name>,
+ *     e.g. /api/v1/namespaces/kibishii/persistentvolumeclaims/etcd0-pv-claim
+ * K8S Resource Name = <resource plural name>, e.g. persistentvolumes
+ * Custom Resource Cluster Self Link format: /apis/<CR group>/<version>/<CR plural name>/<item name>,
+ *     e.g. /api/backupdriver.io/v1/backuprepositories/br-1
+ * Custom Resource Namespace Self Link format: /apis/<CR group>/<version>/namespaces/<namespace>/<CR plural name>/<item name>,
+ *     e.g. /apis/velero.io/v1/namespaces/velero/backups/kibishii-1
+ * Custom Resource Name = <CR plural name>.<CR group>, e.g. backups.velero.io
+ */
+func SelfLinkToCRDName(selfLink string) string {
+	components := strings.Split(selfLink, "/")
+	if len(components) < minComponents || components[0] != "" || (components[1] != "apis" && components[1] != "api") {
+		return ""
+	}
+	var pluralIndex, namespacesIndex int
+	var hasGroup bool
+	if components[1] == "api" {
+		// If this is a K8S resource, there will be no group, so just return the plural name.
+		namespacesIndex = k8sNamespaceIndex
+		hasGroup = false
+	} else {
+		namespacesIndex = crNamespaceIndex
+		hasGroup = true
+	}
+	if components[namespacesIndex] == "namespaces" {
+		// Skip the "namespaces" and "<namespace>" component
+		pluralIndex = namespacesIndex + 2
+	} else {
+		// no namespace components to skip
+		pluralIndex = namespacesIndex
+	}
+	if hasGroup {
+		return components[pluralIndex] + "." + components[crGroupIndex]
+	} else {
+		return components[pluralIndex]
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
@@ -28,14 +29,29 @@ type NewPVCRestoreItemAction struct {
 func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
+	resources := []string{"persistentvolumeclaims"}
+	for resourceToBlock, _ := range constants.ResourcesToBlock {
+		resources = append(resources, resourceToBlock)
+	}
 	return velero.ResourceSelector{
-		IncludedResources: []string{"persistentvolumeclaims"},
+		IncludedResources: resources,
 	}, nil
 }
 
 func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+	item := input.ItemFromBackup
+	blocked, crdName, err := utils.IsObjectBlocked(item)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
+	}
+
+	if blocked {
+		return nil, errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
+	}
+
 	var pvc corev1.PersistentVolumeClaim
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(input.Item.UnstructuredContent(), &pvc); err != nil {
+	if err = runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -48,14 +64,14 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		}, nil
 	}
 
-	var err error
 	// get snapshot blob from PVC annotation
 	p.Log.Info("Getting the snapshot blob from PVC annotation from backup")
 	snapshotAnnotation, ok := pvc.Annotations[constants.ItemSnapshotLabel]
+
 	if !ok {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
 		return &velero.RestoreItemActionExecuteOutput{
-			UpdatedItem: input.Item,
+			UpdatedItem: item,
 		}, nil
 	}
 	var itemSnapshot backupdriverv1.Snapshot
@@ -117,7 +133,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	isLocalMode := utils.GetBool(install.DefaultBackupDriverImageLocalMode, false)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during restore")
-		backupRepositoryName, err = utils.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
+		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)
 		if err != nil {
 			p.Log.Errorf("Failed to retrieve backup repository name: %v", err)
 			return nil, errors.WithStack(err)
