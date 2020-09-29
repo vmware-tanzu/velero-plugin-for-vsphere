@@ -43,6 +43,11 @@ spec:
           status:
             description: Current status of the delete snapshot operation
             properties:
+              completionTimestamp:
+                description: CompletionTimestamp records the time an deletesnapshot was completed. The server's time is used for CompletionTimestamps
+                format: date-time
+                nullable: true
+                type: string
               message:
                 description: Message is a message about the delete snapshot's status.
                 type: string

@@ -23,6 +23,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
 	"io/ioutil"
+	"time"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
@@ -272,6 +273,10 @@ func (ctrl *backupDriverController) updateSnapshotStatusPhase(ctx context.Contex
 		snapshotClone.Status.Metadata = mdBuf.([]byte)
 	}
 
+	if newPhase == backupdriverapi.SnapshotPhaseUploaded {
+		snapshotClone.Status.CompletionTimestamp = &metav1.Time{Time: time.Now()}
+	}
+
 	updatedSnapshot, err := ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(ctx, snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		ctrl.logger.Infof("updateSnapshotStatusPhase: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
@@ -300,6 +305,10 @@ func (ctrl *backupDriverController) updateDeleteSnapshotStatusPhase(ctx context.
 	deleteSnapshotClone.Status.Phase = newPhase
 	if msg, ok := deleteSnapshotStatusFields["Message"]; ok {
 		deleteSnapshotClone.Status.Message = msg.(string)
+	}
+
+	if newPhase == backupdriverapi.DeleteSnapshotPhaseCompleted {
+		deleteSnapshotClone.Status.CompletionTimestamp = &metav1.Time{Time: time.Now()}
 	}
 
 	updatedDeleteSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshotClone.Namespace).UpdateStatus(context.TODO(), deleteSnapshotClone, metav1.UpdateOptions{})

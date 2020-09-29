@@ -61,6 +61,11 @@ spec:
           status:
             description: Current status of the snapshot operation
             properties:
+              completionTimestamp:
+                description: CompletionTimestamp records the time an snapshot was completed. The server's time is used for CompletionTimestamps
+                format: date-time
+                nullable: true
+                type: string
               message:
                 description: Message is a message about the snapshot's status.
                 type: string

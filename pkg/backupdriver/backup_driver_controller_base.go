@@ -19,6 +19,7 @@ package backupdriver
 import (
 	"context"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"strings"
 	"time"
 
@@ -395,6 +396,18 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 
 	if snapshot.Status.Phase != backupdriverapi.SnapshotPhaseNew {
 		ctrl.logger.Debugf("Skipping snapshot, %v, which is not in New phase. Current phase: %v", key, snapshot.Status.Phase)
+		if snapshot.Status.Phase == backupdriverapi.SnapshotPhaseUploaded {
+			// If Snapshot CR status reaches terminal state, Snapshot CR should be deleted after clean up window
+			ctrl.logger.Info("Snapshot CR is in Uploaded phase.")
+			now := time.Now()
+			if now.After(snapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
+				ctrl.logger.Infof("Snapshot CR %s reaches phase %v more than %v hours, deleting this CR.", snapshot.Name, snapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
+				err := ctrl.backupdriverClient.Snapshots(snapshot.Namespace).Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
+				if err != nil {
+					ctrl.logger.WithError(err).Errorf("Failed to delete Snapshot CR which is in %v phase.", snapshot.Status.Phase)
+				}
+			}
+		}
 		return nil
 	}
 
@@ -492,11 +505,22 @@ func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error
 
 	switch phase := cloneFromSnapshot.Status.Phase; phase {
 	case backupdriverapi.ClonePhaseInProgress:
-	case backupdriverapi.ClonePhaseCompleted:
 	case backupdriverapi.ClonePhaseFailed:
 	case backupdriverapi.ClonePhaseCanceling:
 	case backupdriverapi.ClonePhaseCanceled:
 		ctrl.logger.Infof("Skipping cloneFromSnapshot %s which is not in New or Retry phase. Current phase: %v", key, cloneFromSnapshot.Status.Phase)
+		return nil
+	case backupdriverapi.ClonePhaseCompleted:
+		// If CloneFromSnapshot CR status reaches terminal state, Snapshot CR should be deleted after clean up window
+		ctrl.logger.Info("CloneFromSnapshot CR is in completed phase.")
+		now := time.Now()
+		if now.After(cloneFromSnapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
+			ctrl.logger.Infof("CloneFromSnapshot CR %s reaches phase %v more than %v hours, deleting this CR.", cloneFromSnapshot.Name, cloneFromSnapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
+			err := ctrl.backupdriverClient.CloneFromSnapshots(cloneFromSnapshot.Namespace).Delete(context.TODO(), cloneFromSnapshot.Name, metav1.DeleteOptions{})
+			if err != nil {
+				ctrl.logger.WithError(err).Errorf("Failed to delete CloneFromSnapshot CR which is in %v phase.", cloneFromSnapshot.Status.Phase)
+			}
+		}
 		return nil
 	default:
 		// If phase is ClonePhaseNew or ClonePhaseRetry,
@@ -693,6 +717,18 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 	if delSnapshot.Status.Phase != backupdriverapi.DeleteSnapshotPhaseNew {
 		ctrl.logger.Infof("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
 			key, delSnapshot.Status.Phase)
+		if delSnapshot.Status.Phase == backupdriverapi.DeleteSnapshotPhaseCompleted {
+			// If DeleteSnapshot CR status reaches terminal state, DeleteSnapshot CR should be deleted after clean up window
+			ctrl.logger.Info("DeleteSnapshot CR is in Completed phase.")
+			now := time.Now()
+			if now.After(delSnapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
+				ctrl.logger.Infof("DeleteSnapshot CR %s reaches phase %v more than %v hours, deleting this CR.", delSnapshot.Name, delSnapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
+				err := ctrl.backupdriverClient.DeleteSnapshots(delSnapshot.Namespace).Delete(context.TODO(), delSnapshot.Name, metav1.DeleteOptions{})
+				if err != nil {
+					ctrl.logger.WithError(err).Errorf("Failed to delete DeleteSnapshot CR which is in %v phase.", delSnapshot.Status.Phase)
+				}
+			}
+		}
 		return nil
 	}
 
