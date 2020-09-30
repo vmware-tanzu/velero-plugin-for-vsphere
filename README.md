@@ -185,7 +185,6 @@ backup and restore of these resources and will generate errors if an attempt is 
 	contentlibraryproviders.vmoperator.vmware.com               
 	contentsources.vmoperator.vmware.com                        
 	imagedisks.imagecontroller.vmware.com                       
-	images.imagecontroller.vmware.com                           
 	installoptions.appplatform.wcp.vmware.com                   
 	installrequirements.appplatform.wcp.vmware.com              
 	issuers.cert-manager.io                                     
@@ -228,6 +227,28 @@ backup and restore of these resources and will generate errors if an attempt is 
 	wcpclusters.infrastructure.cluster.vmware.com               
 	wcpmachines.infrastructure.cluster.vmware.com               
 	wcpmachinetemplates.infrastructure.cluster.vmware.com       
+
+
+##### Supervisor Cluster resources handled during restore
+The following resources are handled during the restore on the
+Supervisor Cluster.
+  * images.imagecontroller.vmware.com
+    The image resource is backed up everytime when a container
+    is backed up on the Supervisor Cluster. It will be skipped
+    at restore time.
+  * pods
+    We need to remove some metadata from the Pod resource on the
+    Supervisor Cluster, i.e., annotation "vmware-system-vm-uuid"
+    before the restore as the existing VM UUID is associated with
+    the old VM that does not exist any more. The following annotations
+    will be removed from the Pod resource on the Supervisor Cluster.
+    * kubernetes.io/psp
+    * mac
+    * vlan
+    * vmware-system-ephemeral-disk-uuid
+    * vmware-system-image-references
+    * vmware-system-vm-moid
+    * vmware-system-vm-uuid
 
 The Velero Plug-in for vSphere also has internal resources.  These are 
 automatically tagged with the Velero velero.io/exclude-from-backup label
