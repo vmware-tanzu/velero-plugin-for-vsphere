@@ -184,7 +184,6 @@ var ResourcesToBlock = map[string]bool{
 	"contentlibraryproviders.vmoperator.vmware.com":           true,
 	"contentsources.vmoperator.vmware.com":                    true,
 	"imagedisks.imagecontroller.vmware.com":                   true,
-	"images.imagecontroller.vmware.com":                       true,
 	"installoptions.appplatform.wcp.vmware.com":               true,
 	"installrequirements.appplatform.wcp.vmware.com":          true,
 	"issuers.cert-manager.io":                                 true,
@@ -229,7 +228,6 @@ var ResourcesToBlock = map[string]bool{
 	"wcpmachinetemplates.infrastructure.cluster.vmware.com":   true,
 
 	// plugin resources
-
 	"backuprepositories.backupdriver.io":     true,
 	"backuprepositoryclaims.backupdriver.io": true,
 	"clonefromsnapshots.backupdriver.io":     true,
@@ -239,10 +237,38 @@ var ResourcesToBlock = map[string]bool{
 	"uploads.veleroplugin.io":                true,
 }
 
+var ResourcesToBlockOnRestore = map[string]bool{
+	// Kubernetes with vSphere Supervisor Cluster resources
+
+	// The image resource is backed up everytime when a container
+	// is backed up on Supervisor Cluster.
+	// We should skip it at restore time.
+	"images.imagecontroller.vmware.com": true,
+
+	// We need to remove some metadata from the Pod resource on
+	// Supervisor Cluster, i.e., annotation "vmware-system-vm-uuid"
+	// before the restore as the existing VM UUID is associated with
+	// the old VM that does not exist any more
+	"pods": true,
+}
+
 var ResourcesToHandle = map[string]bool{
 	"persistentvolumeclaims": true,
 }
 
+var PodAnnotationsToSkip = map[string]bool{
+	// Kubernetes with vSphere Supervisor Cluster Pod annotations
+	"kubernetes.io/psp":                 true,
+	"mac":                               true,
+	"vlan":                              true,
+	"vmware-system-ephemeral-disk-uuid": true,
+	"vmware-system-image-references":    true,
+	"vmware-system-vm-moid":             true,
+	"vmware-system-vm-uuid":             true,
+}
+
+// UUID of the VM on Supervisor Cluster
+const VMwareSystemVMUUID = "vmware-system-vm-uuid"
+
 // Label to set for Velero to ignore resources
 const VeleroExcludeLabel = "velero.io/exclude-from-backup"
-
