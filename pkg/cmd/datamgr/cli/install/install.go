@@ -19,8 +19,9 @@ package install
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"strings"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -169,7 +170,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	// Check velero version
-	veleroVersion, err := cmd.GetVeleroVersion(f)
+	veleroVersion, err := cmd.GetVeleroVersion(f, o.Namespace)
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
 	} else {
