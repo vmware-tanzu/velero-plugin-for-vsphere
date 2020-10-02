@@ -19,10 +19,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -71,13 +72,13 @@ func GetVersionFromImage(containers []v1.Container, imageName string) string {
 	}
 }
 
-func GetVeleroVersion(f client.Factory) (string, error) {
+func GetVeleroVersion(f client.Factory, ns string) (string, error) {
 	clientset, err := f.KubeClient()
 	if err != nil {
 		fmt.Println("Failed to get kubeclient.")
 		return "", err
 	}
-	deploymentList, err := clientset.AppsV1().Deployments("velero").List(context.TODO(), metav1.ListOptions{})
+	deploymentList, err := clientset.AppsV1().Deployments(ns).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		fmt.Println("Failed to get deployment for velero namespace.")
 		return "", err
