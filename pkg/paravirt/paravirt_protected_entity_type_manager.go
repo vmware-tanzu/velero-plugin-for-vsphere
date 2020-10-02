@@ -208,64 +208,34 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 	}
 	backupRepo = snapshotUtils.NewBackupRepository(backupRepositoryName)
 
-	// sourceSnapshotID from CloneFromSnapshot in Guest is in this format:
-	// pvc:test-ns-xtayual/test-pvc:cGFyYXZpcnQtcHY6cHZjLTE1ZDBhYzhmLTQxOGYtNGU1ZC05OWMxLWIxMjcyNjNlMjA1ODphWFprT2pGbE5EWmlZalJrTFdJelpqQXROREJrTlMwNVkyRTRMVE5pWVdVMlpqVTVOVGsxTlRwa01tVXlNamN4TmkwNVlUWXhMVFEyT0dFdFlqQmhZeTB4T1RKa01tSmtNV0kzWmpV
-	snapIDDecoded, err := decodeSnapshotID(sourceSnapshotID.GetSnapshotID(), this.logger)
-	if err != nil {
-		this.logger.Errorf("Failed to retrieve decoded snapshot id for creating a CloneFromSnapshot CR in the supervisor cluster. sourceSnapshotID: %s", sourceSnapshotID.String())
-		return nil, errors.Wrapf(err, "failed to retrieve decoded snapshot id")
-	}
-	this.logger.Info("CreateFromMetadata: decoded snapshotID: %s", snapIDDecoded)
-
 	apiGroup := ""
 	kind := "PersistentVolumeClaim"
 
-	// Decode metadata, change namespace of PVC
-	// from Guest Cluster namespace to Supervisor Cluster namespace,
-	// and encode again before calling CreateFromMetadata
-	// NOTE(xyang): We need to make assumption that StorageClass is already created
-	// in Supervisor and Synchronized to Guest Cluster
-	// StorageClass in Guest must have StorageClass name of Supervisor
-	// parameters:
-	//   svStorageClass: gc-storage-profile
-	svcPVC := v1.PersistentVolumeClaim{}
-	err = svcPVC.Unmarshal(metadata)
+	// Get Supervisor Cluster PVC and Guest Cluster PVC name and
+	// namespace by retrieving from metadata
+	svcPVC, gcPVCNamespace, gcPVCName, err := this.getSuperPVCandGuestPVCName(metadata)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
-	}
-	// Construct Supervisor Cluster PVC name
-	pvcUUID, err := uuid.NewRandom()
-	if err != nil {
-		// NOTE: svcPVC is marshaled from metadata which is originally
-		// from the Guest Cluster PVC
-		return nil, errors.Wrapf(err, "Could not generate PVC name in the Supervisor Cluster for Guest Cluster PVC %s/%s",
-			svcPVC.Name, svcPVC.Namespace)
-	}
-	svcPVC.Name = svcPVC.Name[4:] + "-" + pvcUUID.String()
-	svcPVC.Namespace = this.svcNamespace
-	svcStorageClassName := ""
-	if svcPVC.Spec.StorageClassName != nil {
-		svcStorageClassName = *svcPVC.Spec.StorageClassName
-	}
-	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Name, svcPVC.Namespace)
-	svcPVCData, err := svcPVC.Marshal()
-	if err != nil {
-		return nil, errors.Wrapf(err, "Could not marshal SVC PVC data for %s/%s",
-			svcPVC.Name, svcPVC.Namespace)
+		return nil, err
 	}
 
-	// We need to construct the snapshotID in CloneFromSnapshot for Supervisor in this format:
-	// pvc:test-gc-e2e-demo-ns/test-pvc:aXZkOjFlNDZiYjRkLWIzZjAtNDBkNS05Y2E4LTNiYWU2ZjU5NTk1NTpkMmUyMjcxNi05YTYxLTQ2OGEtYjBhYy0xOTJkMmJkMWI3ZjU
-	// aXZkOjFlNDZiYjRkLWIzZjAtNDBkNS05Y2E4LTNiYWU2ZjU5NTk1NTpkMmUyMjcxNi05YTYxLTQ2OGEtYjBhYy0xOTJkMmJkMWI3ZjU will be decoded to ivd:1e46bb4d-b3f0-40d5-9ca8-3bae6f595955:ea4e347a-be29-4e5b-a626-725b83f168fcbase64 by PVC PETM
-	newSnapshotID := "pvc:" + svcPVC.Namespace + "/" + svcPVC.Name + ":" + snapIDDecoded
-	this.logger.Infof("CreateFromMetadata: constructed new SnapshotID: %s", newSnapshotID)
+	svcPVCData, err := svcPVC.Marshal()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not marshal SVC PVC data for %s/%s", svcPVC.Name, svcPVC.Namespace)
+	}
+
+	// Convert sourceSnapshotID to convertSnapshotID to this format:
+	// pvc:<supervisor cluster pvc namespace>/<pvc name>:<encoded snapshot ID that can be decoded to ivd:<FCD ID>:<FCD Snapshot ID>
+	newSnapshotID, err := this.convertSnapshotID(sourceSnapshotID, svcPVC.Namespace, svcPVC.Name)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build a CloneFromSnapshot API object for Supervisor Cluster
 	// and wait for its phase to become Completed, Failed, or Canceled.
 	// metadata should be []byte form of PVC so supervisor cluster
 	// PVC PETM will call CreateFromMetadata which will create a PVC
 	// in the Supervisor Cluster
-	this.logger.Info("Creating a CloneFromSnapshot CR")
+	this.logger.Info("Creating a CloneFromSnapshot CR in Supervisor Cluster")
 	svcClone, err := snapshotUtils.CloneFromSnapshopRef(ctx, this.svcBackupDriverClient, newSnapshotID, svcPVCData, &apiGroup, kind, this.svcNamespace, *backupRepo, []backupdriverv1.ClonePhase{backupdriverv1.ClonePhaseCompleted, backupdriverv1.ClonePhaseFailed, backupdriverv1.ClonePhaseCanceled}, this.logger)
 	this.logger.Infof("CreateFromMetadata: finished waiting for CloneFromSnapshot's status to be completed, failed, or canceled in the Supervisor Cluster")
 
@@ -282,111 +252,30 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 		return nil, fmt.Errorf("CloneFromSnapshot is canceled: %s/%s in the Supervisor Cluster", svcClone.Namespace, svcClone.Name)
 	}
 	this.logger.Infof("CreateFromMetadata: CloneFromSnapshot %s/%s is completed in Supervisor Cluster. Phase: %v", svcClone.Namespace, svcClone.Name, svcClone.Status.Phase)
-
 	// Get a fresh Supervisor PVC object
 	svcPvcUpdated, err := this.svcKubeClientSet.CoreV1().PersistentVolumeClaims(this.svcNamespace).Get(context.TODO(), svcPVC.Name, metav1.GetOptions{})
 	if err != nil {
 		this.logger.Errorf("Failed to get PVC %s/%s from Supervisor Cluster: %v", this.svcNamespace, svcPVC.Name, err)
 		return nil, errors.Wrapf(err, "Failed to get PVC from Supervisor Cluster")
 	}
-	svcPVC = *svcPvcUpdated
+	svcPVC = svcPvcUpdated
 
-	// Create a PV in Guest Cluster that points to PVC Name in Supervisor Cluster (static provisioning)
-	namespace := cloneFromSnapshotNamespace
-	pvcName := svcPVC.Name
-	pvUUID, err := uuid.NewRandom()
+	gcPV, err := this.createGuestPV(gcPVCNamespace, gcPVCName, svcPVC, CSIDriverName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not generate PV name in the Guest Cluster for Supervisor Cluster PVC %s/%s",
-			svcPVC.Name, svcPVC.Namespace)
-	}
-	pv := &v1.PersistentVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: pvcName + pvUUID.String(),
-		},
-		Spec: v1.PersistentVolumeSpec{
-			AccessModes: svcPVC.Spec.AccessModes,
-			Capacity:    svcPVC.Status.Capacity,
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				CSI: &v1.CSIPersistentVolumeSource{
-					Driver:       CSIDriverName,
-					VolumeHandle: svcPVC.Name,
-				},
-			},
-			ClaimRef: &v1.ObjectReference{
-				Namespace: namespace,
-				Name:      pvcName,
-			},
-		},
-	}
-
-	if pv, err = this.gcKubeClientSet.CoreV1().PersistentVolumes().Create(context.TODO(), pv, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
-		// Save succeeded.
-		if err != nil {
-			this.logger.Infof("PV %s already exists, reusing", pv.Name)
-			err = nil
-		} else {
-			this.logger.Infof("PV %s saved", pv.Name)
-		}
-	}
-	this.logger.Infof("CreateFromMetadata: PV %s created in the guest cluster", pv.Name)
-
-	// Construct PVC, setting PVC's VolumeName to PV Name
-	accessModes := svcPVC.Spec.AccessModes
-	resources := svcPVC.Spec.Resources
-	volumeMode := svcPVC.Spec.VolumeMode
-	pvc := &v1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      pvcName,
-		},
-		Spec: v1.PersistentVolumeClaimSpec{
-			AccessModes: accessModes,
-			Resources:   resources,
-			VolumeMode:  volumeMode,
-			VolumeName:  pv.Name,
-		},
-	}
-
-	// Create a PVC in Guest Cluster to statically bind to PV in Guest Cluster
-	if pvc, err = this.gcKubeClientSet.CoreV1().PersistentVolumeClaims(namespace).Create(context.TODO(), pvc, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
-		// Save succeeded.
-		if err != nil {
-			this.logger.Infof("PVC %s/%s already exists, reusing", pvc.Namespace, pvc.Name)
-			err = nil
-		} else {
-			this.logger.Infof("PVC %s/%s saved", pvc.Namespace, pvc.Name)
-		}
-	}
-	this.logger.Infof("CreateFromMetadata: PVC %s/%s is created in the guest cluster", pvc.Namespace, pvc.Name)
-
-	// Wait for PVC and PV to bind to each other
-	err = astrolabe_pvc.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, this.gcKubeClientSet, pvc.Namespace, pvc.Name, astrolabe_pvc.Poll, astrolabe_pvc.ClaimBindingTimeout, this.logger)
-	if err != nil {
-		return nil, fmt.Errorf("pvc %s/%s did not become Bound: %v", pvc.Namespace, pvc.Name, err)
-	}
-
-	this.logger.Infof("CreateFromMetadata: PVC %s/%s is bound to PV %s.", pvc.Namespace, pvc.Name, pv.Name)
-
-	// Get CloneFromSnapshot from Guest
-	gcClone, err := this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
-	if err != nil {
-		this.logger.Errorf("Failed to get the cloneFromSnapshot CR %s/%s in Guest Cluster: %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, err)
-		return nil, errors.Wrapf(err, "failed to get cloneFromSnapshot record in Guest Cluster")
-	}
-
-	// Update CloneFromSnapshot status in Guest based on CloneFromSnapshot from Supervisor
-	clone := gcClone.DeepCopy()
-	clone.Status.Phase = svcClone.Status.Phase
-	clone.Status.Message = svcClone.Status.Message
-	clone.Status.ResourceHandle = svcClone.Status.ResourceHandle.DeepCopy()
-	_, err = this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
-	if err != nil {
-		this.logger.Errorf("CreateFromMetadata: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
 		return nil, err
 	}
-	this.logger.Infof("CreateFromMetadata: CloneFromSnapshot %s/%s updated successfully to Phase %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
 
-	peID := astrolabe_pvc.NewProtectedEntityIDFromPVCName(pvc.Namespace, pvc.Name)
+	gcPVC, err := this.createGuestPVC(gcPVCNamespace, gcPVCName, gcPV.Name, svcPVC)
+	if err != nil {
+		return nil, err
+	}
+
+	err = this.updateCloneFromSnapshotStatus(cloneFromSnapshotNamespace, cloneFromSnapshotName, svcClone)
+	if err != nil {
+		return nil, err
+	}
+
+	peID := astrolabe_pvc.NewProtectedEntityIDFromPVCName(gcPVC.Namespace, gcPVC.Name)
 	this.logger.Infof("CreateFromMetadata: generated peID: %s.", peID.String())
 
 	pe, err := this.GetProtectedEntity(ctx, peID)
@@ -424,4 +313,173 @@ func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger log
 	encodedSnapshotStr := base64.RawStdEncoding.EncodeToString([]byte(decodedPEID.String()))
 	logger.Infof("Successfully encoded snapshot ID: %s", encodedSnapshotStr)
 	return encodedSnapshotStr, nil
+}
+
+// getSuperPVCandGuestPVCName converts metadata to PVC and returns the PVC
+// in Supervisor Cluster and namespace and name of the PVC in Guest Cluster
+func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metadata []byte) (*v1.PersistentVolumeClaim, string, string, error) {
+	// Decode metadata, change namespace of PVC
+	// from Guest Cluster namespace to Supervisor Cluster namespace,
+	// and encode again before calling CreateFromMetadata
+	// NOTE(xyang): We need to make assumption that StorageClass is already created
+	// in Supervisor and Synchronized to Guest Cluster
+	// StorageClass in Guest must have StorageClass name of Supervisor
+	// parameters:
+	//   svStorageClass: gc-storage-profile
+	svcPVC := v1.PersistentVolumeClaim{}
+	err := svcPVC.Unmarshal(metadata)
+	if err != nil {
+		return nil, "", "", errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
+	}
+	// Construct Supervisor Cluster PVC name
+	pvcUUID, err := uuid.NewRandom()
+	if err != nil {
+		// NOTE: svcPVC is marshaled from metadata which is originally
+		// from the Guest Cluster PVC
+		return nil, "", "", errors.Wrapf(err, "could not generate PVC name in the Supervisor Cluster for Guest Cluster PVC %s/%s",
+			svcPVC.Name, svcPVC.Namespace)
+	}
+	// Save original Guest Cluster PVC name and namespace
+	gcPVCName := svcPVC.Name
+	gcPVCNamespace := svcPVC.Namespace
+
+	// Construct a name for the PVC in Supervisor cluster
+	svcPVC.Name = svcPVC.Name[0:4] + "-" + pvcUUID.String()
+	svcPVC.Namespace = this.svcNamespace
+	svcStorageClassName := ""
+	if svcPVC.Spec.StorageClassName != nil {
+		svcStorageClassName = *svcPVC.Spec.StorageClassName
+	}
+	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Name, svcPVC.Namespace)
+
+	return &svcPVC, gcPVCNamespace, gcPVCName, nil
+}
+
+// convertSnapshotID constructs the snapshotID to this format:
+// pvc:<supervisor cluster pvc namespace>/<pvc name>:<encoded snapshot ID that can be decoded to ivd:<FCD ID>:<FCD Snapshot ID>
+func (this *ParaVirtProtectedEntityTypeManager) convertSnapshotID(sourceSnapshotID astrolabe.ProtectedEntityID, svcPVCNamespace string, svcPVCName string) (string, error) {
+	// sourceSnapshotID from CloneFromSnapshot in Guest is in this format:
+	// pvc:test-ns-xtayual/test-pvc:cGFyYXZpcnQtcHY6cHZjLTE1ZDBhYzhmLTQxOGYtNGU1ZC05OWMxLWIxMjcyNjNlMjA1ODphWFprT2pGbE5EWmlZalJrTFdJelpqQXROREJrTlMwNVkyRTRMVE5pWVdVMlpqVTVOVGsxTlRwa01tVXlNamN4TmkwNVlUWXhMVFEyT0dFdFlqQmhZeTB4T1RKa01tSmtNV0kzWmpV
+	snapIDDecoded, err := decodeSnapshotID(sourceSnapshotID.GetSnapshotID(), this.logger)
+	if err != nil {
+		this.logger.Errorf("Failed to retrieve decoded snapshot id for creating a CloneFromSnapshot CR in the supervisor cluster. sourceSnapshotID: %s", sourceSnapshotID.String())
+		return "", errors.Wrapf(err, "failed to retrieve decoded snapshot id")
+	}
+	this.logger.Info("convertSnapshotID: decoded snapshotID: %s", snapIDDecoded)
+
+	// We need to construct the snapshotID in CloneFromSnapshot for Supervisor in this format:
+	// pvc:test-gc-e2e-demo-ns/kibi-0f4e37de-038d-11eb-adc1-0242ac120002:aXZkOjFlNDZiYjRkLWIzZjAtNDBkNS05Y2E4LTNiYWU2ZjU5NTk1NTpkMmUyMjcxNi05YTYxLTQ2OGEtYjBhYy0xOTJkMmJkMWI3ZjU
+	// aXZkOjFlNDZiYjRkLWIzZjAtNDBkNS05Y2E4LTNiYWU2ZjU5NTk1NTpkMmUyMjcxNi05YTYxLTQ2OGEtYjBhYy0xOTJkMmJkMWI3ZjU will be decoded to ivd:1e46bb4d-b3f0-40d5-9ca8-3bae6f595955:ea4e347a-be29-4e5b-a626-725b83f168fcbase64 by PVC PETM
+	newSnapshotID := "pvc:" + svcPVCNamespace + "/" + svcPVCName + ":" + snapIDDecoded
+	this.logger.Infof("convertSnapshotID: constructed new SnapshotID: %s", newSnapshotID)
+
+	return newSnapshotID, nil
+}
+
+// createGuestPV creates a PV in Guest Cluster that points to a PVC Name in
+// Supervisor Cluster (static provisioning)
+func (this *ParaVirtProtectedEntityTypeManager) createGuestPV(gcPVCNamespace string, gcPVCName string, svcPVC *v1.PersistentVolumeClaim, CSIDriverName string) (*v1.PersistentVolume, error) {
+	pvUUID, err := uuid.NewRandom()
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not generate PV name in the Guest Cluster for Supervisor Cluster PVC %s/%s", svcPVC.Namespace, svcPVC.Name)
+	}
+	gcPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pvc-" + pvUUID.String(),
+		},
+		Spec: v1.PersistentVolumeSpec{
+			AccessModes: svcPVC.Spec.AccessModes,
+			Capacity:    svcPVC.Status.Capacity,
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				CSI: &v1.CSIPersistentVolumeSource{
+					Driver:       CSIDriverName,
+					VolumeHandle: svcPVC.Name,
+				},
+			},
+			ClaimRef: &v1.ObjectReference{
+				Namespace: gcPVCNamespace,
+				Name:      gcPVCName,
+			},
+		},
+	}
+
+	if gcPV, err = this.gcKubeClientSet.CoreV1().PersistentVolumes().Create(context.TODO(), gcPV, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+		// Save succeeded.
+		if err != nil {
+			this.logger.Infof("PV %s already exists, reusing", gcPV.Name)
+			err = nil
+		} else {
+			this.logger.Infof("PV %s saved", gcPV.Name)
+		}
+	}
+	this.logger.Infof("createGuestPV: PV %s created in the guest cluster", gcPV.Name)
+
+	return gcPV, nil
+}
+
+// createGuestPVC creates a PVC in Guest Cluster and waits for it to bound
+// with PV
+func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(gcPVCNamespace string, gcPVCName string, gcPVName string, svcPVC *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+	// Construct PVC, setting PVC's VolumeName to PV Name
+	accessModes := svcPVC.Spec.AccessModes
+	resources := svcPVC.Spec.Resources
+	volumeMode := svcPVC.Spec.VolumeMode
+	gcPVC := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: gcPVCNamespace,
+			Name:      gcPVCName,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			AccessModes: accessModes,
+			Resources:   resources,
+			VolumeMode:  volumeMode,
+			VolumeName:  gcPVName,
+		},
+	}
+
+	// Create a PVC in Guest Cluster to statically bind to PV in Guest Cluster
+	if gcPVC, err := this.gcKubeClientSet.CoreV1().PersistentVolumeClaims(gcPVCNamespace).Create(context.TODO(), gcPVC, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+		// Save succeeded.
+		if err != nil {
+			this.logger.Infof("PVC %s/%s already exists, reusing", gcPVC.Namespace, gcPVC.Name)
+			err = nil
+		} else {
+			this.logger.Infof("PVC %s/%s saved", gcPVC.Namespace, gcPVC.Name)
+		}
+	}
+	this.logger.Infof("createGuestPVC: PVC %s/%s is created in the guest cluster", gcPVC.Namespace, gcPVC.Name)
+
+	// Wait for PVC and PV to bind to each other
+	err := astrolabe_pvc.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, this.gcKubeClientSet, gcPVC.Namespace, gcPVC.Name, astrolabe_pvc.Poll, astrolabe_pvc.ClaimBindingTimeout, this.logger)
+	if err != nil {
+		return nil, fmt.Errorf("pvc %s/%s did not become Bound: %v", gcPVC.Namespace, gcPVC.Name, err)
+	}
+
+	this.logger.Infof("createGuestPVC: PVC %s/%s is bound to PV %s.", gcPVC.Namespace, gcPVC.Name, gcPVName)
+
+	return gcPVC, nil
+}
+
+func (this *ParaVirtProtectedEntityTypeManager) updateCloneFromSnapshotStatus(cloneFromSnapshotNamespace string, cloneFromSnapshotName string, svcClone *backupdriverv1.CloneFromSnapshot) error {
+	// Get CloneFromSnapshot from Guest Cluster
+	gcClone, err := this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
+	if err != nil {
+		this.logger.Errorf("Failed to get the cloneFromSnapshot CR %s/%s in Guest Cluster: %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, err)
+		return errors.Wrapf(err, "failed to get cloneFromSnapshot record in Guest Cluster")
+	}
+
+	// Update CloneFromSnapshot status in Guest based on CloneFromSnapshot from Supervisor
+	clone := gcClone.DeepCopy()
+	clone.Status.Phase = svcClone.Status.Phase
+	clone.Status.Message = svcClone.Status.Message
+	clone.Status.ResourceHandle = svcClone.Status.ResourceHandle.DeepCopy()
+	_, err = this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
+	if err != nil {
+		this.logger.Errorf("updateCloneFromSnapshotStatus: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+		return err
+	}
+
+	this.logger.Infof("updateCloneFromSnapshotStatus: CloneFromSnapshot %s/%s updated successfully to Phase %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+
+	return nil
 }
