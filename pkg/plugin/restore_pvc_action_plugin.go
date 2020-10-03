@@ -45,8 +45,7 @@ func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	item := input.ItemFromBackup
-	blocked, crdName, err := utils.IsObjectBlocked(item)
+	blocked, crdName, err := utils.IsObjectBlocked(input.ItemFromBackup) // Use ItemFromBackup here so that selflink is available
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
@@ -57,6 +56,8 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		// blocked on restore only for now
 		blocked = utils.IsResourceBlockedOnRestore(crdName)
 	}
+	item := input.Item // Use Item for everything else so that previous actions had a chance to modify the object
+	// (e.g. Velero removes extraneous metadata earlier in the restore process)
 
 	if blocked {
 		if crdName == "pods" {
