@@ -260,7 +260,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	s3RepoParams := make(map[string]interface{})
 
 	configInfo := astrolabeServer.NewConfigInfo(peConfigs, s3Config)
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
+	snapshotMgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
 		clientConfig, logger)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		externalDataMgr = true
 	}
 
-	dataMover, err := dataMover.NewDataMoverFromCluster(ivdParams, externalDataMgr, logger)
+	clusterDataMover, err := dataMover.NewDataMoverFromCluster(ivdParams, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -293,8 +293,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		logger:                logger,
 		logLevel:              logger.Level,
 		config:                config,
-		dataMover:             dataMover,
-		snapManager:           snapshotmgr,
+		dataMover:             clusterDataMover,
+		snapManager:           snapshotMgr,
 		externalDataMgr:       externalDataMgr,
 	}
 	return s, nil

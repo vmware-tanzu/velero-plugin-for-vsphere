@@ -67,7 +67,6 @@ type serverConfig struct {
 	workers            int
 	retryIntervalStart time.Duration
 	retryIntervalMax   time.Duration
-	localMode          bool
 }
 
 func NewCommand(f client.Factory) *cobra.Command {
@@ -85,7 +84,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 			workers:            cmd.DefaultBackupWorkers,
 			retryIntervalStart: cmd.DefaultRetryIntervalStart,
 			retryIntervalMax:   cmd.DefaultRetryIntervalMax,
-			localMode:          false,
 		}
 	)
 
@@ -139,7 +137,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().IntVar(&config.workers, "backup-workers", config.workers, "Concurrency to process multiple backup requests")
 	command.Flags().DurationVar(&config.retryIntervalStart, "backup-retry-int-start", config.retryIntervalStart, "Initial retry interval of failed backup request. It exponentially increases with each failure, up to retry-interval-max.")
 	command.Flags().DurationVar(&config.retryIntervalMax, "backup-retry-int-max", config.retryIntervalMax, "Maximum retry interval of failed backup request.")
-	command.Flags().BoolVar(&config.localMode, "local-mode", config.localMode, "Run backup driver in local mode. Optional.")
 
 	return command
 }
@@ -236,7 +233,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	// Set snapshot manager configuration information
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[constants.VolumeSnapshotterManagerLocation] = constants.VolumeSnapshotterDataServer
-	snapshotMgrConfig[constants.VolumeSnapshotterLocalMode] = strconv.FormatBool(config.localMode)
+	snapshotMgrConfig[constants.VolumeSnapshotterLocalMode] = strconv.FormatBool(utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, logger))
 
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
@@ -301,7 +298,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	s3RepoParams := make(map[string]interface{})
 	configInfo := server2.NewConfigInfo(peConfigs, s3Config)
-	snapshotmgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
+	snapshotMgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
 		clientConfig, logger)
 	if err != nil {
 		return nil, err
@@ -323,7 +320,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		logger:                         logger,
 		logLevel:                       logger.Level,
 		config:                         config,
-		snapManager:                    snapshotmgr,
+		snapManager:                    snapshotMgr,
 	}
 	return s, nil
 }
@@ -375,7 +372,6 @@ func (s *server) runControllers() error {
 		s.pluginInformerFactory,
 		s.svcKubeInformerFactory,
 		s.svcBackupdriverInformerFactory,
-		s.config.localMode,
 		s.snapManager,
 		workqueue.NewItemExponentialFailureRateLimiter(s.config.retryIntervalStart, s.config.retryIntervalMax))
 

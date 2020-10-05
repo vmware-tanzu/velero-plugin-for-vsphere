@@ -19,15 +19,14 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/spf13/pflag"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/pkg/errors"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	v1 "k8s.io/api/core/v1"
@@ -90,6 +89,109 @@ func GetVeleroVersion(f client.Factory, ns string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func GetVeleroFeatureFlags(f client.Factory, veleroNs string) ([]string, error) {
+	var featureFlags = []string{}
+	clientset, err := f.KubeClient()
+	if err != nil {
+		fmt.Println("Failed to get kubeclient.")
+		return featureFlags, err
+	}
+	deploymentList, err := clientset.AppsV1().Deployments(veleroNs).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Println("Failed to get deployment for velero namespace.")
+		return featureFlags, err
+	}
+	for _, item := range deploymentList.Items {
+		if item.GetName() == "velero" {
+			featureFlags, err = GetFeatureFlagsFromImage(item.Spec.Template.Spec.Containers, "velero/velero")
+			if err != nil {
+				fmt.Println("ERROR: Failed to get feature flags for velero deployment.")
+				return featureFlags, err
+			}
+			return featureFlags, nil
+		}
+	}
+	return featureFlags, errors.Errorf("Unable to find velero deployment")
+}
+
+func GetFeatureFlagsFromImage(containers []v1.Container, imageName string) ([]string, error) {
+	var containerArgs = []string{}
+	for _, container := range containers {
+		if strings.Contains(container.Image, imageName) {
+			containerArgs = container.Args[1:]
+			break
+		}
+	}
+	if len(containerArgs) == 0 {
+		fmt.Printf("No arguments found, no feature flags detected.")
+		return []string{}, nil
+	}
+	if len(containerArgs) > 1 {
+		fmt.Printf("Unexpected container arguments for velero image will be using only the first: %v \n", containerArgs[1])
+	}
+	// Extract the flags from the server feature flag args.
+	var featureString string
+	flags := pflag.CommandLine
+	flags.StringVar(&featureString, "features", featureString, "list of feature flags for this plugin")
+	flags.ParseErrorsWhitelist.UnknownFlags = true
+	err := flags.Parse(containerArgs)
+	if err != nil {
+		fmt.Printf("WARNING: Error received while extracting feature flags: %v \n", err)
+	}
+	featureFlags := strings.Split(featureString, ",")
+	return featureFlags, nil
+}
+
+func CreateFeatureStateConfigMap(features []string, f client.Factory, veleroNs string) error {
+	ctx := context.Background()
+	clientset, err := f.KubeClient()
+	if err != nil {
+		fmt.Println("Failed to get kubeclient.")
+		return err
+	}
+
+	var create bool
+	featureConfigMap, err := clientset.CoreV1().ConfigMaps(veleroNs).Get(ctx, constants.VSpherePluginFeatureStates, metav1.GetOptions{})
+	var featureData map[string]string
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			fmt.Printf("Failed to retrieve %s configuration.\n", constants.VSpherePluginFeatureStates)
+			return err
+		}
+		featureConfigMap = &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.VSpherePluginFeatureStates,
+				Namespace: veleroNs,
+			},
+		}
+		create = true
+	}
+	//Always overwrite the feature flags.
+	featureData = make(map[string]string)
+	// Insert the keys with default values.
+	featureData[constants.VSphereItemActionPluginFlag] = strconv.FormatBool(true)
+	featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(false)
+	// Update the falgs based on velero feature flags.
+	featuresString := strings.Join(features[:], ",")
+	if strings.Contains(featuresString, "EnableVSphereItemActionPlugin") {
+		featureData[constants.VSphereItemActionPluginFlag] = strconv.FormatBool(true)
+	}
+	if strings.Contains(featuresString, "EnableLocalMode") {
+		featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(true)
+	}
+	featureConfigMap.Data = featureData
+	if create {
+		_, err = clientset.CoreV1().ConfigMaps(veleroNs).Create(ctx, featureConfigMap, metav1.CreateOptions{})
+	} else {
+		_, err = clientset.CoreV1().ConfigMaps(veleroNs).Update(ctx, featureConfigMap, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		fmt.Printf("Failed to create/update feature state config map : %s.\n", constants.VSpherePluginFeatureStates)
+		return err
+	}
+	return nil
 }
 
 // Go doesn't have max function for integers?  Oh really, that's just so convenient

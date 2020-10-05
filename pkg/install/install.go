@@ -68,14 +68,12 @@ var CRDsList = []string{
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
 	DefaultDatamgrImage          = imageRegistry() + "/" + constants.DataManagerForPlugin + ":" + imageVersion()
-	DefaultDatamgrImageLocalMode = imageLocalMode()
 	DefaultDatamgrPodCPURequest  = "0"
 	DefaultDatamgrPodMemRequest  = "0"
 	DefaultDatamgrPodCPULimit    = "0"
 	DefaultDatamgrPodMemLimit    = "0"
 
 	DefaultBackupDriverImage          = imageRegistry() + "/" + constants.BackupDriverForPlugin + ":" + imageVersion()
-	DefaultBackupDriverImageLocalMode = imageLocalMode()
 	DefaultBackupDriverPodCPURequest  = "0"
 	DefaultBackupDriverPodMemRequest  = "0"
 	DefaultBackupDriverPodCPULimit    = "0"
@@ -94,7 +92,7 @@ type PodOptions struct {
 	SecretAdd      bool
 	MasterAffinity bool
 	HostNetwork    bool
-	LocalMode      bool
+	Features	   []string
 }
 
 // Use "latest" if the build process didn't supply a version
@@ -110,13 +108,6 @@ func imageRegistry() string {
 		return "dpcpinternal"
 	}
 	return buildinfo.Registry
-}
-
-func imageLocalMode() string {
-	if buildinfo.LocalMode == "" {
-		return "false"
-	}
-	return buildinfo.LocalMode
 }
 
 func labels() map[string]string {
@@ -409,7 +400,6 @@ func AllBackupDriverResources(o *PodOptions, withCRDs bool) (*unstructured.Unstr
 		WithResources(o.PodResources),
 		WithMasterNodeAffinity(o.MasterAffinity),
 		WithHostNetwork(o.HostNetwork),
-		WithLocalMode(o.LocalMode),
 	)
 	appendUnstructured(resources, deploy)
 

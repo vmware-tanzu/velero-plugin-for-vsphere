@@ -48,7 +48,6 @@ ARCH ?= linux-amd64
 ifndef VERSION
 VERSION := $(shell echo `git rev-parse --abbrev-ref HEAD`-`git log -1 --pretty=format:%h`-`date "+%d.%b.%Y.%H.%M.%S"`)
 endif
-LOCALMODE ?= false
 
 # set git sha and tree state
 GIT_SHA = $(shell git rev-parse HEAD)
@@ -103,7 +102,6 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 		GOARCH=$(GOARCH) \
 		REGISTRY=$(REGISTRY) \
 		VERSION=$(VERSION) \
-		LOCALMODE=$(LOCALMODE) \
 		PKG=$(PKG) \
 		BIN=$(BIN) \
 		GIT_SHA=$(GIT_SHA) \
@@ -210,9 +208,6 @@ push-backup-driver: backup-driver-container
 	docker push $(BACKUPDRIVER_IMAGE):$(VERSION)
 
 push: push-datamgr push-plugin push-backup-driver
-
-push-pp:
-	$(MAKE) push-plugin push-backup-driver LOCALMODE=true VERSION=$(VERSION)-pp
 
 QUALIFIED_TAG ?=
 RELEASE_TAG ?= latest
