@@ -2,8 +2,8 @@ package backuprepository
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -151,7 +151,7 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 func handleNewBackupRepositoryClaim(ctx context.Context,
 	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
 	ns string,
-	backupdriverClient *backupdriverTypedV1.BackupdriverV1Client,
+	backupdriverClient *backupdriverTypedV1.BackupdriverV1alpha1Client,
 	logger logrus.FieldLogger) error {
 	backupRepository, err := CreateBackupRepository(ctx, backupRepositoryClaim, "", backupdriverClient, logger)
 	if err != nil {

@@ -21,8 +21,8 @@ package versioned
 import (
 	"fmt"
 
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
+	backupdriverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	datamoverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -30,26 +30,26 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	BackupdriverV1() backupdriverv1.BackupdriverV1Interface
-	VeleropluginV1() veleropluginv1.VeleropluginV1Interface
+	BackupdriverV1alpha1() backupdriverv1alpha1.BackupdriverV1alpha1Interface
+	DatamoverV1alpha1() datamoverv1alpha1.DatamoverV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	backupdriverV1 *backupdriverv1.BackupdriverV1Client
-	veleropluginV1 *veleropluginv1.VeleropluginV1Client
+	backupdriverV1alpha1 *backupdriverv1alpha1.BackupdriverV1alpha1Client
+	datamoverV1alpha1    *datamoverv1alpha1.DatamoverV1alpha1Client
 }
 
-// BackupdriverV1 retrieves the BackupdriverV1Client
-func (c *Clientset) BackupdriverV1() backupdriverv1.BackupdriverV1Interface {
-	return c.backupdriverV1
+// BackupdriverV1alpha1 retrieves the BackupdriverV1alpha1Client
+func (c *Clientset) BackupdriverV1alpha1() backupdriverv1alpha1.BackupdriverV1alpha1Interface {
+	return c.backupdriverV1alpha1
 }
 
-// VeleropluginV1 retrieves the VeleropluginV1Client
-func (c *Clientset) VeleropluginV1() veleropluginv1.VeleropluginV1Interface {
-	return c.veleropluginV1
+// DatamoverV1alpha1 retrieves the DatamoverV1alpha1Client
+func (c *Clientset) DatamoverV1alpha1() datamoverv1alpha1.DatamoverV1alpha1Interface {
+	return c.datamoverV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -73,11 +73,11 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.backupdriverV1, err = backupdriverv1.NewForConfig(&configShallowCopy)
+	cs.backupdriverV1alpha1, err = backupdriverv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
-	cs.veleropluginV1, err = veleropluginv1.NewForConfig(&configShallowCopy)
+	cs.datamoverV1alpha1, err = datamoverv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +93,8 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.backupdriverV1 = backupdriverv1.NewForConfigOrDie(c)
-	cs.veleropluginV1 = veleropluginv1.NewForConfigOrDie(c)
+	cs.backupdriverV1alpha1 = backupdriverv1alpha1.NewForConfigOrDie(c)
+	cs.datamoverV1alpha1 = datamoverv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -103,8 +103,8 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.backupdriverV1 = backupdriverv1.New(c)
-	cs.veleropluginV1 = veleropluginv1.New(c)
+	cs.backupdriverV1alpha1 = backupdriverv1alpha1.New(c)
+	cs.datamoverV1alpha1 = datamoverv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

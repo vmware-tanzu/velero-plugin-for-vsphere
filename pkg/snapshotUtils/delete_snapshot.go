@@ -5,9 +5,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -15,8 +15,8 @@ import (
 )
 
 type waitDeleteSnapshotResult struct {
-	item  interface{}
-	err   error
+	item interface{}
+	err  error
 }
 
 func checkDeleteSnapshotPhasesAndSendResult(
@@ -26,8 +26,8 @@ func checkDeleteSnapshotPhasesAndSendResult(
 	for _, checkPhase := range waitForPhases {
 		if deleteSnapshot.Status.Phase == checkPhase {
 			results <- waitDeleteSnapshotResult{
-				item:  deleteSnapshot,
-				err:   nil,
+				item: deleteSnapshot,
+				err:  nil,
 			}
 		}
 	}
@@ -35,7 +35,7 @@ func checkDeleteSnapshotPhasesAndSendResult(
 
 func DeleteSnapshotRef(
 	ctx context.Context,
-	clientSet *v1.BackupdriverV1Client,
+	clientSet *v1.BackupdriverV1alpha1Client,
 	snapshotID string,
 	namespace string,
 	repo BackupRepository,
@@ -73,7 +73,7 @@ func DeleteSnapshotRef(
 }
 
 func WaitForDeleteSnapshotPhases(ctx context.Context,
-	clientSet *v1.BackupdriverV1Client,
+	clientSet *v1.BackupdriverV1alpha1Client,
 	deleteSnapshotToWait backupdriverv1.DeleteSnapshot,
 	waitForPhases []backupdriverv1.DeleteSnapshotPhase,
 	namespace string, logger logrus.FieldLogger) (*backupdriverv1.DeleteSnapshot, error) {
@@ -101,8 +101,8 @@ func WaitForDeleteSnapshotPhases(ctx context.Context,
 				}
 				logger.Infof("deleteSnapshot deleted: %s", obj)
 				results <- waitDeleteSnapshotResult{
-					item:  nil,
-					err:   errors.New("DeleteSnapshot CRD deleted"),
+					item: nil,
+					err:  errors.New("DeleteSnapshot CRD deleted"),
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {

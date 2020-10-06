@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +29,7 @@ func TestWaitForPhases(t *testing.T) {
 	testSnapshot := backupdriverv1.Snapshot{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Snapshot",
-			APIVersion: "backupdriver.io/v1",
+			APIVersion: "cnsdp.vmware.com/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "dave-test-4",
@@ -66,7 +66,7 @@ func TestWaitForPhases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Delete error = %v\n", err)
 	}
-	writtenSnapshot, err := clientSet.Snapshots("backup-driver").Create(context.TODO(), &testSnapshot,metav1.CreateOptions{})
+	writtenSnapshot, err := clientSet.Snapshots("backup-driver").Create(context.TODO(), &testSnapshot, metav1.CreateOptions{})
 
 	testSnapshot.ObjectMeta = writtenSnapshot.ObjectMeta
 	writtenSnapshot, err = clientSet.Snapshots("backup-driver").UpdateStatus(context.TODO(), &testSnapshot, metav1.UpdateOptions{})
@@ -98,7 +98,7 @@ func TestWaitForClonePhases(t *testing.T) {
 	testClone := backupdriverv1.CloneFromSnapshot{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CloneFromSnapshot",
-			APIVersion: "backupdriver.io/v1",
+			APIVersion: "cnsdp.vmware.com/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "dp-test-1",
@@ -188,7 +188,7 @@ func TestSnapshotRef(t *testing.T) {
 	fmt.Printf("Snapshot created with name %s\n", snapshot.Name)
 }
 */
-func createClientSet() (*v1.BackupdriverV1Client, error) {
+func createClientSet() (*v1.BackupdriverV1alpha1Client, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	// if you want to change the loading rules (which files in which order), you can do so here
 

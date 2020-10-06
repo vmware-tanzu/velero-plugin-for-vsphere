@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
@@ -79,11 +79,11 @@ func TestProcessUploadNonProcessedItems(t *testing.T) {
 
 			c := &uploadController{
 				genericController: newGenericController("upload-test", logger),
-				uploadLister:      sharedInformers.Veleroplugin().V1().Uploads().Lister(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
 			}
 
 			if test.upload != nil {
-				require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
+				require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
 			}
 
 			err := c.processUploadItem(test.key)
@@ -146,14 +146,14 @@ func TestProcessedUploadItem(t *testing.T) {
 			c := &uploadController{
 				genericController: newGenericController("upload-test", logger),
 				kubeClient:        kubeClient,
-				uploadClient:      clientset.VeleropluginV1(),
-				uploadLister:      sharedInformers.Veleroplugin().V1().Uploads().Lister(),
+				uploadClient:      clientset.DatamoverV1alpha1(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
 				nodeName:          "upload-test",
 				clock:             &clock.RealClock{},
 				dataMover:         &dataMover.DataMover{},
 				snapMgr:           &snapshotmgr.SnapshotManager{},
 			}
-			require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
 			if test.cleanupFail {
 				patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 					return astrolabe.ProtectedEntityID{}, nil
@@ -260,8 +260,8 @@ func TestPatchUploadByStatus(t *testing.T) {
 			c := &uploadController{
 				genericController: newGenericController("upload-test", logger),
 				kubeClient:        kubeClient,
-				uploadClient:      client.VeleropluginV1(),
-				uploadLister:      sharedInformers.Veleroplugin().V1().Uploads().Lister(),
+				uploadClient:      client.DatamoverV1alpha1(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
 				nodeName:          "upload-test",
 				clock:             &clock.RealClock{},
 				dataMover:         &dataMover.DataMover{},
@@ -269,7 +269,7 @@ func TestPatchUploadByStatus(t *testing.T) {
 			}
 
 			if test.upload != nil {
-				require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
+				require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
 				// this is necessary so the Patch() call returns the appropriate object
 				client.PrependReactor("patch", "uploads", func(action core.Action) (bool, runtime.Object, error) {
 					var (
@@ -411,8 +411,8 @@ func TestUploadErrorRetry(t *testing.T) {
 			c := &uploadController{
 				genericController: newGenericController("upload-test", logger),
 				kubeClient:        kubeClient,
-				uploadClient:      client.VeleropluginV1(),
-				uploadLister:      sharedInformers.Veleroplugin().V1().Uploads().Lister(),
+				uploadClient:      client.DatamoverV1alpha1(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
 				nodeName:          "upload-test",
 				clock:             &clock.RealClock{},
 				dataMover:         &dataMover.DataMover{},
@@ -420,7 +420,7 @@ func TestUploadErrorRetry(t *testing.T) {
 			}
 
 			// First time set Inprogress to UploadError
-			require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
 			patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
 			})
@@ -430,7 +430,7 @@ func TestUploadErrorRetry(t *testing.T) {
 			require.Equal(t, err.Error(), test.expectedErr.Error())
 
 			// Retry for second time, set to completed at this time
-			require.NoError(t, sharedInformers.Veleroplugin().V1().Uploads().Informer().GetStore().Add(test.upload))
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
 			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
 				return astrolabe.ProtectedEntityID{}, nil
 			})

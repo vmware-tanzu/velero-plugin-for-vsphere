@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/pvc"
-	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -24,14 +24,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
-	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
-	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
-	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
+	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
+	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/datamover/v1alpha1"
+	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/datamover/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -256,7 +256,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	}
 	log.Infof("Copy options: %v, source PEID: %s, target PEID: %s", options, peID.String(), targetPEID.String())
 	var returnPeId astrolabe.ProtectedEntityID
-	if req.Spec.BackupRepositoryName != "" && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository{
+	if req.Spec.BackupRepositoryName != "" && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository {
 		var backupRepositoryCR *backupdriverapi.BackupRepository
 		backupRepositoryCR, err = backuprepository.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
 		if err != nil {
@@ -265,7 +265,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 		}
 		returnPeId, err = c.dataMover.CopyFromRepoWithBackupRepository(peID, targetPEID, backupRepositoryCR, options)
 	} else {
-		returnPeId, err =c.dataMover.CopyFromRepo(peID, targetPEID, options)
+		returnPeId, err = c.dataMover.CopyFromRepo(peID, targetPEID, options)
 	}
 
 	if err != nil {
@@ -339,7 +339,7 @@ func (c *downloadController) patchDownloadByStatusWithRetry(req *pluginv1api.Dow
 	var err error
 	log := loggerForDownload(c.logger, req)
 	log.Infof("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", constants.RetryInterval, constants.RetryMaximum)
-	err = wait.PollImmediate(constants.RetryInterval* time.Second, constants.RetryInterval*constants.RetryMaximum* time.Second, func() (bool, error) {
+	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		updatedDownload, err = c.patchDownloadByStatus(req, newPhase, msg)
 		if err != nil {
 			return false, nil

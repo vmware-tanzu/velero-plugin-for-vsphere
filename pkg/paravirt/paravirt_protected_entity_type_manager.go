@@ -14,8 +14,8 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	astrolabe_pvc "github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	"github.com/vmware-tanzu/astrolabe/pkg/util"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	v1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -47,9 +47,9 @@ const (
 type ParaVirtProtectedEntityTypeManager struct {
 	entityType            ParaVirtEntityType
 	gcKubeClientSet       *kubernetes.Clientset
-	gcBackupDriverClient  *backupdriverTypedV1.BackupdriverV1Client
+	gcBackupDriverClient  *backupdriverTypedV1.BackupdriverV1alpha1Client
 	svcKubeClientSet      *kubernetes.Clientset
-	svcBackupDriverClient *backupdriverTypedV1.BackupdriverV1Client // we might want to change to BackupdriverV1Interface later
+	svcBackupDriverClient *backupdriverTypedV1.BackupdriverV1alpha1Client // we might want to change to BackupdriverV1Interface later
 	svcNamespace          string
 	s3Config              astrolabe.S3Config
 	logger                logrus.FieldLogger

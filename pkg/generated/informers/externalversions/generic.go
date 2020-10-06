@@ -21,8 +21,8 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	v1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	datamoverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -53,23 +53,23 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=backupdriver.io, Version=v1
-	case v1.SchemeGroupVersion.WithResource("backuprepositories"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().BackupRepositories().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("backuprepositoryclaims"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().BackupRepositoryClaims().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("clonefromsnapshots"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().CloneFromSnapshots().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("deletesnapshots"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().DeleteSnapshots().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("snapshots"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1().Snapshots().Informer()}, nil
+	// Group=backupdriver.cnsdp.vmware.com, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("backuprepositories"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1alpha1().BackupRepositories().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("backuprepositoryclaims"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1alpha1().BackupRepositoryClaims().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("clonefromsnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1alpha1().CloneFromSnapshots().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("deletesnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1alpha1().DeleteSnapshots().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("snapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Backupdriver().V1alpha1().Snapshots().Informer()}, nil
 
-		// Group=veleroplugin.io, Version=v1
-	case veleropluginv1.SchemeGroupVersion.WithResource("downloads"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Veleroplugin().V1().Downloads().Informer()}, nil
-	case veleropluginv1.SchemeGroupVersion.WithResource("uploads"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Veleroplugin().V1().Uploads().Informer()}, nil
+		// Group=datamover.cnsdp.vmware.com, Version=v1alpha1
+	case datamoverv1alpha1.SchemeGroupVersion.WithResource("downloads"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Datamover().V1alpha1().Downloads().Informer()}, nil
+	case datamoverv1alpha1.SchemeGroupVersion.WithResource("uploads"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Datamover().V1alpha1().Uploads().Informer()}, nil
 
 	}
 

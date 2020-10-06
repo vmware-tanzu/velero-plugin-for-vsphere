@@ -19,8 +19,8 @@ limitations under the License.
 package fake
 
 import (
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	backupdriverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	datamoverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,10 +30,10 @@ import (
 
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
-var parameterCodec = runtime.NewParameterCodec(scheme)
+
 var localSchemeBuilder = runtime.SchemeBuilder{
-	backupdriverv1.AddToScheme,
-	veleropluginv1.AddToScheme,
+	backupdriverv1alpha1.AddToScheme,
+	datamoverv1alpha1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

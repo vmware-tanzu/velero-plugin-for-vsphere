@@ -1,7 +1,7 @@
 package builder
 
 import (
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +22,7 @@ func ForBackupRepositoryClaim(ns, name string) *BackupRepositoryClaimBuilder {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: ns,
-				Labels:		utils.AppendVeleroExcludeLabels(nil),
+				Labels:    utils.AppendVeleroExcludeLabels(nil),
 			},
 		},
 	}

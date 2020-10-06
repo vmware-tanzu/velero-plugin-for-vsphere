@@ -17,7 +17,7 @@ limitations under the License.
 package builder
 
 import (
-	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	velerov1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
@@ -39,7 +39,7 @@ func ForDownload(ns, name string) *DownloadBuilder {
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: ns,
 				Name:      name,
-				Labels:		utils.AppendVeleroExcludeLabels(nil),
+				Labels:    utils.AppendVeleroExcludeLabels(nil),
 			},
 		},
 	}

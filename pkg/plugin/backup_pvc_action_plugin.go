@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	pluginUtil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -63,7 +63,6 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	defer func() {
 		p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
 	}()
-
 
 	// get the velero namespace and the rest config in k8s cluster
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")

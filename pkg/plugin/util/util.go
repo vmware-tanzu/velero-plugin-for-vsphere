@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/pkg/errors"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -77,7 +77,7 @@ const (
  *     e.g. /api/v1/namespaces/kibishii/persistentvolumeclaims/etcd0-pv-claim
  * K8S Resource Name = <resource plural name>, e.g. persistentvolumes
  * Custom Resource Cluster Self Link format: /apis/<CR group>/<version>/<CR plural name>/<item name>,
- *     e.g. /api/backupdriver.io/v1/backuprepositories/br-1
+ *     e.g. /api/cnsdp.vmware.com/v1/backuprepositories/br-1
  * Custom Resource Namespace Self Link format: /apis/<CR group>/<version>/namespaces/<namespace>/<CR plural name>/<item name>,
  *     e.g. /apis/velero.io/v1/namespaces/velero/backups/kibishii-1
  * Custom Resource Name = <CR plural name>.<CR group>, e.g. backups.velero.io

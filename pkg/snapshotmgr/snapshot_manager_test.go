@@ -18,7 +18,7 @@ package snapshotmgr
 
 import (
 	"context"
-	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,13 +47,13 @@ func TestUpload_Creation(t *testing.T) {
 			Phase: v1api.UploadPhaseNew,
 		},
 	}
-	pluginClient.VeleropluginV1().Uploads("velero").Create(context.TODO(), upload, metav1.CreateOptions{})
-	pluginClient.VeleropluginV1().Uploads("velero").Create(context.TODO(), upload2, metav1.CreateOptions{})
+	pluginClient.DatamoverV1alpha1().Uploads("velero").Create(context.TODO(), upload, metav1.CreateOptions{})
+	pluginClient.DatamoverV1alpha1().Uploads("velero").Create(context.TODO(), upload2, metav1.CreateOptions{})
 }
 
 func TestDownload_Creation(t *testing.T) {
 	pluginClient := fake.NewSimpleClientset()
 	download := builder.ForDownload("velero", "download-1").RestoreTimestamp(time.Now()).SnapshotID("ssid-1").Phase(v1api.DownloadPhaseNew).Result()
 
-	pluginClient.VeleropluginV1().Downloads("velero").Create(context.TODO(), download, metav1.CreateOptions{})
+	pluginClient.DatamoverV1alpha1().Downloads("velero").Create(context.TODO(), download, metav1.CreateOptions{})
 }

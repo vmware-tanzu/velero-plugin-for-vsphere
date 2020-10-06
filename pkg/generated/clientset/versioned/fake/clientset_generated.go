@@ -20,10 +20,10 @@ package fake
 
 import (
 	clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	fakebackupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1/fake"
-	veleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
-	fakeveleropluginv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1/fake"
+	backupdriverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	fakebackupdriverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1/fake"
+	datamoverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
+	fakedatamoverv1alpha1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -78,12 +78,12 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// BackupdriverV1 retrieves the BackupdriverV1Client
-func (c *Clientset) BackupdriverV1() backupdriverv1.BackupdriverV1Interface {
-	return &fakebackupdriverv1.FakeBackupdriverV1{Fake: &c.Fake}
+// BackupdriverV1alpha1 retrieves the BackupdriverV1alpha1Client
+func (c *Clientset) BackupdriverV1alpha1() backupdriverv1alpha1.BackupdriverV1alpha1Interface {
+	return &fakebackupdriverv1alpha1.FakeBackupdriverV1alpha1{Fake: &c.Fake}
 }
 
-// VeleropluginV1 retrieves the VeleropluginV1Client
-func (c *Clientset) VeleropluginV1() veleropluginv1.VeleropluginV1Interface {
-	return &fakeveleropluginv1.FakeVeleropluginV1{Fake: &c.Fake}
+// DatamoverV1alpha1 retrieves the DatamoverV1alpha1Client
+func (c *Clientset) DatamoverV1alpha1() datamoverv1alpha1.DatamoverV1alpha1Interface {
+	return &fakedatamoverv1alpha1.FakeDatamoverV1alpha1{Fake: &c.Fake}
 }
