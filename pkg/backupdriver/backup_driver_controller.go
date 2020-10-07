@@ -34,7 +34,7 @@ import (
 // set of tags to the snapshot.
 func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Snapshot) error {
 	ctrl.logger.Infof("Entering createSnapshot: %s/%s", snapshot.Namespace, snapshot.Name)
-
+	ctx := context.Background()
 	objName := snapshot.Spec.TypedLocalObjectReference.Name
 	objKind := snapshot.Spec.TypedLocalObjectReference.Kind
 	if objKind != "PersistentVolumeClaim" {
@@ -67,18 +67,23 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	brName := snapshot.Spec.BackupRepository
 	if ctrl.svcKubeConfig != nil && brName != "" {
 		// For guest cluster, get the supervisor backup repository name
-		br, err := ctrl.backupdriverClient.BackupRepositories().Get(context.TODO(), brName, metav1.GetOptions{})
+		br, err := ctrl.backupdriverClient.BackupRepositories().Get(ctx, brName, metav1.GetOptions{})
 		if err != nil {
 			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
 		}
 		// Update the backup repository name with the Supervisor BR name
 		brName = br.SvcBackupRepositoryName
 	}
-
+	snapshotStatusFields := make(map[string]interface{})
 	peID, svcSnapshotName, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name, snapshot.Labels[constants.SnapshotBackupLabel])
 	if err != nil {
-		errMsg := fmt.Sprintf("createSnapshot: Failed at calling SnapshotManager CreateSnapshot from peID %v: %v", peID, err)
-		ctrl.logger.Error(errMsg)
+		errMsg := fmt.Sprintf("createSnapshot: Failed at calling SnapshotManager CreateSnapshot from peID %v , Error: %v", peID, err)
+		ctrl.logger.Errorf(errMsg)
+		snapshotStatusFields["Message"] = errMsg
+		_, statusUpdateErr := ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, backupdriverapi.SnapshotPhaseSnapshotFailed, snapshotStatusFields)
+		if statusUpdateErr != nil {
+			ctrl.logger.Error("Failed to update the Snapshot Status to Failed state.")
+		}
 		return err
 	}
 
@@ -86,25 +91,13 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 	snapshotID := peID.String()
 	ctrl.logger.Infof("createSnapshot: The snapshotID depends on the Astrolabe PE ID in the format, <peType>:<id>:<snapshotID>, %s", snapshotID)
 
-	// NOTE: Uncomment the code to retrieve snapshot from API server
-	// when needed.
-	// Retrieve snapshot from API server to make sure it is up to date
-	//newSnapshot, err := ctrl.backupdriverClient.Snapshots(snapshot.Namespace).Get(snapshot.Name, metav1.GetOptions{})
-	//if err != nil {
-	//	return err
-	//}
-	//snapshotClone := newSnapshot.DeepCopy()
-
-	snapshotClone := snapshot.DeepCopy()
-	snapshotClone.Status.Phase = backupdriverapi.SnapshotPhaseSnapshotted
-	snapshotClone.Status.Progress.TotalBytes = 0
-	snapshotClone.Status.Progress.BytesDone = 0
-	snapshotClone.Status.SnapshotID = snapshotID
+	snapshotStatusFields["Progress.TotalBytes"] = int64(0)
+	snapshotStatusFields["Progress.BytesDone"] = int64(0)
+	snapshotStatusFields["SnapshotID"] = snapshotID
 	if svcSnapshotName != "" {
-		snapshotClone.Status.SvcSnapshotName = svcSnapshotName
+		snapshotStatusFields["SvcSnapshotName"] = svcSnapshotName
 	}
 
-	ctx := context.Background()
 	pe, err := ctrl.snapManager.Pem.GetProtectedEntity(ctx, peID)
 	if err != nil {
 		ctrl.logger.WithError(err).Errorf("Failed to get the ProtectedEntity from peID %s", peID.String())
@@ -122,16 +115,15 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 		ctrl.logger.Errorf("createSnapshot: Error happened when reading metadata: %v", err)
 		return err
 	}
+	snapshotStatusFields["Metadata"] = mdBuf
 
-	snapshotClone.Status.Metadata = mdBuf
-
-	snapshot, err = ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	updatedSnapshot, err := ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, backupdriverapi.SnapshotPhaseSnapshotted, snapshotStatusFields)
 	if err != nil {
-		ctrl.logger.Infof("createSnapshot: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
+		ctrl.logger.Infof("createSnapshot: update status for snapshot %s/%s failed: %v", snapshot.Namespace, snapshot.Name, err)
 		return err
 	}
 
-	ctrl.logger.Infof("createSnapshot %s/%s completed with snapshotID: %s, phase in status updated to %s", snapshot.Namespace, snapshot.Name, snapshotID, snapshot.Status.Phase)
+	ctrl.logger.Infof("createSnapshot %s/%s completed with snapshotID: %s, phase in status updated from %s to %s", updatedSnapshot.Namespace, updatedSnapshot.Name, updatedSnapshot.Status.SnapshotID, snapshot.Status.Phase, updatedSnapshot.Status.Phase)
 	return nil
 }
 
@@ -139,6 +131,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	ctrl.logger.Infof("deleteSnapshot called with SnapshotID %s, Namespace: %s, Name: %s",
 		deleteSnapshot.Spec.SnapshotID, deleteSnapshot.Namespace, deleteSnapshot.Name)
 	snapshotID := deleteSnapshot.Spec.SnapshotID
+	ctx := context.Background()
 	ctrl.logger.Infof("Calling Snapshot Manager to delete snapshot with snapshotID %s", snapshotID)
 	peID, err := astrolabe.NewProtectedEntityIDFromString(snapshotID)
 	if err != nil {
@@ -155,7 +148,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	brName := deleteSnapshot.Spec.BackupRepository
 	if ctrl.svcKubeConfig != nil {
 		// For guest cluster, get the supervisor backup repository name
-		br, err := ctrl.backupdriverClient.BackupRepositories().Get(context.TODO(), brName, metav1.GetOptions{})
+		br, err := ctrl.backupdriverClient.BackupRepositories().Get(ctx, brName, metav1.GetOptions{})
 		if err != nil {
 			ctrl.logger.WithError(err).Errorf("Failed to get snapshot Backup Repository %s", brName)
 		}
@@ -169,25 +162,32 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 		return errors.New(errMsg)
 	}
 
+	deleteSnapshotStatusFields := make(map[string]interface{})
 	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName)
 	if err != nil {
-		ctrl.logger.WithError(err).Errorf("Failed at calling SnapshotManager DeleteSnapshot for peID %v", peID)
+		errMsg := fmt.Sprintf("Failed at calling SnapshotManager DeleteSnapshot for peID %v, error: %v", peID, err)
+		ctrl.logger.Errorf(errMsg)
+		deleteSnapshotStatusFields["Message"] = errMsg
+		_, statusUpdateErr := ctrl.updateDeleteSnapshotStatusPhase(ctx, deleteSnapshot.Namespace, deleteSnapshot.Name,
+			backupdriverapi.DeleteSnapshotPhaseFailed, deleteSnapshotStatusFields)
+		if statusUpdateErr != nil {
+			ctrl.logger.Error("Failed to update the DeleteSnapshot Status to Failed state.")
+		}
 		return err
 	}
 
-	// Update the status
-	deleteSnapshotClone := deleteSnapshot.DeepCopy()
-	deleteSnapshotClone.Status.Phase = backupdriverapi.DeleteSnapshotPhaseCompleted
-	deleteSnapshotClone.Status.Message = "DeleteSnapshot Successfully processed."
+	deleteSnapshotStatusFields["Message"] = "DeleteSnapshot Successfully processed."
 
-	deleteSnapshotUpdate, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshot.Namespace).UpdateStatus(context.TODO(), deleteSnapshotClone, metav1.UpdateOptions{})
+	deleteSnapshotUpdate, err := ctrl.updateDeleteSnapshotStatusPhase(ctx, deleteSnapshot.Namespace, deleteSnapshot.Name,
+		backupdriverapi.DeleteSnapshotPhaseCompleted, deleteSnapshotStatusFields)
 	if err != nil {
-		ctrl.logger.Errorf("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, failed: %v",
+		errMsg := fmt.Sprintf("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, failed: %v",
 			deleteSnapshot.Spec.SnapshotID, deleteSnapshot.Namespace, deleteSnapshot.Name, err)
+		ctrl.logger.Errorf(errMsg)
 		return err
 	}
 
-	ctrl.logger.Errorf("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, Completed",
+	ctrl.logger.Infof("deleteSnapshot: update status for SnapshotID: %s Namespace: %s Name: %s, Completed",
 		deleteSnapshotUpdate.Spec.SnapshotID, deleteSnapshotUpdate.Namespace, deleteSnapshotUpdate.Name)
 	return nil
 }
@@ -235,21 +235,77 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 }
 
 // Update the snapshot status phase
-func (ctrl *backupDriverController) updateSnapshotStatusPhase(snapshot *backupdriverapi.Snapshot, newPhase backupdriverapi.SnapshotPhase) error {
-	ctrl.logger.Infof("Entering updateSnapshotStatusPhase: %s/%s, Phase %s", snapshot.Namespace, snapshot.Name, newPhase)
+func (ctrl *backupDriverController) updateSnapshotStatusPhase(ctx context.Context, snapshotNs string, snapshotName string,
+	newPhase backupdriverapi.SnapshotPhase, snapshotStatusFields map[string]interface{}) (*backupdriverapi.Snapshot, error) {
+	ctrl.logger.Infof("Entering updateSnapshotStatusPhase: %s/%s, Phase %s", snapshotNs, snapshotName, newPhase)
+
+	// Retrieve the latest version of Snapshot and update the status.
+	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotNs).Get(ctx, snapshotName, metav1.GetOptions{})
+	if err != nil {
+		ctrl.logger.Errorf("updateSnapshotStatusPhase: Failed to retrieve the latest snapshot state, error: %v", err)
+		return nil, err
+	}
 
 	if snapshot.Status.Phase == newPhase {
 		ctrl.logger.Infof("updateSnapshotStatusPhase: Snapshot %s/%s already updated with %s", snapshot.Namespace, snapshot.Name, newPhase)
-		return nil
+		return snapshot, nil
 	}
 
 	snapshotClone := snapshot.DeepCopy()
 	snapshotClone.Status.Phase = newPhase
+	if msg, ok := snapshotStatusFields["Message"]; ok {
+		snapshotClone.Status.Message = msg.(string)
+	}
+	if totalBytes, ok := snapshotStatusFields["Progress.TotalBytes"]; ok {
+		snapshotClone.Status.Progress.TotalBytes = totalBytes.(int64)
+	}
+	if bytesDone, ok := snapshotStatusFields["Progress.BytesDone"]; ok {
+		snapshotClone.Status.Progress.BytesDone = bytesDone.(int64)
+	}
+	if snapshotID, ok := snapshotStatusFields["SnapshotID"]; ok {
+		snapshotClone.Status.SnapshotID = snapshotID.(string)
+	}
+	if svcSnapshotName, ok := snapshotStatusFields["SvcSnapshotName"]; ok {
+		snapshotClone.Status.SvcSnapshotName = svcSnapshotName.(string)
+	}
+	if mdBuf, ok := snapshotStatusFields["Metadata"]; ok {
+		snapshotClone.Status.Metadata = mdBuf.([]byte)
+	}
 
-	_, err := ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	updatedSnapshot, err := ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(ctx, snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		ctrl.logger.Infof("updateSnapshotStatusPhase: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
-		return err
+		return nil, err
 	}
-	return nil
+	return updatedSnapshot, nil
+}
+
+func (ctrl *backupDriverController) updateDeleteSnapshotStatusPhase(ctx context.Context, deleteSnapshotNs string, deleteSnapshotName string,
+	newPhase backupdriverapi.DeleteSnapshotPhase, deleteSnapshotStatusFields map[string]interface{}) (*backupdriverapi.DeleteSnapshot, error) {
+	ctrl.logger.Infof("Entering updateDeleteSnapshotStatusPhase: %s/%s, Phase %s", deleteSnapshotNs, deleteSnapshotName, newPhase)
+
+	// Retrieve the latest version of DeleteSnapshot CRD and update the status
+	deleteSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshotNs).Get(ctx, deleteSnapshotName, metav1.GetOptions{})
+	if err != nil {
+		ctrl.logger.Errorf("updateDeleteSnapshotStatusPhase: Failed to retrieve the latest DeleteSnapshot state, error: %v", err)
+		return nil, err
+	}
+
+	if deleteSnapshot.Status.Phase == newPhase {
+		ctrl.logger.Infof("updateDeleteSnapshotStatusPhase: Snapshot %s/%s already updated with %s", deleteSnapshot.Namespace, deleteSnapshot.Name, newPhase)
+		return deleteSnapshot, nil
+	}
+
+	deleteSnapshotClone := deleteSnapshot.DeepCopy()
+	deleteSnapshotClone.Status.Phase = newPhase
+	if msg, ok := deleteSnapshotStatusFields["Message"]; ok {
+		deleteSnapshotClone.Status.Message = msg.(string)
+	}
+
+	updatedDeleteSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshotClone.Namespace).UpdateStatus(context.TODO(), deleteSnapshotClone, metav1.UpdateOptions{})
+	if err != nil {
+		ctrl.logger.Infof("updateDeleteSnapshotStatusPhase: update status for deleteSnapshot %s/%s failed: %v", deleteSnapshotClone.Namespace, deleteSnapshotClone.Name, err)
+		return nil, err
+	}
+	return updatedDeleteSnapshot, nil
 }

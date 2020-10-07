@@ -224,8 +224,8 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	snapshotParams := make(map[string]map[string]interface{})
 	guestSnapshotParams := make(map[string]interface{})
 	// Pass the backup repository name as snapshot param.
-	guestSnapshotParams[paravirt.SnapshotParamBackupRepository] = backupRepositoryName
-	guestSnapshotParams[paravirt.SnapshotParamBackupName] = backupName
+	guestSnapshotParams[constants.SnapshotParamBackupRepository] = backupRepositoryName
+	guestSnapshotParams[constants.SnapshotParamBackupName] = backupName
 
 	snapshotParams[peID.GetPeType()] = guestSnapshotParams
 
@@ -253,8 +253,8 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 	// Set the supervisor snapshot name is exists
 	svcSnapshotName := ""
-	if _, ok := guestSnapshotParams[paravirt.SnapshotParamSvcSnapshotName]; ok {
-		svcSnapshotName = fmt.Sprintf("%v", guestSnapshotParams[paravirt.SnapshotParamSvcSnapshotName])
+	if _, ok := guestSnapshotParams[constants.SnapshotParamSvcSnapshotName]; ok {
+		svcSnapshotName = fmt.Sprintf("%v", guestSnapshotParams[constants.SnapshotParamSvcSnapshotName])
 		this.Infof("Supervisor snapshot is created, %s", svcSnapshotName)
 	}
 
@@ -411,7 +411,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		}
 		uploadName := "upload-" + snapIDDecoded
 		log.Infof("Searching for Upload CR: %s", uploadName)
-		uploadCR, err := pluginClient.DatamoverV1alpha1().Uploads(veleroNs).Get(context.TODO(), uploadName, metav1.GetOptions{})
+		uploadCR, err := pluginClient.DatamoverV1alpha1().Uploads(veleroNs).Get(ctx, uploadName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
 			if k8serrors.IsNotFound(err) {
@@ -464,6 +464,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	}
 	if clusterFlavor == constants.TkgGuest {
 		log.Infof("Guest Cluster detected during delete snapshot, nothing more to do.")
+		return nil
 	}
 	// Trigger remote snapshot deletion in Supervisor/Vanilla setup.
 	var isLocalMode bool

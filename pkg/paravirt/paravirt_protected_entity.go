@@ -2,6 +2,7 @@ package paravirt
 
 import (
 	"context"
+	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
 
@@ -71,24 +72,30 @@ func (this ParaVirtProtectedEntity) Snapshot(ctx context.Context, params map[str
 		Name:     peInfo.GetName(),        // Supervisor PVC Name, i.e., Guest PV CSI VolumeHandle
 	}
 
-	backupRepositoryName, ok := params[astrolabe.PvcPEType][SnapshotParamBackupRepository].(string)
+	backupRepositoryName, ok := params[astrolabe.PvcPEType][constants.SnapshotParamBackupRepository].(string)
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
 	labels := map[string]string{
-		constants.SnapshotBackupLabel: params[astrolabe.PvcPEType][SnapshotParamBackupName].(string),
+		constants.SnapshotBackupLabel: params[astrolabe.PvcPEType][constants.SnapshotParamBackupName].(string),
 	}
 
 	this.logger.Info("Creating a snapshot CR")
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
 	snapshot, err := snapshotUtils.SnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, objectToSnapshot, this.pvpetm.svcNamespace,
-		*backupRepository, labels, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted}, this.logger)
+		*backupRepository, labels, []backupdriverv1api.SnapshotPhase{backupdriverv1api.SnapshotPhaseSnapshotted, backupdriverv1api.SnapshotPhaseSnapshotFailed}, this.logger)
 	if err != nil {
 		this.logger.Errorf("Failed to create a snapshot CR: %v", err)
 		return astrolabe.ProtectedEntitySnapshotID{}, err
 	}
+	//Check Snapshot state to see if it failed.
+	if snapshot.Status.Phase == backupdriverv1api.SnapshotPhaseSnapshotFailed {
+		errMsg := fmt.Sprintf("ParaVirtProtectedEntity: Failed to create Snapshot for %s State: %s", objectToSnapshot.Name, backupdriverv1api.SnapshotPhaseSnapshotFailed)
+		this.logger.Error(errMsg)
+		return astrolabe.ProtectedEntitySnapshotID{}, errors.New(errMsg)
+	}
 	// Return the supervisor snapshot name as part of the param map.
-	params[astrolabe.PvcPEType][SnapshotParamSvcSnapshotName] = snapshot.Name
+	params[astrolabe.PvcPEType][constants.SnapshotParamSvcSnapshotName] = snapshot.Name
 
 	this.logger.Infof("Supervisor snapshot status detected as done, extracted snapshotID : %s", snapshot.Status.SnapshotID)
 	peIdFromSnap, err := astrolabe.NewProtectedEntityIDFromString(snapshot.Status.SnapshotID)

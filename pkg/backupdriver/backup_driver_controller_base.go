@@ -768,7 +768,7 @@ func (ctrl *backupDriverController) uploadWorker() {
 // syncUploadByKey processes one Upload CRD
 func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	ctrl.logger.Infof("syncUploadByKey: Started Upload processing %s", key)
-
+	ctx := context.Background()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		ctrl.logger.Errorf("Split meta namespace key of upload %s failed: %v", key, err)
@@ -797,7 +797,7 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	}
 
 	// Get the corresponding snapshot
-	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotParts[0]).Get(context.TODO(), snapshotParts[1], metav1.GetOptions{})
+	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotParts[0]).Get(ctx, snapshotParts[1], metav1.GetOptions{})
 	if err != nil {
 		ctrl.logger.WithError(err).Info("No matching snapshot found. Skipping updating snapshot")
 		return nil
@@ -826,9 +826,10 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 		ctrl.logger.Infof("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
 		return nil
 	}
-
+	snapshotStatusFields := make(map[string]interface{})
 	ctrl.logger.Infof("syncUploadByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
-	return ctrl.updateSnapshotStatusPhase(snapshot, newSnapshotStatusPhase)
+	_, err = ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, newSnapshotStatusPhase, snapshotStatusFields)
+	return err
 }
 
 // updateUpload adds updated Uploads to given work queue.
@@ -872,6 +873,7 @@ func (ctrl *backupDriverController) svcSnapshotWorker() {
 
 // syncSvcSnapshotByKey processes one supervisor snapshot CRD
 func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
+	ctx := context.Background()
 	ctrl.logger.Infof("syncSvcSnapshotByKey: Started SvcSnapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -923,14 +925,17 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	case backupdriverapi.SnapshotPhaseCleanupFailed:
 		fallthrough
 	case backupdriverapi.SnapshotPhaseUploadFailed:
+		fallthrough
+	case backupdriverapi.SnapshotPhaseSnapshotFailed:
 		newSnapshotStatusPhase = svcSnapshot.Status.Phase
 	default:
 		ctrl.logger.Infof("syncUploadByKey: No change needed for snapshot phase %s", svcSnapshot.Status.Phase)
 		return nil
 	}
-
+	snapshotStatusFields := make(map[string]interface{})
 	ctrl.logger.Infof("syncSvcSnapshotByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
-	return ctrl.updateSnapshotStatusPhase(snapshot, newSnapshotStatusPhase)
+	_, err = ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, newSnapshotStatusPhase, snapshotStatusFields)
+	return err
 }
 
 // updateSvcSnapshot adds supervisor snapshots that have been updated to given work queue.
