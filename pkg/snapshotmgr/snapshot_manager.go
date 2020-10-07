@@ -266,7 +266,6 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	var isLocalMode bool
 	if backupRepositoryName == constants.WithoutBackupRepository {
 		// This occurs only if the volume snapshotter plugin is registered
-		// && EnableVSphereItemActionPlugin is not used in feature flag.
 		// In this scenario we explicitly read the feature flags to determine local mode.
 		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
 	} else if backupRepositoryName == "" {
@@ -464,7 +463,6 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	var isLocalMode bool
 	if backupRepositoryName == constants.WithoutBackupRepository {
 		// This occurs only if the volume snapshotter plugin is registered
-		// && EnableVSphereItemActionPlugin is not used in feature flag.
 		// In this scenario we explicitly read the feature flags to determine local mode.
 		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
 	} else if backupRepositoryName == "" {
