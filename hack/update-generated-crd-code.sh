@@ -30,7 +30,7 @@ fi
 
 if ! command -v controller-gen > /dev/null; then
   echo "controller-gen is missing"
-  echo "please retry after running the following command locally: go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0"
+  echo "please retry after running the following command locally: go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.0"
   exit 1
 fi
 
@@ -38,12 +38,13 @@ ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh \
   all \
   github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated \
   github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis \
-  "veleroplugin:v1 backupdriver:v1" \
+  "datamover:v1alpha1 backupdriver:v1alpha1" \
   --go-header-file ${GOPATH}/src/github.com/vmware-tanzu/velero-plugin-for-vsphere/hack/boilerplate.go.txt \
   $@
 
 controller-gen \
   crd \
+  crd:crdVersions=v1 \
   output:dir=pkg/generated/crds/manifests \
   paths=./pkg/apis/...
 

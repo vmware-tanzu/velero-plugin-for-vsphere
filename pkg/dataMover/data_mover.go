@@ -18,19 +18,19 @@ package dataMover
 
 import (
 	"context"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
-	"sync"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"sync"
 )
 
 type DataMover struct {
-	logger				logrus.FieldLogger
+	logger              logrus.FieldLogger
 	ivdPETM             *ivd.IVDProtectedEntityTypeManager
 	inProgressCancelMap *sync.Map
 }
@@ -59,7 +59,7 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 
 	var syncMap sync.Map
 	dataMover := DataMover{
-		logger:         	 logger,
+		logger:              logger,
 		ivdPETM:             ivdPETM,
 		inProgressCancelMap: &syncMap,
 	}

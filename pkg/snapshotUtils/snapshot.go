@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -54,7 +54,7 @@ func checkPhasesAndSendResult(waitForPhases []backupdriverv1.SnapshotPhase, snap
 
 // Create a Snapshot record in the specified namespace.
 func SnapshotRef(ctx context.Context,
-	clientSet *v1.BackupdriverV1Client,
+	clientSet *v1.BackupdriverV1alpha1Client,
 	objectToSnapshot core_v1.TypedLocalObjectReference,
 	namespace string,
 	repository BackupRepository,
@@ -93,7 +93,7 @@ func SnapshotRef(ctx context.Context,
 	return updatedSnapshot, err
 }
 
-func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.Snapshot, error) {
+func WaitForPhases(ctx context.Context, clientSet *v1.BackupdriverV1alpha1Client, snapshotToWait backupdriverv1.Snapshot, waitForPhases []backupdriverv1.SnapshotPhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.Snapshot, error) {
 	results := make(chan waitResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "snapshots", namespace,
 		fields.Everything())

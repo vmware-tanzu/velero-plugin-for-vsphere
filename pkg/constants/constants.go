@@ -232,13 +232,13 @@ var ResourcesToBlock = map[string]bool{
 	"wcpmachinetemplates.infrastructure.cluster.vmware.com":   true,
 
 	// plugin resources
-	"backuprepositories.backupdriver.io":     true,
-	"backuprepositoryclaims.backupdriver.io": true,
-	"clonefromsnapshots.backupdriver.io":     true,
-	"deletesnapshots.backupdriver.io":        true,
-	"downloads.veleroplugin.io":              true,
-	"snapshots.backupdriver.io":              true,
-	"uploads.veleroplugin.io":                true,
+	"backuprepositories.backupdriver.cnsdp.vmware.com":     true,
+	"backuprepositoryclaims.backupdriver.cnsdp.vmware.com": true,
+	"clonefromsnapshots.backupdriver.cnsdp.vmware.com":     true,
+	"deletesnapshots.backupdriver.cnsdp.vmware.com":        true,
+	"downloads.datamover.cnsdp.vmware.com":                 true,
+	"snapshots.backupdriver.cnsdp.vmware.com":              true,
+	"uploads.datamover.cnsdp.vmware.com":                   true,
 }
 
 var ResourcesToBlockOnRestore = map[string]bool{

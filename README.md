@@ -72,16 +72,16 @@ background and may take a significant amount of time to complete.
 
 ## Monitoring data upload progress
 
-For each volume snapshot that is uploaded to S3, an uploads.veleroplugin.io customer resource is generated.  These records contain the current state of an upload request.  You can list out current requests with
+For each volume snapshot that is uploaded to S3, an uploads.datamover.cnsdp.vmware.com customer resource is generated.  These records contain the current state of an upload request.  You can list out current requests with
 
 ```bash
-kubectl get -n <velero namespace> uploads.veleroplugin.io -o yaml
+kubectl get -n <velero namespace> uploads.datamover.cnsdp.vmware.com -o yaml
 ```
 
 An upload record looks like this;
 
 ```
-- apiVersion: veleroplugin.io/v1
+- apiVersion: datamover.cnsdp.vmware.com/v1
   kind: Upload
   metadata:
     creationTimestamp: "2020-03-16T21:12:48Z"
@@ -89,7 +89,7 @@ An upload record looks like this;
     name: upload-bcc6e06c-8d2f-4e19-b157-0dbd1ef9fcb2
     namespace: velero
     resourceVersion: "2173887"
-    selfLink: /apis/veleroplugin.io/v1/namespaces/velero/uploads/upload-bcc6e06c-8d2f-4e19-b157-0dbd1ef9fcb2
+    selfLink: /apis/datamover.cnsdp.vmware.com/v1/namespaces/velero/uploads/upload-bcc6e06c-8d2f-4e19-b157-0dbd1ef9fcb2
     uid: e3a2a3ee-67ca-11ea-af6d-005056a56c10
   spec:
     backupTimestamp: "2020-03-16T21:12:48Z"
@@ -142,7 +142,7 @@ velero plugin remove <plugin-image>
 to remove the plugin from the Velero deployment. To finish the cleanup, delete the Data Manager daemonset and related CRDs.
 ```bash
 kubectl -n velero delete daemonset.apps/datamgr-for-vsphere-plugin
-kubectl delete crds uploads.veleroplugin.io downloads.veleroplugin.io
+kubectl delete crds uploads.datamover.cnsdp.vmware.com downloads.datamover.cnsdp.vmware.com
 ```
 
 ## S3 data
@@ -237,13 +237,13 @@ label has probably been removed from them.
 
 #### Plugin resources
 
-	backuprepositories.backupdriver.io     
-	backuprepositoryclaims.backupdriver.io 
-	clonefromsnapshots.backupdriver.io     
-	deletesnapshots.backupdriver.io        
-	downloads.veleroplugin.io              
-	snapshots.backupdriver.io              
-	uploads.veleroplugin.io                
+	backuprepositories.backupdriver.cnsdp.vmware.com     
+	backuprepositoryclaims.backupdriver.cnsdp.vmware.com 
+	clonefromsnapshots.backupdriver.cnsdp.vmware.com     
+	deletesnapshots.backupdriver.cnsdp.vmware.com        
+	downloads.datamover.cnsdp.vmware.com              
+	snapshots.backupdriver.cnsdp.vmware.com              
+	uploads.datamover.cnsdp.vmware.com                
 
 ## Current release:
 

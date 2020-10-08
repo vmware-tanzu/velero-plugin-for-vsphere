@@ -36,8 +36,8 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	astrolabe_pvc "github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	"github.com/vmware-tanzu/astrolabe/pkg/server"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	v1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/paravirt"
@@ -352,7 +352,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	var retUpload *v1api.Upload
 
 	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
-		retUpload, err = pluginClient.VeleropluginV1().Uploads(veleroNs).Create(context.TODO(), upload, metav1.CreateOptions{})
+		retUpload, err = pluginClient.DatamoverV1alpha1().Uploads(veleroNs).Create(context.TODO(), upload, metav1.CreateOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -406,7 +406,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		}
 		uploadName := "upload-" + snapIDDecoded
 		log.Infof("Searching for Upload CR: %s", uploadName)
-		uploadCR, err := pluginClient.VeleropluginV1().Uploads(veleroNs).Get(context.TODO(), uploadName, metav1.GetOptions{})
+		uploadCR, err := pluginClient.DatamoverV1alpha1().Uploads(veleroNs).Get(context.TODO(), uploadName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf(" Error while retrieving the upload CR %v", uploadName)
 			if k8serrors.IsNotFound(err) {
@@ -423,7 +423,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 				uploadCR.Status.StartTimestamp = &metav1.Time{Time: timeNow.Now()}
 				uploadCR.Status.Message = "Canceling on going upload to repository."
 			}
-			_, err = utils.PatchUpload(uploadCR, mutate, pluginClient.VeleropluginV1().Uploads(veleroNs), log)
+			_, err = utils.PatchUpload(uploadCR, mutate, pluginClient.DatamoverV1alpha1().Uploads(veleroNs), log)
 			if err != nil {
 				log.WithError(err).Error("Failed to patch ongoing Upload")
 				return err
@@ -486,8 +486,8 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	log.Infof("Retrieved components to delete remote snapshot component ID: %s", components[0].GetID().String())
 
 	log.Infof("Step 2: Deleting the durable snapshot from s3")
-	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository{
-		backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
+		backupRepositoryCR, err := pluginClient.BackupdriverV1alpha1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 			return err
@@ -526,7 +526,7 @@ func (this *SnapshotManager) DeleteRemoteSnapshot(peID astrolabe.ProtectedEntity
 	s3PETM, err := utils.GetDefaultS3PETM(logger)
 	if err != nil {
 		logger.Errorf("DeleteRemoteSnapshot: Failed to get Default S3 repository")
-		return  err
+		return err
 	}
 	return this.deleteSnapshotFromRepo(peID, s3PETM)
 }
@@ -639,7 +639,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 	download := downloadBuilder.Result()
 	this.Infof("Ready to create download CR. Will retry on network issue every 5 seconds for 5 retries at maximum")
 	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
-		_, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Create(context.TODO(), download, metav1.CreateOptions{})
+		_, err = pluginClient.DatamoverV1alpha1().Downloads(veleroNs).Create(context.TODO(), download, metav1.CreateOptions{})
 		if err != nil {
 			return false, nil
 		}
@@ -660,7 +660,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 			this.Infof("Polling download record %s", downloadRecordName)
 			lastPollLogTime = time.Now()
 		}
-		download, err = pluginClient.VeleropluginV1().Downloads(veleroNs).Get(context.TODO(), downloadRecordName, metav1.GetOptions{})
+		download, err = pluginClient.DatamoverV1alpha1().Downloads(veleroNs).Get(context.TODO(), downloadRecordName, metav1.GetOptions{})
 		if err != nil {
 			this.Errorf("Retrieve download record %s failed with err %v", downloadRecordName, err)
 			return false, errors.Wrapf(err, "Failed to retrieve download record %s", downloadRecordName)
@@ -688,7 +688,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 
 	if cloneFromSnapshotNameExists && cloneFromSnapshotNamespaceExists {
 		// TODO(xyang): Watch for Download status and update CloneFromSnapshot status accordingly in Backupdriver
-		cloneFromSnap, err := pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
+		cloneFromSnap, err := pluginClient.BackupdriverV1alpha1().CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
 		if err != nil {
 			this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to get CloneFromSnapshot %s/%s", cloneFromSnapshotNamespace, cloneFromSnapshotName)
 			return updatedID, err
@@ -705,7 +705,7 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 			Name:     download.Status.VolumeID,
 		}
 
-		_, err = pluginClient.BackupdriverV1().CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
+		_, err = pluginClient.BackupdriverV1alpha1().CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
 		if err != nil {
 			this.WithError(err).Errorf("CreateVolumeFromSnapshot: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
 			return updatedID, err

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
@@ -78,11 +78,11 @@ func TestProcessDownloadSkipItems(t *testing.T) {
 
 			c := &downloadController{
 				genericController: newGenericController("download-test", logger),
-				downloadLister:    sharedInformers.Veleroplugin().V1().Downloads().Lister(),
+				downloadLister:    sharedInformers.Datamover().V1alpha1().Downloads().Lister(),
 			}
 
 			if test.download != nil {
-				require.NoError(t, sharedInformers.Veleroplugin().V1().Downloads().Informer().GetStore().Add(test.download))
+				require.NoError(t, sharedInformers.Datamover().V1alpha1().Downloads().Informer().GetStore().Add(test.download))
 			}
 
 			err := c.processDownloadItem(test.key)
@@ -148,15 +148,15 @@ func TestPatchDownloadByStatus(t *testing.T) {
 			c := &downloadController{
 				genericController: newGenericController("download-test", logger),
 				kubeClient:        kubeClient,
-				downloadClient:    client.VeleropluginV1(),
-				downloadLister:    sharedInformers.Veleroplugin().V1().Downloads().Lister(),
+				downloadClient:    client.DatamoverV1alpha1(),
+				downloadLister:    sharedInformers.Datamover().V1alpha1().Downloads().Lister(),
 				nodeName:          "download-test",
 				clock:             &clock.RealClock{},
 				dataMover:         &dataMover.DataMover{},
 			}
 
 			if test.download != nil {
-				require.NoError(t, sharedInformers.Veleroplugin().V1().Downloads().Informer().GetStore().Add(test.download))
+				require.NoError(t, sharedInformers.Datamover().V1alpha1().Downloads().Informer().GetStore().Add(test.download))
 				// this is necessary so the Patch() call returns the appropriate object
 				client.PrependReactor("patch", "downloads", func(action core.Action) (bool, runtime.Object, error) {
 					var (
@@ -302,13 +302,13 @@ func TestProcessedDownloadItem(t *testing.T) {
 			c := &downloadController{
 				genericController: newGenericController("download-test", logger),
 				kubeClient:        kubeClient,
-				downloadClient:    clientset.VeleropluginV1(),
-				downloadLister:    sharedInformers.Veleroplugin().V1().Downloads().Lister(),
+				downloadClient:    clientset.DatamoverV1alpha1(),
+				downloadLister:    sharedInformers.Datamover().V1alpha1().Downloads().Lister(),
 				nodeName:          "download-test",
 				clock:             &clock.RealClock{},
 				dataMover:         &dataMover.DataMover{},
 			}
-			require.NoError(t, sharedInformers.Veleroplugin().V1().Downloads().Informer().GetStore().Add(test.download))
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Downloads().Informer().GetStore().Add(test.download))
 
 			patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyFromRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID,
 				_ astrolabe.ProtectedEntityID, _ astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {

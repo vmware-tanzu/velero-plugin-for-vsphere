@@ -18,10 +18,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
-	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -43,7 +43,7 @@ func ClaimBackupRepository(ctx context.Context,
 	repositoryParameters map[string]string,
 	allowedNamespaces []string,
 	ns string,
-	backupdriverV1Client *v1.BackupdriverV1Client,
+	backupdriverV1Client *v1.BackupdriverV1alpha1Client,
 	logger logrus.FieldLogger) (string, error) {
 
 	// The map holds all the BRCs that match the parameters.
@@ -127,7 +127,7 @@ func ClaimBackupRepository(ctx context.Context,
 func CreateBackupRepository(ctx context.Context,
 	brc *backupdriverv1.BackupRepositoryClaim,
 	svcBrName string,
-	backupdriverV1Client *v1.BackupdriverV1Client,
+	backupdriverV1Client *v1.BackupdriverV1alpha1Client,
 	logger logrus.FieldLogger) (*backupdriverv1.BackupRepository, error) {
 
 	logger.Infof("Creating BackupRepository for the BackupRepositoryClaim %s", brc.Name)
@@ -219,7 +219,7 @@ func checkIfBackupRepositoryClaimIsReferenced(
 func PatchBackupRepositoryClaim(backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
 	backRepositoryName string,
 	ns string,
-	backupdriverV1Client *v1.BackupdriverV1Client) error {
+	backupdriverV1Client *v1.BackupdriverV1alpha1Client) error {
 	mutate := func(r *backupdriverv1.BackupRepositoryClaim) {
 		backupRepositoryClaim.BackupRepository = backRepositoryName
 	}
@@ -309,7 +309,7 @@ func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*
 		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
 		return nil, errors.Wrapf(err, errMsg)
 	}
-	backupRepositoryCR, err := pluginClient.BackupdriverV1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+	backupRepositoryCR, err := pluginClient.BackupdriverV1alpha1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 	if err != nil {
 		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 		return nil, errors.Wrapf(err, errMsg)
@@ -318,7 +318,7 @@ func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*
 }
 
 func RetrieveBackupRepositoryFromBSL(ctx context.Context, bslName string, pvcNamespace string, veleroNs string,
-	backupdriverClient *v1.BackupdriverV1Client, restConfig *rest.Config, logger logrus.FieldLogger) (string, error) {
+	backupdriverClient *v1.BackupdriverV1alpha1Client, restConfig *rest.Config, logger logrus.FieldLogger) (string, error) {
 	var backupRepositoryName string
 	logger.Info("Claiming backup repository")
 
@@ -336,4 +336,3 @@ func RetrieveBackupRepositoryFromBSL(ctx context.Context, bslName string, pvcNam
 	}
 	return backupRepositoryName, nil
 }
-

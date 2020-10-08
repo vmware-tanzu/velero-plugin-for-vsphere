@@ -25,8 +25,8 @@ import (
 
 	versioned "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	backupdriver "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/backupdriver"
+	datamover "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/datamover"
 	internalinterfaces "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/internalinterfaces"
-	veleroplugin "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -174,13 +174,13 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Backupdriver() backupdriver.Interface
-	Veleroplugin() veleroplugin.Interface
+	Datamover() datamover.Interface
 }
 
 func (f *sharedInformerFactory) Backupdriver() backupdriver.Interface {
 	return backupdriver.New(f, f.namespace, f.tweakListOptions)
 }
 
-func (f *sharedInformerFactory) Veleroplugin() veleroplugin.Interface {
-	return veleroplugin.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Datamover() datamover.Interface {
+	return datamover.New(f, f.namespace, f.tweakListOptions)
 }

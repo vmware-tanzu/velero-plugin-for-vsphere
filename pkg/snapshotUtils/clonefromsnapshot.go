@@ -5,9 +5,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/builder"
-	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
+	v1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -21,8 +21,8 @@ Note: Canceling the context cancels the wait, it does not cancel the cloneFromSn
 */
 
 type waitCloneResult struct {
-	item  interface{}
-	err   error
+	item interface{}
+	err  error
 }
 
 func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cloneFromSnapshot *backupdriverv1.CloneFromSnapshot,
@@ -30,15 +30,15 @@ func checkClonePhasesAndSendResult(waitForPhases []backupdriverv1.ClonePhase, cl
 	for _, checkPhase := range waitForPhases {
 		if cloneFromSnapshot.Status.Phase == checkPhase {
 			results <- waitCloneResult{
-				item:  cloneFromSnapshot,
-				err:   nil,
+				item: cloneFromSnapshot,
+				err:  nil,
 			}
 		}
 	}
 }
 
 func CloneFromSnapshopRef(ctx context.Context,
-	clientSet *v1.BackupdriverV1Client,
+	clientSet *v1.BackupdriverV1alpha1Client,
 	snapshotID string, metadata []byte,
 	apiGroup *string, kind string,
 	namespace string,
@@ -75,7 +75,7 @@ func CloneFromSnapshopRef(ctx context.Context,
 	return updatedClone, err
 }
 
-func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client, cloneToWait backupdriverv1.CloneFromSnapshot, waitForPhases []backupdriverv1.ClonePhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.CloneFromSnapshot, error) {
+func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1alpha1Client, cloneToWait backupdriverv1.CloneFromSnapshot, waitForPhases []backupdriverv1.ClonePhase, namespace string, logger logrus.FieldLogger) (*backupdriverv1.CloneFromSnapshot, error) {
 	results := make(chan waitCloneResult)
 	watchlist := cache.NewListWatchFromClient(clientSet.RESTClient(), "cloneFromSnapshots", namespace,
 		fields.Everything())
@@ -100,8 +100,8 @@ func WaitForClonePhases(ctx context.Context, clientSet *v1.BackupdriverV1Client,
 				}
 				logger.Infof("cloneFromSnapshot deleted: %s", obj)
 				results <- waitCloneResult{
-					item:  nil,
-					err:   errors.New("CloneFromSnapshot deleted"),
+					item: nil,
+					err:  errors.New("CloneFromSnapshot deleted"),
 				}
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {

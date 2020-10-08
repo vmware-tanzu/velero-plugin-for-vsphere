@@ -1,7 +1,7 @@
 package builder
 
 import (
-	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,8 +20,8 @@ func ForBackupRepository(name string) *BackupRepositoryBuilder {
 				Kind:       "BackupRepository",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-				Labels:		utils.AppendVeleroExcludeLabels(nil),
+				Name:   name,
+				Labels: utils.AppendVeleroExcludeLabels(nil),
 			},
 		},
 	}

@@ -25,12 +25,12 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/sirupsen/logrus"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
-	veleropluginapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
-	backupdriverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	veleropluginclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	datamoverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
+	backupdriverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	datamoverclientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	backupdriverinformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
-	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1"
+	backupdriverlisters "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,9 +54,9 @@ type backupDriverController struct {
 	// Supervisor Cluster KubeClient for Guest Cluster
 	svcKubeConfig *rest.Config
 
-	backupdriverClient    *backupdriverclientset.BackupdriverV1Client
-	veleropluginClient    *veleropluginclientset.VeleropluginV1Client
-	svcBackupdriverClient *backupdriverclientset.BackupdriverV1Client
+	backupdriverClient    *backupdriverclientset.BackupdriverV1alpha1Client
+	datamoverClient       *datamoverclientset.DatamoverV1alpha1Client
+	svcBackupdriverClient *backupdriverclientset.BackupdriverV1alpha1Client
 
 	// Supervisor Cluster namespace
 	svcNamespace string
@@ -125,9 +125,9 @@ type backupDriverController struct {
 func NewBackupDriverController(
 	name string,
 	logger logrus.FieldLogger,
-	backupdriverClient *backupdriverclientset.BackupdriverV1Client,
-	veleropluginclientset *veleropluginclientset.VeleropluginV1Client,
-	svcBackupdriverClient *backupdriverclientset.BackupdriverV1Client,
+	backupdriverClient *backupdriverclientset.BackupdriverV1alpha1Client,
+	datamoverclientset *datamoverclientset.DatamoverV1alpha1Client,
+	svcBackupdriverClient *backupdriverclientset.BackupdriverV1alpha1Client,
 	svcKubeConfig *rest.Config,
 	svcNamespace string,
 	resyncPeriod time.Duration,
@@ -143,12 +143,12 @@ func NewBackupDriverController(
 	pvcInformer := informerFactory.Core().V1().PersistentVolumeClaims()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes()
 
-	backupRepositoryInformer := backupdriverInformerFactory.Backupdriver().V1().BackupRepositories()
-	backupRepositoryClaimInformer := backupdriverInformerFactory.Backupdriver().V1().BackupRepositoryClaims()
-	snapshotInformer := backupdriverInformerFactory.Backupdriver().V1().Snapshots()
-	cloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().CloneFromSnapshots()
-	deleteSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1().DeleteSnapshots()
-	uploadInformer := backupdriverInformerFactory.Veleroplugin().V1().Uploads()
+	backupRepositoryInformer := backupdriverInformerFactory.Backupdriver().V1alpha1().BackupRepositories()
+	backupRepositoryClaimInformer := backupdriverInformerFactory.Backupdriver().V1alpha1().BackupRepositoryClaims()
+	snapshotInformer := backupdriverInformerFactory.Backupdriver().V1alpha1().Snapshots()
+	cloneFromSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1alpha1().CloneFromSnapshots()
+	deleteSnapshotInformer := backupdriverInformerFactory.Backupdriver().V1alpha1().DeleteSnapshots()
+	uploadInformer := backupdriverInformerFactory.Datamover().V1alpha1().Uploads()
 
 	cacheSyncs = append(cacheSyncs,
 		pvcInformer.Informer().HasSynced,
@@ -174,7 +174,7 @@ func NewBackupDriverController(
 	// We watch supervisor snapshot CRs for the upload status. If local mode is set, we do not have to watch for upload status
 	if svcKubeConfig != nil {
 		svcSnapshotMap = make(map[string]string)
-		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1().Snapshots()
+		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1alpha1().Snapshots()
 
 		cacheSyncs = append(cacheSyncs,
 			svcSnapshotInformer.Informer().HasSynced)
@@ -185,7 +185,7 @@ func NewBackupDriverController(
 		logger:                      logger.WithField("controller", name),
 		svcKubeConfig:               svcKubeConfig,
 		backupdriverClient:          backupdriverClient,
-		veleropluginClient:          veleropluginclientset,
+		datamoverClient:             datamoverclientset,
 		svcBackupdriverClient:       svcBackupdriverClient,
 		snapManager:                 snapManager,
 		pvLister:                    pvInformer.Lister(),
@@ -276,7 +276,7 @@ func NewBackupDriverController(
 
 	// Configure supervisor cluster informers in the guest
 	if svcKubeConfig != nil {
-		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1().Snapshots()
+		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1alpha1().Snapshots()
 		svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
 				//AddFunc:    func(obj interface{}) { ctrl.enqueueSvcSnapshot(obj) },
@@ -776,7 +776,7 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	}
 
 	// Always retrieve up-to-date upload CR from API server
-	upload, err := ctrl.veleropluginClient.Uploads(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	upload, err := ctrl.datamoverClient.Uploads(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			ctrl.logger.Infof("Upload %s/%s is deleted, no need to process it", namespace, name)
@@ -810,17 +810,17 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 
 	var newSnapshotStatusPhase backupdriverapi.SnapshotPhase
 	switch upload.Status.Phase {
-	case veleropluginapi.UploadPhaseInProgress:
+	case datamoverapi.UploadPhaseInProgress:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploading
-	case veleropluginapi.UploadPhaseCompleted:
+	case datamoverapi.UploadPhaseCompleted:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploaded
-	case veleropluginapi.UploadPhaseCanceled:
+	case datamoverapi.UploadPhaseCanceled:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCanceled
-	case veleropluginapi.UploadPhaseCanceling:
+	case datamoverapi.UploadPhaseCanceling:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCanceling
-	case veleropluginapi.UploadPhaseUploadError:
+	case datamoverapi.UploadPhaseUploadError:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploadFailed
-	case veleropluginapi.UploadPhaseCleanupFailed:
+	case datamoverapi.UploadPhaseCleanupFailed:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCleanupFailed
 	default:
 		ctrl.logger.Infof("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
@@ -839,7 +839,7 @@ func (ctrl *backupDriverController) updateUpload(newObj interface{}) {
 	if unknown, ok := newObj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		newObj = unknown.Obj
 	}
-	uploadNew, okNew := newObj.(*veleropluginapi.Upload)
+	uploadNew, okNew := newObj.(*datamoverapi.Upload)
 
 	if okNew {
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(uploadNew)

@@ -19,7 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -29,11 +29,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/veleroplugin/v1"
+	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover"
-	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
-	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/veleroplugin/v1"
-	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/veleroplugin/v1"
+	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
+	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions/datamover/v1alpha1"
+	listers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/listers/datamover/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -316,7 +316,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		return errors.New(errMsg)
 	}
 
-	if req.Spec.BackupRepositoryName != ""  && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository{
+	if req.Spec.BackupRepositoryName != "" && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository {
 		var backupRepositoryCR *backupdriverapi.BackupRepository
 		backupRepositoryCR, err = backuprepository.GetBackupRepositoryFromBackupRepositoryName(req.Spec.BackupRepositoryName)
 		if err != nil {
@@ -389,7 +389,7 @@ func (c *uploadController) patchUploadByStatusWithRetry(req *pluginv1api.Upload,
 	var err error
 	log := loggerForUpload(c.logger, req)
 	log.Infof("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", constants.RetryInterval, constants.RetryMaximum)
-	err = wait.PollImmediate(constants.RetryInterval* time.Second, constants.RetryInterval*constants.RetryMaximum* time.Second, func() (bool, error) {
+	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		updatedUpload, err = c.patchUploadByStatus(req, newPhase, msg)
 		if err != nil {
 			return false, nil

@@ -39,8 +39,8 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backupdriver"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	backupdriver_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1"
-	veleroplugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/veleroplugin/v1"
+	backupdriver_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	datamover_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -145,9 +145,9 @@ type server struct {
 	namespace                      string
 	metricsAddress                 string
 	kubeClient                     kubernetes.Interface
-	backupdriverClient             *backupdriver_clientset.BackupdriverV1Client
-	veleropluginClient             *veleroplugin_clientset.VeleropluginV1Client
-	svcBackupdriverClient          *backupdriver_clientset.BackupdriverV1Client
+	backupdriverClient             *backupdriver_clientset.BackupdriverV1alpha1Client
+	datamoverClient                *datamover_clientset.DatamoverV1alpha1Client
+	svcBackupdriverClient          *backupdriver_clientset.BackupdriverV1alpha1Client
 	svcConfig                      *rest.Config
 	svcNamespace                   string
 	pluginInformerFactory          pluginInformers.SharedInformerFactory
@@ -216,9 +216,9 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	veleropluginClient, err := veleroplugin_clientset.NewForConfig(clientConfig)
+	datamoverClient, err := datamover_clientset.NewForConfig(clientConfig)
 	if err != nil {
-		logger.Errorf("Failed to get the veleroplugin client for the current kubernetes cluster")
+		logger.Errorf("Failed to get the datamover client for the current kubernetes cluster")
 		return nil, err
 	}
 
@@ -238,7 +238,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
 	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
 	var svcConfig *rest.Config
-	var svcBackupdriverClient *backupdriver_clientset.BackupdriverV1Client
+	var svcBackupdriverClient *backupdriver_clientset.BackupdriverV1alpha1Client
 	var svcKubeInformerFactory kubeinformers.SharedInformerFactory
 	var svcBackupdriverInformerFactory pluginInformers.SharedInformerFactory
 	var svcNamespace string
@@ -309,7 +309,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		metricsAddress:                 config.metricsAddress,
 		kubeClient:                     kubeClient,
 		backupdriverClient:             backupdriverClient,
-		veleropluginClient:             veleropluginClient,
+		datamoverClient:                datamoverClient,
 		svcBackupdriverClient:          svcBackupdriverClient,
 		svcConfig:                      svcConfig,
 		svcNamespace:                   svcNamespace,
@@ -363,7 +363,7 @@ func (s *server) runControllers() error {
 		"BackupDriverController",
 		s.logger,
 		s.backupdriverClient,
-		s.veleropluginClient,
+		s.datamoverClient,
 		s.svcBackupdriverClient,
 		s.svcConfig,
 		s.svcNamespace,

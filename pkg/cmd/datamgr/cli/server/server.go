@@ -160,7 +160,7 @@ type server struct {
 
 func (s *server) run() error {
 	s.ctx, s.cancelFunc = context.WithCancel(context.Background())
-	defer s.cancelFunc()	// We shouldn't exit until everything is shutdown anyhow, but this ensures there are no leaks
+	defer s.cancelFunc() // We shouldn't exit until everything is shutdown anyhow, but this ensures there are no leaks
 	s.logger.Infof("data manager server is up and running")
 	signals.CancelOnShutdown(s.cancelFunc, s.logger)
 
@@ -234,7 +234,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	if err != nil {
 		return nil, err
 	}
-	
+
 	ivdParams := make(map[string]interface{})
 	if config.vcConfigFromSecret == true {
 		logger.Infof("VC Configuration will be retrieved from cluster secret")
@@ -336,8 +336,8 @@ func (s *server) runControllers() error {
 
 	uploadController := controller.NewUploadController(
 		s.logger,
-		s.pluginInformerFactory.Veleroplugin().V1().Uploads(),
-		s.pluginClient.VeleropluginV1(),
+		s.pluginInformerFactory.Datamover().V1alpha1().Uploads(),
+		s.pluginClient.DatamoverV1alpha1(),
 		s.kubeClient,
 		s.dataMover,
 		s.snapManager,
@@ -347,8 +347,8 @@ func (s *server) runControllers() error {
 
 	downloadController := controller.NewDownloadController(
 		s.logger,
-		s.pluginInformerFactory.Veleroplugin().V1().Downloads(),
-		s.pluginClient.VeleropluginV1(),
+		s.pluginInformerFactory.Datamover().V1alpha1().Downloads(),
+		s.pluginClient.DatamoverV1alpha1(),
 		s.kubeClient,
 		s.dataMover,
 		os.Getenv("NODE_NAME"),
