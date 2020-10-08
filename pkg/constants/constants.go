@@ -78,7 +78,7 @@ const (
 
 const (
 	// Minimum velero version number to meet velero plugin requirement
-	VeleroMinVersion = "v1.3.2"
+	VeleroMinVersion = "v1.5.1"
 
 	// Minimum csi driver version number to meet velero plugin requirement
 	CsiMinVersion = "v1.0.2"
