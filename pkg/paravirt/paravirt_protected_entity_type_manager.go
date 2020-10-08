@@ -265,7 +265,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 		return nil, err
 	}
 
-	gcPVC, err := this.createGuestPVC(gcPVCNamespace, gcPVCName, gcPV.Name, svcPVC)
+	gcPVC, err := this.createGuestPVC(ctx, gcPVCNamespace, gcPVCName, gcPV.Name, svcPVC)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +419,7 @@ func (this *ParaVirtProtectedEntityTypeManager) createGuestPV(gcPVCNamespace str
 
 // createGuestPVC creates a PVC in Guest Cluster and waits for it to bound
 // with PV
-func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(gcPVCNamespace string, gcPVCName string, gcPVName string, svcPVC *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(ctx context.Context, gcPVCNamespace string, gcPVCName string, gcPVName string, svcPVC *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
 	// Construct PVC, setting PVC's VolumeName to PV Name
 	accessModes := svcPVC.Spec.AccessModes
 	resources := svcPVC.Spec.Resources
@@ -450,7 +450,7 @@ func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(gcPVCNamespace st
 	this.logger.Infof("createGuestPVC: PVC %s/%s is created in the guest cluster", gcPVC.Namespace, gcPVC.Name)
 
 	// Wait for PVC and PV to bind to each other
-	err := astrolabe_pvc.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, this.gcKubeClientSet, gcPVC.Namespace, gcPVC.Name, astrolabe_pvc.Poll, astrolabe_pvc.ClaimBindingTimeout, this.logger)
+	err := astrolabe_pvc.WaitForPersistentVolumeClaimPhase(ctx, v1.ClaimBound, this.gcKubeClientSet, gcPVC.Namespace, gcPVC.Name, astrolabe_pvc.Poll, astrolabe_pvc.ClaimBindingTimeout, this.logger)
 	if err != nil {
 		return nil, fmt.Errorf("pvc %s/%s did not become Bound: %v", gcPVC.Namespace, gcPVC.Name, err)
 	}
