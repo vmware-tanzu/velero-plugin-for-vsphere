@@ -235,7 +235,7 @@ func CompareVersion(currentVersion string, minVersion string) int {
 
 func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
 	isVersionOK := false
-	csi_driver_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/driver")
+	csi_driver_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/driver")
 	if csi_driver_version == "" {
 		csi_driver_version = GetVersionFromImage(containers, "cloudnativestorage/vsphere-csi")
 		if csi_driver_version != "" {
@@ -244,7 +244,7 @@ func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
 			csi_driver_version = constants.CsiMinVersion
 		}
 	}
-	csi_syncer_version := GetVersionFromImage(containers, "gcr.io/cloud-provider-vsphere/csi/release/syncer")
+	csi_syncer_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/syncer")
 	if csi_syncer_version == "" {
 		csi_syncer_version = GetVersionFromImage(containers, "cloudnativestorage/syncer")
 		if csi_syncer_version != "" {
