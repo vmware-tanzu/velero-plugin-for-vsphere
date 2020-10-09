@@ -37,4 +37,3 @@ jobs:
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
           make push
-          make push-pp
