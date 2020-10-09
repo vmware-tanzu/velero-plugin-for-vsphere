@@ -171,13 +171,9 @@ func CreateFeatureStateConfigMap(features []string, f client.Factory, veleroNs s
 	//Always overwrite the feature flags.
 	featureData = make(map[string]string)
 	// Insert the keys with default values.
-	featureData[constants.VSphereItemActionPluginFlag] = strconv.FormatBool(true)
 	featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(false)
 	// Update the falgs based on velero feature flags.
 	featuresString := strings.Join(features[:], ",")
-	if strings.Contains(featuresString, "EnableVSphereItemActionPlugin") {
-		featureData[constants.VSphereItemActionPluginFlag] = strconv.FormatBool(true)
-	}
 	if strings.Contains(featuresString, "EnableLocalMode") {
 		featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(true)
 	}

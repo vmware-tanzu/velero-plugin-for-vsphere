@@ -30,15 +30,10 @@ import (
 func main() {
 	enableFeatureFlagForVSpherePlugins()
 	veleroPluginServer := veleroplugin.NewServer()
-	// Feature flag read directly from velero server args.
-	if features.IsEnabled("EnableVSphereItemActionPlugin") {
-		veleroPluginServer = veleroPluginServer.
-			RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
-			RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
-			RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction)
-	} else {
-		veleroPluginServer = veleroPluginServer.RegisterVolumeSnapshotter("velero.io/vsphere", newVolumeSnapshotterPlugin)
-	}
+	veleroPluginServer = veleroPluginServer.
+		RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
+		RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
+		RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction)
 	veleroPluginServer.Serve()
 }
 

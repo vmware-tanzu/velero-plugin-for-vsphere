@@ -135,7 +135,6 @@ const (
 
 // feature flog constants
 const (
-	VSphereItemActionPluginFlag = "vsphere-item-action-plugin"
 	VSphereLocalModeFlag        = "local-mode"
 )
 
