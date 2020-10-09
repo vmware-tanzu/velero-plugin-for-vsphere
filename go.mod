@@ -10,17 +10,17 @@ require (
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spf13/cobra v0.0.5
+	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
 	github.com/vmware-tanzu/astrolabe v0.1.2-0.20201002235134-f9517cab32a4
-	github.com/vmware-tanzu/velero v1.5.0-beta.1
+	github.com/vmware-tanzu/velero v1.5.1
 	k8s.io/api v0.18.4
 	k8s.io/apiextensions-apiserver v0.18.4
 	k8s.io/apimachinery v0.18.4
 	k8s.io/client-go v0.18.4
 	k8s.io/klog v1.0.0
-	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
+	k8s.io/utils v0.0.0-20200619165400-6e3d28b6ed19
 )
 
 replace github.com/vmware/gvddk => ../astrolabe/vendor/github.com/vmware/gvddk
