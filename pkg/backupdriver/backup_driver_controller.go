@@ -45,7 +45,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 
 	// call SnapshotMgr CreateSnapshot API
 	peID := astrolabe.NewProtectedEntityIDWithNamespace(objKind, objName, snapshot.Namespace)
-	ctrl.logger.Infof("CreateSnapshot: The initial Astrolabe PE ID: %s", peID)
+	ctrl.logger.Infof("createSnapshot: The initial Astrolabe PE ID: %s", peID)
 	if ctrl.snapManager == nil {
 		errMsg := fmt.Sprintf("snapManager is not initialized.")
 		ctrl.logger.Error(errMsg)
@@ -77,7 +77,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 
 	peID, svcSnapshotName, err := ctrl.snapManager.CreateSnapshotWithBackupRepository(peID, tags, brName, snapshot.Namespace+"/"+snapshot.Name, snapshot.Labels[constants.SnapshotBackupLabel])
 	if err != nil {
-		errMsg := fmt.Sprintf("failed at calling SnapshotManager CreateSnapshot from peID %v", peID)
+		errMsg := fmt.Sprintf("createSnapshot: Failed at calling SnapshotManager CreateSnapshot from peID %v: %v", peID, err)
 		ctrl.logger.Error(errMsg)
 		return err
 	}

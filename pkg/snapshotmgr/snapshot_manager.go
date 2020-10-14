@@ -279,6 +279,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
 	_, err = this.UploadSnapshot(snapshotPE, ctx, backupRepositoryName, snapshotRef)
 	if err != nil {
+		this.Errorf("Failed to create Upload CR for snapshot PEID %s, Supervisor Cluster snapshot name %s: %v", snapshotPEID.String(), svcSnapshotName, err)
 		return snapshotPEID, svcSnapshotName, err
 	}
 
@@ -331,7 +332,7 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 
 	uploadName, err := uploadCRNameForSnapshotPEID(uploadSnapshotPEID)
 	if err != nil {
-		this.WithError(err).Errorf("Failed to get uploadCR")
+		this.WithError(err).Errorf("Failed to get uploadCR name for snapshot PE ID %s", uploadSnapshotPEID.String())
 		return nil, err
 	}
 	this.Infof("Creating Upload CR: %s / %s", veleroNs, uploadName)
