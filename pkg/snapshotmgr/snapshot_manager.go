@@ -263,6 +263,11 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 
 	this.Infof("Local snapshot is created, %s", snapshotPEID.String())
 
+	if this.clusterFlavor == constants.TkgGuest {
+		this.Infof("Guest Cluster detected during create snapshot, nothing more to do.")
+		return snapshotPEID, svcSnapshotName, nil
+	}
+
 	var isLocalMode bool
 	if backupRepositoryName == constants.WithoutBackupRepository {
 		// This occurs only if the volume snapshotter plugin is registered
