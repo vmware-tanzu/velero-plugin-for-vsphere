@@ -275,3 +275,6 @@ const VMwareSystemVMUUID = "vmware-system-vm-uuid"
 
 // Label to set for Velero to ignore resources
 const VeleroExcludeLabel = "velero.io/exclude-from-backup"
+
+// Default time window to clean up CR which is in terminal state
+const DefaultCRCleanUpWindow = 24
