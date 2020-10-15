@@ -38,12 +38,6 @@ const (
 	ParaVirtEntityTypePersistentService ParaVirtEntityType = "ps"
 )
 
-const (
-	SnapshotParamBackupRepository = "BackupRepository"
-	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
-	SnapshotParamBackupName       = "BackupName"
-)
-
 type ParaVirtProtectedEntityTypeManager struct {
 	entityType            ParaVirtEntityType
 	gcKubeClientSet       *kubernetes.Clientset

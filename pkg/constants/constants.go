@@ -278,3 +278,9 @@ const VeleroExcludeLabel = "velero.io/exclude-from-backup"
 
 // Default time window to clean up CR which is in terminal state
 const DefaultCRCleanUpWindow = 24
+
+const (
+	SnapshotParamBackupName       = "BackupName"
+	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
+	SnapshotParamBackupRepository = "BackupRepository"
+)
