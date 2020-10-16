@@ -610,7 +610,7 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 
 // enqueueBackupRepositoryClaimWork adds BackupRepositoryClaim to given work queue.
 func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}) {
-	ctrl.logger.Debugf("enqueueBackupRepositoryClaim: %+v", obj)
+	ctrl.logger.Debugf("Entering enqueueBackupRepositoryClaim")
 
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
@@ -628,7 +628,7 @@ func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}
 }
 
 func (ctrl *backupDriverController) dequeBackupRepositoryClaim(obj interface{}) {
-	ctrl.logger.Debugf("dequeBackupRepositoryClaim: Remove BackupRepositoryClaim %v from queue", obj)
+	ctrl.logger.Debugf("Entering dequeBackupRepositoryClaim: Remove BackupRepositoryClaim from queue")
 
 	var key string
 	var err error
