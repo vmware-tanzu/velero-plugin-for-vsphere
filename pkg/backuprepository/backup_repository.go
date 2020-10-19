@@ -210,8 +210,8 @@ func checkIfBackupRepositoryClaimIsReferenced(
 			}
 		}
 	} else {
-		logger.Infof("Received BackupRepositoryClaim with no BackupRepository reference, ignoring it now, as it"+
-			"is expected to be patched later, BackupRepositoryClaim: %v", backupRepositoryClaim)
+		logger.Infof("Received BackupRepositoryClaim: %s/%s with no BackupRepository reference, ignoring it now, as it"+
+			"is expected to be patched later", backupRepositoryClaim.Namespace, backupRepositoryClaim.Name)
 	}
 }
 
@@ -267,7 +267,7 @@ func compareBackupRepositoryClaim(repositoryDriver string,
 	backupRepositoryClaim *backupdriverv1.BackupRepositoryClaim,
 	logger logrus.FieldLogger) bool {
 	// Compare the params. RepositoryDriver is always same.
-	logger.Infof("Comparing BRC: %v", backupRepositoryClaim)
+	logger.Infof("Comparing BRC: %s/%s", backupRepositoryClaim.Namespace, backupRepositoryClaim.Name)
 	equal := reflect.DeepEqual(repositoryParameters, backupRepositoryClaim.RepositoryParameters)
 	if !equal {
 		logger.Infof("repositoryParameters not matched")
