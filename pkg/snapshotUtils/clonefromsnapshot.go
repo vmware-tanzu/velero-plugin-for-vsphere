@@ -71,6 +71,11 @@ func CloneFromSnapshopRef(ctx context.Context,
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to wait for expected clone phases")
 	}
+	updatedClone.Status.CompletionTimestamp = &metav1.Time{Time: time.Now()}
+	updatedClone, err = clientSet.CloneFromSnapshots(namespace).UpdateStatus(context.TODO(), updatedClone, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to update status of cloneFromSnapshot record")
+	}
 
 	return updatedClone, err
 }

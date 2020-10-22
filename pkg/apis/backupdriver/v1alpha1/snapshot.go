@@ -76,6 +76,12 @@ type SnapshotStatus struct {
 
 	// Metadata for the snapshotted object
 	Metadata []byte `json:"metadata,omitempty"`
+
+	// CompletionTimestamp records the time an snapshot was completed.
+	// The server's time is used for CompletionTimestamps
+	// +optional
+	// +nullable
+	CompletionTimestamp *meta_v1.Time `json:"completionTimestamp,omitempty"`
 }
 
 // +genclient
@@ -172,6 +178,12 @@ type CloneStatus struct {
 	// The handle of the resource that was cloned from the snapshot
 	// +optional
 	ResourceHandle *core_v1.TypedLocalObjectReference `json:"resourceHandle,omitempty"`
+
+	// CompletionTimestamp records the time an snapshot was completed.
+	// The server's time is used for CompletionTimestamps
+	// +optional
+	// +nullable
+	CompletionTimestamp *meta_v1.Time `json:"completionTimestamp,omitempty"`
 }
 
 // +genclient
@@ -233,6 +245,12 @@ type DeleteSnapshotStatus struct {
 	// Message is a message about the delete snapshot's status.
 	// +optional
 	Message string `json:"message,omitempty"`
+
+	// CompletionTimestamp records the time an deletesnapshot was completed.
+	// The server's time is used for CompletionTimestamps
+	// +optional
+	// +nullable
+	CompletionTimestamp *meta_v1.Time `json:"completionTimestamp,omitempty"`
 }
 
 // +genclient
