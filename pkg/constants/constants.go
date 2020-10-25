@@ -100,6 +100,7 @@ const (
 	DataManagerForPlugin  string = "data-manager-for-plugin"
 	BackupDriverForPlugin string = "backup-driver"
 	BackupDriverNamespace string = "velero-vsphere-plugin-backupdriver"
+	DataManagerDaemonset string = "datamgr-for-vsphere-plugin"
 
 	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
 

@@ -41,6 +41,7 @@ import (
 
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 type InstallOptions struct {
@@ -200,6 +201,13 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return err
 	}
 
+	// If there is data manager daemonset already exists, delete the existing one first
+	err = o.CheckAndDeleteDatamgrDaemonset(f)
+	if err != nil {
+		fmt.Println("Failed to delete existing data manager for old plugin image")
+		return err
+	}
+
 	var resources *unstructured.UnstructuredList
 	resources, err = install.AllDatamgrResources(vo, true)
 	if err != nil {
@@ -332,4 +340,26 @@ func (o *InstallOptions) getNumberOfNodes(f client.Factory) (int, error) {
 	}
 
 	return len(nodeList.Items), nil
+}
+
+// Check whether there is already existing data manager daemonset for old plugin image. If there is already existing daemonset,
+// delete the old one first.
+func (o *InstallOptions) CheckAndDeleteDatamgrDaemonset(f client.Factory) error {
+	fmt.Println("Check if there is existing data manager.")
+	clientset, err := f.KubeClient()
+	if err != nil {
+		errMsg := fmt.Sprint("Failed to get clientset.")
+		fmt.Println(errMsg)
+		return errors.New(errMsg)
+	}
+	err = clientset.AppsV1().DaemonSets(o.Namespace).Delete(context.TODO(), constants.DataManagerDaemonset, metav1.DeleteOptions{})
+	if err != nil && k8serrors.IsNotFound(err) {
+		fmt.Println("There is no existing data manager daemonset for old plugin image. No need to process.")
+		return nil
+	} else if err != nil {
+		errMsg := fmt.Sprintf("Failed to delete existing data manager daemonset.")
+		return errors.New(errMsg)
+	}
+	fmt.Println("Deleted existing data manager daemonset for old plugin image.")
+	return nil
 }
