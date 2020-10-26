@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"k8s.io/client-go/rest"
 	"os"
 	"strings"
 	"testing"
@@ -33,10 +34,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
+	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"github.com/agiledragon/gomonkey"
 )
 
 func TestGetStringFromParamsMap(t *testing.T) {
@@ -336,4 +341,125 @@ func Test_waitForPvSecret(t *testing.T) {
 		fmt.Printf("waitForPvSecret secret created %s in namespace %s\n", createdSecret.Name, createdSecret.Namespace)
 	}
 
+}
+
+func TestDeleteSvcSnapshot(t *testing.T) {
+	tests := []struct {
+		name                     string
+		gcSnapshot               *backupdriverapi.Snapshot
+		svcSnapshot              *backupdriverapi.Snapshot
+		config                   *rest.Config
+		toDeleteSvcSnapshotFirst bool
+		expectedErr              bool
+	} {
+		{
+			name: "If svcSnapshot has already been deleted, should not return error",
+			gcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "gc-snapshot-1",
+				},
+				Status: backupdriverapi.SnapshotStatus{
+					SvcSnapshotName: "svc-snapshot-1",
+				},
+			},
+			svcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "svc-snapshot-1",
+				},
+			},
+			config: &rest.Config{},
+			toDeleteSvcSnapshotFirst: true,
+			expectedErr: false,
+		},
+		{
+			name: "Delete a corresponding svc snapshot from gc snapshot",
+			gcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "gc-snapshot-2",
+				},
+				Status: backupdriverapi.SnapshotStatus{
+					SvcSnapshotName: "svc-snapshot-2",
+				},
+			},
+			svcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "svc-snapshot-2",
+				},
+			},
+			config: &rest.Config{},
+			toDeleteSvcSnapshotFirst: false,
+			expectedErr: false,
+		},
+		{
+			name: "Guest cluster with no svccnapshot name should return error",
+			gcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "gc-snapshot-3",
+				},
+			},
+			svcSnapshot: &backupdriverapi.Snapshot{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: backupdriverapi.SchemeGroupVersion.String(),
+					Kind:       "Snapshot",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-ns",
+					Name:      "svc-snapshot-3",
+				},
+			},
+			config: &rest.Config{},
+			toDeleteSvcSnapshotFirst: false,
+			expectedErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				client          = fake.NewSimpleClientset(test.svcSnapshot)
+				sharedInformers = informers.NewSharedInformerFactory(client, 0)
+				logger          = veleroplugintest.NewLogger()
+				backupdriverClient = client.BackupdriverV1alpha1()
+			)
+			require.NoError(t, sharedInformers.Backupdriver().V1alpha1().Snapshots().Informer().GetStore().Add(test.gcSnapshot))
+			if !test.toDeleteSvcSnapshotFirst {
+				require.NoError(t, sharedInformers.Backupdriver().V1alpha1().Snapshots().Informer().GetStore().Add(test.svcSnapshot))
+			}
+
+			patches := gomonkey.ApplyFunc(GetBackupdriverClient, func(_ *rest.Config) (backupdriverTypedV1.BackupdriverV1alpha1Interface, error) {
+				return backupdriverClient, nil
+			})
+			defer patches.Reset()
+			result := DeleteSvcSnapshot(test.gcSnapshot, test.config, test.svcSnapshot.Namespace, logger)
+			if test.expectedErr {
+				require.NotNil(t, result)
+			} else {
+				require.Nil(t, result)
+			}
+		})
+	}
 }

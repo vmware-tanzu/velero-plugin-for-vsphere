@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -45,6 +46,9 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
+	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	k8sv1 "k8s.io/api/core/v1"
@@ -903,4 +907,34 @@ func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
 		return true, crdName, nil
 	}
 	return false, crdName, nil
+}
+
+func GetBackupdriverClient(config *rest.Config) (v1alpha1.BackupdriverV1alpha1Interface, error) {
+	pluginClient, err := plugin_clientset.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return pluginClient.BackupdriverV1alpha1(), nil
+}
+
+// Provide a utility function in guest cluster to clean up corresponding supervisor cluster snapshot CR
+func DeleteSvcSnapshot(gcSnapshot *backupdriverapi.Snapshot, svcConfig *rest.Config, svcNamespace string, logger logrus.FieldLogger) error {
+	svcSnapshotName := gcSnapshot.Status.SvcSnapshotName
+	if svcSnapshotName == "" {
+		logger.Errorf("No corresponding supervisor cluster snapshot CR name for guest cluster snapshot %s", gcSnapshot.Name)
+		return errors.New("No corresponding supervisor cluster snapshot CR.")
+	}
+	backupdriverClient, err := GetBackupdriverClient(svcConfig)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to retrieve plugin client from svcConfig %v", svcConfig)
+		return err
+	}
+	if err = backupdriverClient.Snapshots(svcNamespace).Delete(context.TODO(), svcSnapshotName, metav1.DeleteOptions{}); k8serrors.IsNotFound(err) {
+		logger.Infof("SvcSnapshot %s/%s is already deleted, no need to process it", svcSnapshotName, svcSnapshotName)
+		return nil
+	} else if err != nil {
+		logger.WithError(err).Errorf("Failed to delete supervisor cluster snapshot %s/%s", svcSnapshotName, svcSnapshotName)
+		return err
+	}
+	return nil
 }
