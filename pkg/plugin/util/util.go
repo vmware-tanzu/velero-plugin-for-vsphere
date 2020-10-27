@@ -1,12 +1,18 @@
 package util
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"strings"
 )
 
@@ -109,4 +115,93 @@ func SelfLinkToCRDName(selfLink string) string {
 	} else {
 		return components[pluralIndex]
 	}
+}
+
+func GetKubeClient(config *rest.Config, logger logrus.FieldLogger) (*kubernetes.Clientset, error) {
+	var err error
+	if config == nil {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+			return nil, errors.Wrap(err, "could not retrieve in-cluster config")
+		}
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get k8s clientset from the given config")
+		return nil, err
+	}
+	return clientset, nil
+}
+
+func RetrieveStorageClassMapping(config *rest.Config, veleroNs string, logger logrus.FieldLogger) (map[string]string, error) {
+	clientset, err := GetKubeClient(config, logger)
+	if err != nil {
+		logger.Error("Failed to get clientset from given config")
+		return nil, err
+	}
+	opts := metav1.ListOptions{
+		// velero.io/plugin-config: ""
+		// velero.io/change-storage-class: RestoreItemAction
+		LabelSelector: fmt.Sprintf("%s,%s=%s", constants.PluginConfigLabelKey,constants.ChangeStorageClassLabelKey,constants.PluginKindRestoreItemAction),
+	}
+	configMaps, err := clientset.CoreV1().ConfigMaps(veleroNs).List(context.TODO(), opts)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to retrieve config map lists for storage class mapping")
+		return nil, err
+	}
+	if len(configMaps.Items) == 0 {
+		logger.Info("No config map for storage class mapping exists.")
+		return nil, nil
+	}
+	if len(configMaps.Items) > 1 {
+		var items []string
+		for _, item := range configMaps.Items {
+			items = append(items, item.Name)
+		}
+		return nil, errors.Errorf("found more than one ConfigMap matching label selector %q: %v", opts.LabelSelector, items)
+	}
+
+	return configMaps.Items[0].Data, nil
+}
+
+func UpdateSnapshotWithNewStorageClass(config *rest.Config, itemSnapshot *backupdriverv1.Snapshot, storageClassMapping map[string]string, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
+	var err error
+	snapshotMetadata := itemSnapshot.Status.Metadata
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err = pvc.Unmarshal(snapshotMetadata); err != nil {
+		logger.WithError(err).Error("Failed to unmarshal snapshotMetadata")
+		return backupdriverv1.Snapshot{}, err
+	}
+
+	// update the PVC storage class
+	old := *pvc.Spec.StorageClassName
+	logger.Infof("Updating storage class name for old storage class name: %s", old)
+	newName, ok := storageClassMapping[old]
+	if !ok {
+		logger.Infof("No mapping found for storage class %s", old)
+		return *itemSnapshot, nil
+	}
+
+	// validate that new storage class exists
+	clientset, err := GetKubeClient(config, logger)
+	if err != nil {
+		logger.Error("Failed to get core v1 client from given config")
+		return *itemSnapshot, err
+	}
+	if _, err := clientset.StorageV1().StorageClasses().Get(context.TODO(), newName, metav1.GetOptions{}); err != nil {
+		return *itemSnapshot, errors.Wrapf(err, "error getting storage class %s from API", newName)
+	}
+
+	logger.Infof("Updating item's storage class name to %s", newName)
+	pvc.Spec.StorageClassName = &newName
+
+	var updatedSnapshotMetadata []byte
+	if updatedSnapshotMetadata, err = pvc.Marshal(); err != nil {
+		return backupdriverv1.Snapshot{}, err
+	}
+	itemSnapshot.Status.Metadata = updatedSnapshotMetadata
+
+	return *itemSnapshot, nil
 }

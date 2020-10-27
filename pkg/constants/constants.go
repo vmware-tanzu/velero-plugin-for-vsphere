@@ -284,3 +284,15 @@ const (
 	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
 	SnapshotParamBackupRepository = "BackupRepository"
 )
+
+// These label keys are used to identify configMap used for storage class mapping, format:
+// velero.io/plugin-config: ""
+// velero.io/change-storage-class: RestoreItemAction
+const (
+	// Plugin kind name
+	PluginKindRestoreItemAction = "RestoreItemAction"
+	// This label key is used to identify the name and kind of plugin that configMap is for
+	ChangeStorageClassLabelKey = "velero.io/change-storage-class"
+	// This label key is used to identify the ConfigMap as config for a plugin.
+	PluginConfigLabelKey = "velero.io/plugin-config"
+)
