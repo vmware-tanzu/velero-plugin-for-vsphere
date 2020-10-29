@@ -454,7 +454,10 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 				return backupdriverClient, nil
 			})
 			defer patches.Reset()
-			result := DeleteSvcSnapshot(test.gcSnapshot, test.config, test.svcSnapshot.Namespace, logger)
+			patches.ApplyFunc(GetSupervisorConfig, func(_ *rest.Config, _ logrus.FieldLogger) (*rest.Config, string, error) {
+				return &rest.Config{}, test.svcSnapshot.Namespace, nil
+			})
+			result := DeleteSvcSnapshot(test.gcSnapshot.Status.SvcSnapshotName, test.gcSnapshot.Namespace, test.gcSnapshot.Name, test.config, logger)
 			if test.expectedErr {
 				require.NotNil(t, result)
 			} else {

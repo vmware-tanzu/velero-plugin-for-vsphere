@@ -46,7 +46,6 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
-	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -918,23 +917,34 @@ func GetBackupdriverClient(config *rest.Config) (v1alpha1.BackupdriverV1alpha1In
 }
 
 // Provide a utility function in guest cluster to clean up corresponding supervisor cluster snapshot CR
-func DeleteSvcSnapshot(gcSnapshot *backupdriverapi.Snapshot, svcConfig *rest.Config, svcNamespace string, logger logrus.FieldLogger) error {
-	svcSnapshotName := gcSnapshot.Status.SvcSnapshotName
+func DeleteSvcSnapshot(svcSnapshotName string, gcSnapshotName string, gcSnapshotNamespace string, guestConfig *rest.Config, logger logrus.FieldLogger) error {
 	if svcSnapshotName == "" {
-		logger.Errorf("No corresponding supervisor cluster snapshot CR name for guest cluster snapshot %s", gcSnapshot.Name)
-		return errors.New("No corresponding supervisor cluster snapshot CR.")
+		errMsg := fmt.Sprintf("No corresponding supervisor cluster snapshot CR name for guest cluster snapshot %s/%s", gcSnapshotNamespace, gcSnapshotName)
+		logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+	svcConfig, svcNamespace, err := GetSupervisorConfig(guestConfig, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get supervisor config from given guest config")
+		return err
+	}
+	if svcNamespace == "" {
+		errMsg := fmt.Sprintf("Failed to retrieve svcNamespace")
+		logger.Error(errMsg)
+		return errors.New(errMsg)
 	}
 	backupdriverClient, err := GetBackupdriverClient(svcConfig)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to retrieve plugin client from svcConfig %v", svcConfig)
+		logger.WithError(err).Error("Failed to retrieve plugin client from given svcConfig")
 		return err
 	}
 	if err = backupdriverClient.Snapshots(svcNamespace).Delete(context.TODO(), svcSnapshotName, metav1.DeleteOptions{}); k8serrors.IsNotFound(err) {
-		logger.Infof("SvcSnapshot %s/%s is already deleted, no need to process it", svcSnapshotName, svcSnapshotName)
+		logger.Infof("SvcSnapshot %s/%s is already deleted, no need to process it", svcNamespace, svcSnapshotName)
 		return nil
 	} else if err != nil {
-		logger.WithError(err).Errorf("Failed to delete supervisor cluster snapshot %s/%s", svcSnapshotName, svcSnapshotName)
+		logger.WithError(err).Errorf("Failed to delete supervisor cluster snapshot %s/%s", svcNamespace, svcSnapshotName)
 		return err
 	}
 	return nil
 }
+
