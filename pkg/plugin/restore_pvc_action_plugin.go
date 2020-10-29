@@ -182,72 +182,17 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 }
 
 func (p *NewPVCRestoreItemAction) createPod(item runtime.Unstructured) (*velero.RestoreItemActionExecuteOutput, error) {
-	var pod corev1.Pod
+	pod := new(corev1.Pod)
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pod); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	if metav1.HasAnnotation(pod.ObjectMeta, constants.VMwareSystemVMUUID) {
-		newPod := &corev1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "Pod",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pod.Name,
-				Namespace: pod.Namespace,
-				Labels:    pod.Labels,
-			},
-			Spec: corev1.PodSpec{
-				DNSPolicy:                     pod.Spec.DNSPolicy,
-				EnableServiceLinks:            pod.Spec.EnableServiceLinks,
-				Hostname:                      pod.Spec.Hostname,
-				Priority:                      pod.Spec.Priority,
-				RestartPolicy:                 pod.Spec.RestartPolicy,
-				SecurityContext:               pod.Spec.SecurityContext,
-				ServiceAccountName:            pod.Spec.ServiceAccountName,
-				Subdomain:                     pod.Spec.Subdomain,
-				TerminationGracePeriodSeconds: pod.Spec.TerminationGracePeriodSeconds,
-				Tolerations:                   pod.Spec.Tolerations,
-			},
+		objectMeta := metav1.ObjectMeta{
+			Name:      pod.Name,
+			Namespace: pod.Namespace,
+			Labels:    pod.Labels,
 		}
-
-		// Remove secret volume from Pod spec as it will be created automatically when pod is created
-		var volumes []corev1.Volume
-		var skippedSecretVolNames []string
-		for _, vol := range pod.Spec.Volumes {
-			if vol.VolumeSource.Secret != nil {
-				p.Log.Infof("Skipping Secret volume %s", vol.Name)
-				skippedSecretVolNames = append(skippedSecretVolNames, vol.Name)
-				continue
-			}
-			volumes = append(volumes, vol)
-		}
-		// Add Volumes back to the Pod spec
-		newPod.Spec.Volumes = volumes
-
-		// Remove secret volume mount from Pod spec as it will be created automatically when the secret is mounted on the pod after pod is created
-		var containers []corev1.Container
-		for _, container := range pod.Spec.Containers {
-			var volMnts []corev1.VolumeMount
-			for _, volMnt := range container.VolumeMounts {
-				skipMnt := false
-				for _, secretVolName := range skippedSecretVolNames {
-					if secretVolName == volMnt.Name {
-						p.Log.Infof("Skipping Secret volume mount %s", volMnt.Name)
-						skipMnt = true
-						break
-					}
-				}
-				if skipMnt == false {
-					volMnts = append(volMnts, volMnt)
-				}
-			}
-			container.VolumeMounts = volMnts
-			containers = append(containers, container)
-		}
-		// Add Containers back to the Pod spec
-		newPod.Spec.Containers = containers
 
 		// Only restore Pod annotations not on the list to skip
 		if pod.Annotations != nil {
@@ -256,21 +201,23 @@ func (p *NewPVCRestoreItemAction) createPod(item runtime.Unstructured) (*velero.
 				for keyToSkip, _ := range constants.PodAnnotationsToSkip {
 					if annKey == keyToSkip {
 						// Skip the matching key
-						p.Log.Infof("creaetPod: Skipping annotation %s/%s on Pod %s/%s.", annKey, annVal, newPod.Namespace, newPod.Name)
+						p.Log.Infof("createPod: Skipping annotation %s/%s on Pod %s/%s.", annKey, annVal, pod.Namespace, pod.Name)
 						skip = true
 						break
 					}
 				}
 				if skip == false {
-					metav1.SetMetaDataAnnotation(&newPod.ObjectMeta, annKey, annVal)
-					p.Log.Infof("createPod: Set annotation %s:%s on Pod %s/%s.", annKey, annVal, newPod.Namespace, newPod.Name)
+					metav1.SetMetaDataAnnotation(&objectMeta, annKey, annVal)
+					p.Log.Infof("createPod: Set annotation %s:%s on Pod %s/%s.", annKey, annVal, pod.Namespace, pod.Name)
 				}
 			}
+
+			pod.ObjectMeta = objectMeta
 		}
 
-		podMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&newPod)
+		podMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pod)
 		if err != nil {
-			p.Log.Errorf("Error converting the new pod %s/%s to unstructured. Error: %v", newPod.Namespace, newPod.Name, err)
+			p.Log.Errorf("Error converting the new pod %s/%s to unstructured. Error: %v", pod.Namespace, pod.Name, err)
 			return nil, errors.WithStack(err)
 		}
 
