@@ -136,6 +136,7 @@ const (
 // feature flog constants
 const (
 	VSphereLocalModeFlag        = "local-mode"
+	VSphereLocalModeFeature     = "EnableLocalMode"
 )
 
 const (
