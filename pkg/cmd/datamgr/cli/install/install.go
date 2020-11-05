@@ -153,8 +153,8 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
 	}
 	features.Enable(featureFlags...)
-	if features.IsEnabled(constants.VSphereLocalModeFlag) {
-		fmt.Printf("Detected %s feature flag, setting local mode \n", constants.VSphereLocalModeFlag)
+	if features.IsEnabled(constants.VSphereLocalModeFeature) {
+		fmt.Printf("Detected %s feature flag, setting local mode \n", constants.VSphereLocalModeFeature)
 		skipDataMgr = true
 	}
 
