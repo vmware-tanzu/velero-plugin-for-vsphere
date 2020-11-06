@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 )
 
 import "github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -51,4 +53,18 @@ func (this DataManagerProtectedEntityTypeManager) Copy(ctx context.Context, pe a
 func (this DataManagerProtectedEntityTypeManager) CopyFromInfo(ctx context.Context, info astrolabe.ProtectedEntityInfo, params map[string]map[string]interface{}, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntity, error) {
 	fmt.Println("CopyFromInfo called")
 	return nil, nil
+}
+
+func (this DataManagerProtectedEntityTypeManager) ReloadDmIvdPetm(ctx context.Context, ivdParams map[string]interface{}, logger logrus.FieldLogger) error {
+	logger.Infof("ReloadDmIvdPetm called")
+	ivdProtectedEntityTypeManager, ok := this.ProtectedEntityTypeManager.(*ivd.IVDProtectedEntityTypeManager)
+	if ok {
+		err := ivdProtectedEntityTypeManager.ReloadConfig(context.TODO(), ivdParams)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to Reload IVD Config in datapetm.")
+		}
+		logger.Debug("Successfully processed ReloadDmIvdPetm")
+		return nil
+	}
+	return nil
 }
