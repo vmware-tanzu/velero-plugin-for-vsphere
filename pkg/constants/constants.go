@@ -37,6 +37,8 @@ const (
 const (
 	// Duration after which Reflector resyncs CRs and calls UpdateFunc on each of the existing CRs.
 	ResyncPeriod = 30 * time.Second
+
+	DefaultSecretResyncPeriod = 5 * time.Minute
 )
 
 // configuration constants for the volume snapshot plugin
@@ -135,8 +137,8 @@ const (
 
 // feature flog constants
 const (
-	VSphereLocalModeFlag        = "local-mode"
-	VSphereLocalModeFeature     = "EnableLocalMode"
+	VSphereLocalModeFlag    = "local-mode"
+	VSphereLocalModeFeature = "EnableLocalMode"
 )
 
 const (
@@ -284,4 +286,21 @@ const (
 	SnapshotParamBackupName       = "BackupName"
 	SnapshotParamSvcSnapshotName  = "SvcSnapshotName"
 	SnapshotParamBackupRepository = "BackupRepository"
+)
+
+// These label keys are used to identify configMap used for storage class mapping, format:
+// velero.io/plugin-config: ""
+// velero.io/change-storage-class: RestoreItemAction
+const (
+	// Plugin kind name
+	PluginKindRestoreItemAction = "RestoreItemAction"
+	// This label key is used to identify the name and kind of plugin that configMap is for
+	ChangeStorageClassLabelKey = "velero.io/change-storage-class"
+	// This label key is used to identify the ConfigMap as config for a plugin.
+	PluginConfigLabelKey = "velero.io/plugin-config"
+)
+
+const (
+	DefaultRetryIntervalStart = time.Second
+	DefaultRetryIntervalMax   = 5 * time.Minute
 )

@@ -139,6 +139,23 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
+	// Retrieve storage class mapping information and update pvc StorageClassName with new name
+	p.Log.Info("Retrieving storage class mapping information from configMap")
+	storageClassMapping, err := pluginItem.RetrieveStorageClassMapping(restConfig, veleroNs, p.Log)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to retrieve storage class mapping information : %v", err)
+		p.Log.WithError(err).Error(errMsg)
+		return nil, errors.New(errMsg)
+	}
+	if storageClassMapping != nil && len(storageClassMapping) != 0 {
+		p.Log.Info("Updating target PVC storage class based on the storage class mapping")
+		itemSnapshot, err = pluginItem.UpdateSnapshotWithNewStorageClass(restConfig, &itemSnapshot, storageClassMapping, p.Log)
+		if err != nil {
+			p.Log.Errorf("Failed to update storage class name")
+			return nil, errors.WithStack(err)
+		}
+	}
+
 	snapshotID := itemSnapshot.Status.SnapshotID
 	snapshotMetadata := itemSnapshot.Status.Metadata
 	apiGroup := itemSnapshot.Spec.APIGroup
