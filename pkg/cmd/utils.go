@@ -174,7 +174,7 @@ func CreateFeatureStateConfigMap(features []string, f client.Factory, veleroNs s
 	featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(false)
 	// Update the falgs based on velero feature flags.
 	featuresString := strings.Join(features[:], ",")
-	if strings.Contains(featuresString, "EnableLocalMode") {
+	if strings.Contains(featuresString, constants.VSphereLocalModeFeature) {
 		featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(true)
 	}
 	featureConfigMap.Data = featureData
