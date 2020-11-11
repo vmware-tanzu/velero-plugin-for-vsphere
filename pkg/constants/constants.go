@@ -304,3 +304,9 @@ const (
 	DefaultRetryIntervalStart = time.Second
 	DefaultRetryIntervalMax   = 5 * time.Minute
 )
+
+const (
+	ImageRepositoryComponent = "Repository"
+	ImageContainerComponent = "Container"
+	ImageVersionComponent = "Version"
+)

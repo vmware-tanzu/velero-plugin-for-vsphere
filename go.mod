@@ -6,6 +6,7 @@ require (
 	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/go-hclog v0.8.0 // indirect
+	github.com/hashicorp/go-version v1.2.1
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1

@@ -17,31 +17,22 @@ limitations under the License.
 package utils
 
 import (
-	"context"
-	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"k8s.io/client-go/rest"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	k8sv1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-
-	"github.com/pkg/errors"
+	"github.com/agiledragon/gomonkey"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
-	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/fake"
+	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	"github.com/agiledragon/gomonkey"
 )
 
 func TestGetStringFromParamsMap(t *testing.T) {
@@ -125,54 +116,6 @@ func TestGetBool(t *testing.T) {
 	}
 }
 
-func TestRetrieveParamsFromBSL(t *testing.T) {
-	path := os.Getenv("KUBECONFIG")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skipf("The KubeConfig file, %v, is not exist", path)
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", path)
-	if err != nil {
-		t.Fatalf("Failed to build k8s config from kubeconfig file: %+v ", err)
-	}
-
-	// Setup Logger
-	logger := logrus.New()
-	formatter := new(logrus.TextFormatter)
-	formatter.TimestampFormat = time.RFC3339Nano
-	formatter.FullTimestamp = true
-	logger.SetFormatter(formatter)
-	logger.SetLevel(logrus.DebugLevel)
-
-	// using velero ns for testing.
-	veleroNs := "velero"
-
-	veleroClient, err := versioned.NewForConfig(config)
-	if err != nil {
-		t.Fatalf("Failed to retrieve veleroClient")
-	}
-
-	_, err = backupdriverTypedV1.NewForConfig(config)
-	if err != nil {
-		t.Fatalf("Failed to retrieve backupdriverClient from config: %v", config)
-	}
-
-	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
-	if err != nil || len(backupStorageLocationList.Items) <= 0 {
-		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
-	}
-	for _, item := range backupStorageLocationList.Items {
-		repositoryParameters := make(map[string]string)
-		bslName := item.Name
-		err := RetrieveParamsFromBSL(repositoryParameters, bslName, config, logger)
-		if err != nil {
-			logger.Errorf("Retrieve Failed %v", err)
-			t.Fatalf("RetrieveParamsFromBSL failed!")
-		}
-		logger.Infof("Repository Parameters: %v", repositoryParameters)
-	}
-}
-
 func TestRerieveVcConfigSecret(t *testing.T) {
 	// Setup Logger
 	logger := logrus.New()
@@ -218,131 +161,6 @@ func TestRerieveVcConfigSecret(t *testing.T) {
 	}
 }
 
-func TestGetRepo(t *testing.T) {
-	tests := []struct {
-		name     string
-		image    string
-		expected string
-	}{
-		{
-			name:     "Top level registry",
-			image:    "harbor.mylab.local/velero-plugin-for-vsphere:1.0.1",
-			expected: "harbor.mylab.local",
-		},
-		{
-			name:     "Multiple level registry",
-			image:    "harbor.mylab.local/library/velero-plugin-for-vsphere:1.0.1",
-			expected: "harbor.mylab.local/library",
-		},
-		{
-			name:     "No / should return empty string",
-			image:    "velero-plugin-for-vsphere:1.0.1",
-			expected: "",
-		},
-		{
-			name:     "/ appears in beginning should return empty string",
-			image:    "/velero-plugin-for-vsphere:1.0.1",
-			expected: "",
-		},
-		{
-			name:     "Empty input should return empty string",
-			image:    "",
-			expected: "",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			repo := GetRepo(test.image)
-			assert.Equal(t, test.expected, repo)
-		})
-	}
-}
-
-func createClientSet() (*kubernetes.Clientset, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	// if you want to change the loading rules (which files in which order), you can do so here
-
-	configOverrides := &clientcmd.ConfigOverrides{}
-	// if you want to change override values or bind them to flags, there are methods to help you
-
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, NewClientConfigNotFoundError("Could not create client config")
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "Could not create clientset")
-	}
-	return clientset, err
-}
-
-type ClientConfigNotFoundError struct {
-	errMsg string
-}
-
-func (this ClientConfigNotFoundError) Error() string {
-	return this.errMsg
-}
-
-func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
-	err := ClientConfigNotFoundError{
-		errMsg: errMsg,
-	}
-	return err
-}
-
-/*
- * For this test, set KUBECONFIG to point to a valid setup, with a BackupDriverNamespace created.
- */
-func Test_waitForPvSecret(t *testing.T) {
-	clientSet, err := createClientSet()
-
-	if err != nil {
-		_, ok := err.(ClientConfigNotFoundError)
-		if ok {
-			t.Skip(err)
-		}
-		t.Fatal(err)
-	}
-	testSecret := k8sv1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Secret",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: constants.PvSecretName,
-		},
-	}
-
-	// set up logger
-	logger := logrus.New()
-	formatter := new(logrus.TextFormatter)
-	formatter.TimestampFormat = time.RFC3339
-	formatter.FullTimestamp = true
-	logger.SetFormatter(formatter)
-
-	err = clientSet.CoreV1().Secrets(constants.BackupDriverNamespace).Delete(context.TODO(), testSecret.Name, metav1.DeleteOptions{})
-	if err != nil {
-		t.Fatalf("Delete error = %v\n", err)
-	}
-	writtenSnapshot, err := clientSet.CoreV1().Secrets(constants.BackupDriverNamespace).Create(context.TODO(), &testSecret, metav1.CreateOptions{})
-
-	testSecret.ObjectMeta = writtenSnapshot.ObjectMeta
-
-	timeoutContext, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Second*10))
-	defer cancelFunc()
-	createdSecret, err := waitForPvSecret(timeoutContext, clientSet, constants.BackupDriverNamespace, logger)
-	if err != nil {
-		t.Fatalf("waitForPvSecret returned err = %v\n", err)
-	} else {
-		fmt.Printf("waitForPvSecret secret created %s in namespace %s\n", createdSecret.Name, createdSecret.Namespace)
-	}
-
-}
-
 func TestDeleteSvcSnapshot(t *testing.T) {
 	tests := []struct {
 		name                     string
@@ -351,7 +169,7 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 		config                   *rest.Config
 		toDeleteSvcSnapshotFirst bool
 		expectedErr              bool
-	} {
+	}{
 		{
 			name: "If svcSnapshot has already been deleted, should not return error",
 			gcSnapshot: &backupdriverapi.Snapshot{
@@ -377,9 +195,9 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 					Name:      "svc-snapshot-1",
 				},
 			},
-			config: &rest.Config{},
+			config:                   &rest.Config{},
 			toDeleteSvcSnapshotFirst: true,
-			expectedErr: false,
+			expectedErr:              false,
 		},
 		{
 			name: "Delete a corresponding svc snapshot from gc snapshot",
@@ -406,9 +224,9 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 					Name:      "svc-snapshot-2",
 				},
 			},
-			config: &rest.Config{},
+			config:                   &rest.Config{},
 			toDeleteSvcSnapshotFirst: false,
-			expectedErr: false,
+			expectedErr:              false,
 		},
 		{
 			name: "Guest cluster with no svccnapshot name should return error",
@@ -432,17 +250,17 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 					Name:      "svc-snapshot-3",
 				},
 			},
-			config: &rest.Config{},
+			config:                   &rest.Config{},
 			toDeleteSvcSnapshotFirst: false,
-			expectedErr: true,
+			expectedErr:              true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				client          = fake.NewSimpleClientset(test.svcSnapshot)
-				sharedInformers = informers.NewSharedInformerFactory(client, 0)
-				logger          = veleroplugintest.NewLogger()
+				client             = fake.NewSimpleClientset(test.svcSnapshot)
+				sharedInformers    = informers.NewSharedInformerFactory(client, 0)
+				logger             = veleroplugintest.NewLogger()
 				backupdriverClient = client.BackupdriverV1alpha1()
 			)
 			require.NoError(t, sharedInformers.Backupdriver().V1alpha1().Snapshots().Informer().GetStore().Add(test.gcSnapshot))
@@ -463,6 +281,67 @@ func TestDeleteSvcSnapshot(t *testing.T) {
 			} else {
 				require.Nil(t, result)
 			}
+		})
+	}
+}
+
+func TestGetComponentFromImage(t *testing.T) {
+	tests := []struct {
+		name                                             string
+		image                                            string
+		expectedRepo, expectedContainer, expectedVersion string
+	}{
+		{
+			name:              "ExpectedDummyCase",
+			image:             "a/b/c/d:x",
+			expectedRepo:      "a/b/c",
+			expectedContainer: "d",
+			expectedVersion:   "x",
+		},
+		{
+			name:              "ExpectedDockerhubCase",
+			image:             "vsphereveleroplugin/velero-plugin-for-vsphere:1.1.0-rc2",
+			expectedRepo:      "vsphereveleroplugin",
+			expectedContainer: "velero-plugin-for-vsphere",
+			expectedVersion:   "1.1.0-rc2",
+		},
+		{
+			name:              "ExpectedCustomizedCase",
+			image:             "xyz-repo.vmware.com/velero/velero-plugin-for-vsphere:1.1.0-rc2",
+			expectedRepo:      "xyz-repo.vmware.com/velero",
+			expectedContainer: "velero-plugin-for-vsphere",
+			expectedVersion:   "1.1.0-rc2",
+		},
+		{
+			name:              "ExpectedLocalCase",
+			image:             "velero-plugin-for-vsphere:1.1.0-rc2",
+			expectedRepo:      "",
+			expectedContainer: "velero-plugin-for-vsphere",
+			expectedVersion:   "1.1.0-rc2",
+		},
+		{
+			name:              "ExpectedNonTaggedImageCase",
+			image:             "xyz-repo.vmware.com/velero/velero-plugin-for-vsphere",
+			expectedRepo:      "xyz-repo.vmware.com/velero",
+			expectedContainer: "velero-plugin-for-vsphere",
+			expectedVersion:   "",
+		},
+		{
+			name:              "ExpectedCaseOfRegistryEndpointWithPort",
+			image:             "xyz-repo.vmware.com:9999/velero/velero-plugin-for-vsphere:1.1.0-rc2",
+			expectedRepo:      "xyz-repo.vmware.com:9999/velero",
+			expectedContainer: "velero-plugin-for-vsphere",
+			expectedVersion:   "1.1.0-rc2",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualRepo := GetComponentFromImage(test.image, constants.ImageRepositoryComponent)
+			actualContainer := GetComponentFromImage(test.image, constants.ImageContainerComponent)
+			actualVersion := GetComponentFromImage(test.image, constants.ImageVersionComponent)
+			assert.Equal(t, actualRepo, test.expectedRepo)
+			assert.Equal(t, actualContainer, test.expectedContainer)
+			assert.Equal(t, actualVersion, test.expectedVersion)
 		})
 	}
 }
