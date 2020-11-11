@@ -297,3 +297,9 @@ const (
 	// This label key is used to identify the ConfigMap as config for a plugin.
 	PluginConfigLabelKey = "velero.io/plugin-config"
 )
+
+const (
+	ImageRepositoryComponent = "Repository"
+	ImageContainerComponent = "Container"
+	ImageVersionComponent = "Version"
+)

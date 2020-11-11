@@ -19,8 +19,6 @@ package install
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
 	"github.com/pkg/errors"
@@ -115,66 +113,41 @@ func NewCommand(f client.Factory) *cobra.Command {
 }
 
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
-	var resources *unstructured.UnstructuredList
+	kubeClient, err := f.KubeClient()
+	if err != nil {
+		return errors.Wrap(err, "Failed to get kubeClient")
+	}
+
+	// Start with a few of prerequisite checks before installing backup-driver
+	fmt.Println("The prerequisite checks for backup-driver started")
 
 	// Check vSphere CSI driver version
-	isCSIInstalled, isVersionOk, err := cmd.CheckCSIInstalled(f)
-	if err != nil {
-		fmt.Println("CSI driver check failed")
-		isCSIInstalled = false
-		isVersionOk = false
-	}
-	if !isCSIInstalled {
-		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
-	}
-	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", constants.CsiMinVersion, constants.CsiMinVersion)
-	}
+	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient)
 
 	// Check velero version
-	veleroVersion, err := cmd.GetVeleroVersion(f, o.Namespace)
-	if err != nil || veleroVersion == "" {
-		fmt.Println("Failed to get velero version.")
-	} else {
-		if cmd.CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
-			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, constants.VeleroMinVersion, constants.VeleroMinVersion)
-		}
-	}
+	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)
 
-	// Check velero vsphere plugin image repo
-	err = o.CheckPluginImageRepo(f)
-	if err != nil {
-		fmt.Printf("Failed to check plugin image repo, error msg: %s. Using default image %s\n", err.Error(), o.Image)
-	} else {
-		fmt.Printf("Using image %s.\n", o.Image)
-	}
+	// Check velero-plugin-for-vsphere image repo and parse the corresponding image for backup-driver
+	o.Image, _ = cmd.CheckPluginImageRepo(kubeClient, o.Namespace, o.Image, constants.BackupDriverForPlugin)
 
-	// Check cluster flavor. Add the PV secret to pod in Guest Cluster
-	clusterFlavor, err := utils.GetClusterFlavor(nil)
-	// Assign master node affinity and host network to Supervisor deployment
-	if clusterFlavor == constants.Supervisor {
-		fmt.Printf("Supervisor Cluster. Assign master node affinity and enable host network.")
-		o.MasterAffinity = true
-		o.HostNetwork = true
-	}
-
-	// Get feature flags from velero deployed in the namespace.
-	featureFlags, err := cmd.GetVeleroFeatureFlags(f, o.Namespace)
-	if err != nil {
-		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
-	}
-
-	// Create Config Map with the feature states.
-	err = cmd.CreateFeatureStateConfigMap(featureFlags, f, o.Namespace)
-	if err != nil {
-		fmt.Printf("Failed to create feature state config map from velero feature flags: %v.\n", err)
+	// Check cluster flavor for backup-driver
+	if err := o.CheckClusterFlavorForBackupDriver(); err != nil {
 		return err
 	}
+
+	// Check feature flags for backup-driver
+	if err := o.CheckFeatureFlagsForBackupDriver(kubeClient); err != nil {
+		return err
+	}
+
+	fmt.Println("The prerequisite checks for backup-driver completed")
+
 	vo, err := o.AsBackupDriverOptions()
 	if err != nil {
 		return err
 	}
 
+	var resources *unstructured.UnstructuredList
 	resources, err = install.AllBackupDriverResources(vo, true)
 	if err != nil {
 		return err
@@ -188,19 +161,19 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if err != nil {
 		return err
 	}
-	factory := client.NewDynamicFactory(dynamicClient)
+	dynamicFactory := client.NewDynamicFactory(dynamicClient)
 
 	errorMsg := fmt.Sprintf("\n\nError installing backup-driver. Use `kubectl logs deploy/%s -n %s` to check the logs",
 		constants.BackupDriverForPlugin, o.Namespace)
 
-	err = install.Install(factory, resources, os.Stdout)
+	err = install.Install(dynamicFactory, resources, os.Stdout)
 	if err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
 	fmt.Printf("Waiting for %s deployment to be ready.\n", constants.BackupDriverForPlugin)
 
-	if _, err = install.DeploymentIsReady(factory, o.Namespace); err != nil {
+	if _, err = install.DeploymentIsReady(dynamicFactory, o.Namespace); err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
@@ -208,39 +181,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		constants.BackupDriverForPlugin, o.Namespace)
 
 	return nil
-}
-
-func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
-	clientset, err := f.KubeClient()
-	if err != nil {
-		errMsg := fmt.Sprint("Failed to get clientset.")
-		return errors.New(errMsg)
-	}
-	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), constants.VeleroDeployment, metav1.GetOptions{})
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
-		return errors.New(errMsg)
-	}
-
-	var repo string
-	var tag string
-	var image string
-	for _, container := range deployment.Spec.Template.Spec.InitContainers {
-		if strings.Contains(container.Image, constants.VeleroPluginForVsphere) {
-			image = container.Image
-			repo = utils.GetRepo(image)
-			tag = strings.Split(image, ":")[1]
-			break
-		}
-	}
-
-	if repo != "" && tag != "" {
-		o.Image = repo + "/" + constants.BackupDriverForPlugin + ":" + tag
-		return nil
-	} else {
-		errMsg := fmt.Sprintf("Failed to get repo and tag from velero plugin image %s.", image)
-		return errors.New(errMsg)
-	}
 }
 
 //Complete completes options for a command.
@@ -282,6 +222,37 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	}
 	o.Namespace = namespace
 	fmt.Printf("velero is running in the namespace, %v\n", namespace)
+
+	return nil
+}
+
+func (o *InstallOptions) CheckClusterFlavorForBackupDriver() error {
+	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to get cluster flavor for backup-driver")
+	}
+
+	// Assign master node affinity and host network to Supervisor deployment
+	if clusterFlavor == constants.Supervisor {
+		fmt.Printf("Supervisor Cluster. Assign master node affinity and enable host network.")
+		o.MasterAffinity = true
+		o.HostNetwork = true
+	}
+
+	return nil
+}
+
+func (o *InstallOptions) CheckFeatureFlagsForBackupDriver(kubeClient kubernetes.Interface) error {
+	featureFlags, err := cmd.GetVeleroFeatureFlags(kubeClient, o.Namespace)
+	if err != nil {
+		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
+	}
+
+	// Create Config Map with the feature states.
+	if err := cmd.CreateFeatureStateConfigMap(kubeClient, featureFlags, o.Namespace); err != nil {
+		fmt.Printf("Failed to create feature state config map from velero feature flags: %v.\n", err)
+		return err
+	}
 
 	return nil
 }

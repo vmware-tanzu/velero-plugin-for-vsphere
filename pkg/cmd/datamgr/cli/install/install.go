@@ -19,19 +19,18 @@ package install
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"github.com/vmware-tanzu/velero/pkg/features"
-	"strings"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/install"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
+	"github.com/vmware-tanzu/velero/pkg/features"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -57,6 +56,7 @@ type InstallOptions struct {
 	SecretFile     string
 	NoSecret       bool
 	DryRun         bool
+	SkipInstall    bool
 }
 
 func (o *InstallOptions) BindFlags(flags *pflag.FlagSet) {
@@ -139,61 +139,36 @@ func NewCommand(f client.Factory) *cobra.Command {
 }
 
 func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
-	skipDataMgr := false
-
-	// In case of Guest or Supervisor cluster, skip installing data manager
-	clusterFlavor, _ := utils.GetClusterFlavor(nil)
-	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Supervisor {
-		fmt.Printf("The Cluster Flavor: %s. Skipping data manager installation.\n", clusterFlavor)
-		skipDataMgr = true
-	}
-
-	featureFlags, err := cmd.GetVeleroFeatureFlags(f, o.Namespace)
+	kubeClient, err := f.KubeClient()
 	if err != nil {
-		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
-	}
-	features.Enable(featureFlags...)
-	if features.IsEnabled(constants.VSphereLocalModeFeature) {
-		fmt.Printf("Detected %s feature flag, setting local mode \n", constants.VSphereLocalModeFeature)
-		skipDataMgr = true
+		return errors.Wrap(err, "Failed to get kubeClient")
 	}
 
-	if skipDataMgr {
-		fmt.Println("Local mode set, skipping data manager installation")
+	// Start with a few of prerequisite checks before installing data-manager
+	fmt.Println("The prerequisite checks for data-manager started")
+
+	// Check cluster flavor for data-manager
+	o.CheckClusterFlavorForDataManager()
+
+	// Check feature flags for data-manager
+	_ = o.CheckFeatureFlagsForDataManager(kubeClient)
+
+	// Skip installing data manager if the flag is set
+	if o.SkipInstall {
+		fmt.Println("Skipping data manager installation")
 		return nil
 	}
 
 	// Check vSphere CSI driver version
-	isCSIInstalled, isVersionOk, err := cmd.CheckCSIInstalled(f)
-	if err != nil {
-		fmt.Println("CSI driver check failed")
-		isCSIInstalled = false
-		isVersionOk = false
-	}
-	if !isCSIInstalled {
-		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
-	}
-	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", constants.CsiMinVersion, constants.CsiMinVersion)
-	}
+	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient)
 
 	// Check velero version
-	veleroVersion, err := cmd.GetVeleroVersion(f, o.Namespace)
-	if err != nil || veleroVersion == "" {
-		fmt.Println("Failed to get velero version.")
-	} else {
-		if cmd.CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
-			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, constants.VeleroMinVersion, constants.VeleroMinVersion)
-		}
-	}
+	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)
 
 	// Check velero vsphere plugin image repo
-	err = o.CheckPluginImageRepo(f)
-	if err != nil {
-		fmt.Printf("Failed to check plugin image repo, error msg: %s. Using default image %s\n", err.Error(), o.Image)
-	} else {
-		fmt.Printf("Using image %s.\n", o.Image)
-	}
+	o.Image, _ = cmd.CheckPluginImageRepo(kubeClient, o.Namespace, o.Image, constants.DataManagerForPlugin)
+
+	fmt.Println("The prerequisite checks for data-manager completed")
 
 	vo, err := o.AsDatamgrOptions()
 	if err != nil {
@@ -217,9 +192,9 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	if err != nil {
 		return err
 	}
-	factory := client.NewDynamicFactory(dynamicClient)
+	dynamicFactory := client.NewDynamicFactory(dynamicClient)
 
-	nNodes, err := o.getNumberOfNodes(f)
+	nNodes, err := o.getNumberOfNodes(kubeClient)
 	if err != nil {
 		return errors.Wrap(err, "Error while getting number of nodes in kubernetes cluster")
 	}
@@ -227,14 +202,14 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	errorMsg := fmt.Sprintf("\n\nError installing data manager. Use `kubectl logs daemonset/%s -n %s` to check the logs",
 		constants.DataManagerForPlugin, o.Namespace)
 
-	err = install.Install(factory, resources, os.Stdout)
+	err = install.Install(dynamicFactory, resources, os.Stdout)
 	if err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
 	fmt.Println("Waiting for data manager daemonset to be ready.")
 
-	if _, err = install.DaemonSetIsReady(factory, o.Namespace, nNodes); err != nil {
+	if _, err = install.DaemonSetIsReady(dynamicFactory, o.Namespace, nNodes); err != nil {
 		return errors.Wrap(err, errorMsg)
 	}
 
@@ -242,39 +217,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		constants.DataManagerForPlugin, o.Namespace)
 
 	return nil
-}
-
-func (o *InstallOptions) CheckPluginImageRepo(f client.Factory) error {
-	clientset, err := f.KubeClient()
-	if err != nil {
-		errMsg := fmt.Sprint("Failed to get clientset.")
-		return errors.New(errMsg)
-	}
-	deployment, err := clientset.AppsV1().Deployments(o.Namespace).Get(context.TODO(), constants.VeleroDeployment, metav1.GetOptions{})
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get velero deployment in namespace %s", o.Namespace)
-		return errors.New(errMsg)
-	}
-
-	repo := ""
-	tag := ""
-	image := ""
-	for _, container := range deployment.Spec.Template.Spec.InitContainers {
-		if strings.Contains(container.Image, constants.VeleroPluginForVsphere) {
-			image = container.Image
-			repo = utils.GetRepo(container.Image)
-			tag = strings.Split(container.Image, ":")[1]
-			break
-		}
-	}
-
-	if repo != "" && tag != "" {
-		o.Image = repo + "/" + constants.DataManagerForPlugin + ":" + tag
-		return nil
-	} else {
-		errMsg := fmt.Sprintf("Failed to get repo and tag from velero plugin image %s.", image)
-		return errors.New(errMsg)
-	}
 }
 
 //Complete completes options for a command.
@@ -320,16 +262,35 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	return nil
 }
 
-func (o *InstallOptions) getNumberOfNodes(f client.Factory) (int, error) {
-	clientset, err := f.KubeClient()
-	if err != nil {
-		return 0, err
-	}
-
-	nodeList, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+func (o *InstallOptions) getNumberOfNodes(kubeClient kubernetes.Interface) (int, error) {
+	nodeList, err := kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return 0, err
 	}
 
 	return len(nodeList.Items), nil
+}
+
+func (o *InstallOptions) CheckClusterFlavorForDataManager() {
+	clusterFlavor, _ := utils.GetClusterFlavor(nil)
+
+	// In case of Guest or Supervisor cluster, skip installing data manager
+	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Supervisor {
+		fmt.Printf("The Cluster Flavor: %s. Skipping data manager installation.\n", clusterFlavor)
+		o.SkipInstall = true
+	}
+}
+
+func (o *InstallOptions) CheckFeatureFlagsForDataManager(kubeClient kubernetes.Interface) error {
+	featureFlags, err := cmd.GetVeleroFeatureFlags(kubeClient, o.Namespace)
+	if err != nil {
+		fmt.Printf("Failed to decipher velero feature flags: %v, assuming none.\n", err)
+	}
+	features.Enable(featureFlags...)
+	if features.IsEnabled(constants.VSphereLocalModeFeature) {
+		fmt.Printf("Detected %s feature flag, setting local mode \n", constants.VSphereLocalModeFeature)
+		o.SkipInstall = true
+	}
+
+	return nil
 }
