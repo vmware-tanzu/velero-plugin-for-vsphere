@@ -24,15 +24,16 @@ jobs:
           wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
           tar xzf VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
           chmod 644 $(find vmware-vix-disklib-distrib/lib64/ -type f)
-      - name: Set env
-        run: echo "::set-env name=GOPATH::$GITHUB_WORKSPACE"
       - name: Make CI
-        if: github.event_name == 'pull_request' || (github.event_name != 'pull_request' && github.repository != 'vmware-tanzu/velero-plugin-for-vsphere')
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           make ci
       - name: Build the plugin and push images to docker hub
-        if: github.event_name != 'pull_request' && github.repository == 'vmware-tanzu/velero-plugin-for-vsphere'
+        if: github.event_name == 'push' && github.repository == 'vmware-tanzu/velero-plugin-for-vsphere'
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
