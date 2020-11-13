@@ -296,4 +296,9 @@ const (
 	ChangeStorageClassLabelKey = "velero.io/change-storage-class"
 	// This label key is used to identify the ConfigMap as config for a plugin.
 	PluginConfigLabelKey = "velero.io/plugin-config"
+	// This is the reserved name used to map from a non storage class to a new storage class
+	// at restore time. Storage class is required for restore. If no storage class is specified
+	// in the PVC during backup, user can specify "com.vmware.cnsdp.emptystorageclass" as the
+	// old storage class name to map to a new existing storage class name at restore time.
+	EmptyStorageClass = "com.vmware.cnsdp.emptystorageclass"
 )
