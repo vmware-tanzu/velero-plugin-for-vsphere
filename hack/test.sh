@@ -25,19 +25,33 @@ fi
 
 export LD_LIBRARY_PATH=${GOPATH}/src/${VDDK_LIBS}
 
-TARGETS=(
-  ./pkg/...
-)
-
-if [[ ${#@} -ne 0 ]]; then
-  TARGETS=("$@")
+if [ -z "${TARGETS}" ]; then
+    echo "TARGETS must be set"
+    exit 1
 fi
 
-echo "Running tests:" "${TARGETS[@]}"
+if [ ! -z "${TIMEOUT}" ]; then
+    TIMEOUT="-timeout=${TIMEOUT}"
+fi
+
+if [ ! -z "${VERBOSE}" ]; then
+    VERBOSE="-v"
+fi
+
+if [ ! -z "${DISABLE_CACHE}" ]; then
+    DISABLE_CACHE="-count=1"
+fi
+
+if [ ! -z "${RUN_SINGLE_CASE}" ]; then
+    RUN_SINGLE_CASE="-run=${RUN_SINGLE_CASE}"
+fi
+
+echo "Running tests:" "${TARGETS}"
 
 if [[ -n "${GOFLAGS:-}" ]]; then
   echo "GOFLAGS: ${GOFLAGS}"
 fi
 
-go test -installsuffix "static" -timeout 60s "${TARGETS[@]}"
+echo go test "${TARGETS}" ${TIMEOUT} ${RUN_SINGLE_CASE} ${VERBOSE} ${DISABLE_CACHE}
+go test "${TARGETS}" ${TIMEOUT} ${RUN_SINGLE_CASE} ${VERBOSE} ${DISABLE_CACHE}
 echo "Success!"
