@@ -226,13 +226,20 @@ verify:
 	@echo "verify: Started"
 	@echo "verify: Completed"
 
-SKIP_TESTS ?=
+TARGETS ?= ./pkg/...
+TIMEOUT ?= 300s
+VERBOSE ?= # empty by default
+DISABLE_CACHE ?= # empty by default
+RUN_SINGLE_CASE ?= # empty by default
 test: build-dirs
-ifneq ($(SKIP_TESTS), 1)
 	@$(MAKE) shell CMD="-c '\
 	     VDDK_LIBS=$(VDDK_LIBS) \
-	     hack/test.sh $(TARGETS)'"
-endif
+	     TARGETS=$(TARGETS) \
+	     TIMEOUT=$(TIMEOUT) \
+	     VERBOSE=$(VERBOSE) \
+	     DISABLE_CACHE=$(DISABLE_CACHE) \
+	     RUN_SINGLE_CASE=$(RUN_SINGLE_CASE) \
+	     hack/test.sh'"
 
 ci: all verify test
 
