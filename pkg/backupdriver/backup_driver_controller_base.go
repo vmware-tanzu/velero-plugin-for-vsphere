@@ -20,6 +20,9 @@ import (
 	"context"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/client-go/informers/core/v1"
 	"strings"
 	"time"
 
@@ -108,11 +111,14 @@ type backupDriverController struct {
 	// Upload queue
 	uploadQueue workqueue.RateLimitingInterface
 
-	// Snapshot queue
+	// Secret queue
+	secretQueue workqueue.RateLimitingInterface
+
+	// DeleteSnapshot queue
 	deleteSnapshotQueue workqueue.RateLimitingInterface
-	// Snapshot Lister
+	// DeleteSnapshot Lister
 	deleteSnapshotLister backupdriverlisters.DeleteSnapshotLister
-	// Snapshot Synced
+	// DeleteSnapshot Synced
 	deleteSnapshotSynced cache.InformerSynced
 
 	// Map supervisor cluster snapshot CRs to guest cluster snapshot CRs
@@ -168,8 +174,10 @@ func NewBackupDriverController(
 	deleteSnapshotQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "backup-driver-delete-snapshot-queue")
 	uploadQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "backup-driver-upload-queue")
 	svcSnapshotQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "backup-driver-svc-snapshot-queue")
+	secretQueue := workqueue.NewNamedRateLimitingQueue(rateLimiter, "backup-driver-secret-queue")
 
 	var svcSnapshotMap map[string]string
+	var secretInformer v1.SecretInformer
 
 	// Configure supervisor cluster queues and caches in the guest
 	// We watch supervisor snapshot CRs for the upload status. If local mode is set, we do not have to watch for upload status
@@ -179,6 +187,10 @@ func NewBackupDriverController(
 
 		cacheSyncs = append(cacheSyncs,
 			svcSnapshotInformer.Informer().HasSynced)
+	} else {
+		// Watch for Secret Changes only in Supervisor/Vanilla setup.
+		secretInformer = informerFactory.Core().V1().Secrets()
+		cacheSyncs = append(cacheSyncs, secretInformer.Informer().HasSynced)
 	}
 
 	ctrl := &backupDriverController{
@@ -204,6 +216,7 @@ func NewBackupDriverController(
 		deleteSnapshotLister:        deleteSnapshotInformer.Lister(),
 		uploadQueue:                 uploadQueue,
 		svcSnapshotQueue:            svcSnapshotQueue,
+		secretQueue:                 secretQueue,
 		cacheSyncs:                  cacheSyncs,
 		svcSnapshotMap:              svcSnapshotMap,
 	}
@@ -275,8 +288,8 @@ func NewBackupDriverController(
 		resyncPeriod,
 	)
 
-	// Configure supervisor cluster informers in the guest
 	if svcKubeConfig != nil {
+		// Configure supervisor cluster informers in the guest
 		svcSnapshotInformer := svcBackupdriverInformerFactory.Backupdriver().V1alpha1().Snapshots()
 		svcSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
@@ -286,7 +299,18 @@ func NewBackupDriverController(
 			},
 			resyncPeriod)
 	}
-
+	// Configure secret informer in Supervisor and Vanilla setup only.
+	if secretInformer != nil {
+		secretInformer.Informer().AddEventHandlerWithResyncPeriod(
+			cache.FilteringResourceEventHandler{
+				FilterFunc: utils.GetVcConfigSecretFilterFunc(logger),
+				Handler: cache.ResourceEventHandlerFuncs{
+					AddFunc:    func(obj interface{}) { ctrl.enqueueSecret(obj) },
+					UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueSecret(newObj) },
+				},
+			},
+			constants.DefaultSecretResyncPeriod)
+	}
 	return ctrl
 }
 
@@ -314,6 +338,7 @@ func (ctrl *backupDriverController) Run(
 	defer ctrl.deleteSnapshotQueue.ShutDown()
 	defer ctrl.uploadQueue.ShutDown()
 	defer ctrl.svcSnapshotQueue.ShutDown()
+	defer ctrl.secretQueue.ShutDown()
 
 	ctrl.logger.Infof("Starting backup driver controller")
 	defer ctrl.logger.Infof("Shutting down backup driver controller")
@@ -339,10 +364,69 @@ func (ctrl *backupDriverController) Run(
 
 		if ctrl.svcKubeConfig != nil {
 			go wait.Until(ctrl.svcSnapshotWorker, 0, stopCh)
+		} else {
+			go wait.Until(ctrl.secretWorker, 0, stopCh)
 		}
 	}
 
 	<-stopCh
+}
+
+func (ctrl *backupDriverController) secretWorker() {
+	ctrl.logger.Infof("secretWorker: Enter secretWorker")
+
+	key, quit := ctrl.secretQueue.Get()
+	if quit {
+		return
+	}
+	defer ctrl.secretQueue.Done(key)
+
+	if err := ctrl.syncSecretByKey(key.(string)); err != nil {
+		ctrl.secretQueue.AddRateLimited(key)
+	} else {
+		ctrl.secretQueue.Forget(key)
+	}
+}
+
+func (ctrl *backupDriverController) syncSecretByKey(key string) error {
+	ctrl.logger.Infof("syncSecretByKey: Started Secret processing %s", key)
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		ctrl.logger.Errorf("Split meta namespace key of secret %s failed: %v", key, err)
+		return err
+	}
+	// Retrieve the latest Secret.
+	params := make(map[string]interface{})
+	err = utils.RetrieveVcConfigSecret(params, nil, ctrl.logger)
+	if err != nil {
+		ctrl.logger.Errorf("Failed to retrieve the latest vc config secret")
+		return err
+	}
+	ctrl.logger.Infof("Successfully retrieved latest vSphere VC credentials.")
+	err = ctrl.snapManager.ReloadSnapshotManagerIvdPetmConfig(params)
+	if err != nil {
+		ctrl.logger.Errorf("Secret %s/%s Reload failed, err: %v", namespace, name, err)
+		return err
+	}
+	ctrl.logger.Infof("Successfully processed updates in vc configuration.")
+	return nil
+}
+
+func (ctrl *backupDriverController) enqueueSecret(obj interface{}) {
+	// Beware of "xxx deleted" events
+	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
+		obj = unknown.Obj
+	}
+	if secretItem, ok := obj.(*corev1.Secret); ok {
+		ctrl.logger.Infof("enqueueSecret on update: %s", secretItem.Name)
+		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(secretItem)
+		if err != nil {
+			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, secretItem)
+			return
+		}
+		ctrl.logger.Infof("enqueueSecret: enqueued %q for sync", objName)
+		ctrl.secretQueue.Add(objName)
+	}
 }
 
 // snapshotWorker is the main worker for snapshot request.
