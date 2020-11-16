@@ -45,12 +45,12 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
-	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	k8sv1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -320,7 +320,7 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 		URLBase:   "VOID_URL",
 	}
 
-	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManagerFromConfig(params, s3Config, logger)
+	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManager(params, s3Config, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("Error at creating new IVD PETM from vc params: %v, s3Config: %v",
 			params, s3Config)
@@ -964,3 +964,29 @@ func DeleteSvcSnapshot(svcSnapshotName string, gcSnapshotName string, gcSnapshot
 	return nil
 }
 
+func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}) bool {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
+		return nil
+	}
+	var ns string
+	// Get the cluster flavor
+	clusterFlavor, err := GetClusterFlavor(config)
+	if clusterFlavor == constants.Supervisor {
+		ns = constants.VCSecretNsSupervisor
+	} else if clusterFlavor == constants.VSphere {
+		ns = constants.VCSecretNs
+	}
+	return func(obj interface{}) bool {
+		switch obj.(type) {
+		case *k8sv1.Secret:
+			incomingSecret := obj.(*k8sv1.Secret)
+			return incomingSecret.Namespace == ns &&
+				incomingSecret.Name == constants.VCSecret
+		default:
+			logger.Debugf("Unrecognized object type found during filtering, ignoring")
+		}
+		return false
+	}
+}

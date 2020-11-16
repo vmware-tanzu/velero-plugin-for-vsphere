@@ -19,6 +19,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
+	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
@@ -30,8 +32,6 @@ import (
 	"time"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
-	astrolabeServer "github.com/vmware-tanzu/astrolabe/pkg/server"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -156,6 +156,7 @@ type server struct {
 	dataMover             *dataMover.DataMover
 	snapManager           *snapshotmgr.SnapshotManager
 	externalDataMgr       bool
+	vcConfigSecret        bool
 }
 
 func (s *server) run() error {
@@ -188,27 +189,27 @@ func getVCConfigParams(config serverConfig, params map[string]interface{}, logge
 	if config.vCenter == "" {
 		return errors.New("getVCConfigParams: parameter vcenter-address not provided")
 	}
-	params[ivd.HostVcParamKey] = config.vCenter
+	params[vsphere.HostVcParamKey] = config.vCenter
 
 	if config.user == "" {
 		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
 	}
-	params[ivd.UserVcParamKey] = config.user
+	params[vsphere.UserVcParamKey] = config.user
 
 	passwd := os.Getenv("VC_PASSWORD")
 	if passwd == "" {
 		logger.Warnf("getVCConfigParams: Environment variable VC_PASSWORD not set or empty")
 	}
-	params[ivd.PasswordVcParamKey] = passwd
+	params[vsphere.PasswordVcParamKey] = passwd
 
 	if config.clusterId == "" {
 		return errors.New("getVCConfigParams: parameter vcenter-user not provided")
 	}
-	params[ivd.ClusterVcParamKey] = config.clusterId
+	params[vsphere.ClusterVcParamKey] = config.clusterId
 
 	// Below vc configuration params are optional
-	params[ivd.PortVcParamKey] = config.port
-	params[ivd.InsecureFlagVcParamKey] = strconv.FormatBool(config.insecureFlag)
+	params[vsphere.PortVcParamKey] = config.port
+	params[vsphere.InsecureFlagVcParamKey] = strconv.FormatBool(config.insecureFlag)
 
 	return nil
 }
@@ -244,7 +245,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 			return nil, err
 		}
 
-		logger.Infof("VC configuration provided by user for :%s", ivdParams[ivd.HostVcParamKey])
+		logger.Infof("VC configuration provided by user for :%s", ivdParams[vsphere.HostVcParamKey])
 	}
 
 	snapshotMgrConfig := make(map[string]string)
@@ -259,7 +260,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	}
 	s3RepoParams := make(map[string]interface{})
 
-	configInfo := astrolabeServer.NewConfigInfo(peConfigs, s3Config)
+	configInfo := server2.NewConfigInfo(peConfigs, s3Config)
 	snapshotMgr, err := snapshotmgr.NewSnapshotManagerFromConfig(configInfo, s3RepoParams, snapshotMgrConfig,
 		clientConfig, logger)
 	if err != nil {
@@ -296,6 +297,7 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		dataMover:             clusterDataMover,
 		snapManager:           snapshotMgr,
 		externalDataMgr:       externalDataMgr,
+		vcConfigSecret:        config.vcConfigFromSecret,
 	}
 	return s, nil
 }
@@ -353,6 +355,21 @@ func (s *server) runControllers() error {
 		s.dataMover,
 		os.Getenv("NODE_NAME"),
 	)
+
+	if !s.externalDataMgr && s.vcConfigSecret {
+		s.logger.Infof("Watching for vc config secret changes.")
+		vcConfigController := controller.NewVcConfigController(
+			s.logger,
+			s.kubeInformerFactory.Core().V1().Secrets(),
+			s.dataMover,
+			s.snapManager,
+		)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			vcConfigController.Run(s.ctx, 1)
+		}()
+	}
 
 	wg.Add(1)
 	go func() {

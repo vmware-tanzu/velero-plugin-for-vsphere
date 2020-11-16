@@ -16,8 +16,6 @@ limitations under the License.
 
 package cmd
 
-import "time"
-
 const (
 	// the port where prometheus metrics are exposed
 	DefaultMetricsAddress = ":8085"
@@ -30,7 +28,5 @@ const (
 	DefaultInsecureFlag       bool = true
 	DefaultVCConfigFromSecret bool = true
 
-	DefaultBackupWorkers      = 1
-	DefaultRetryIntervalStart = time.Second
-	DefaultRetryIntervalMax   = 5 * time.Minute
+	DefaultBackupWorkers = 1
 )

@@ -787,8 +787,8 @@ github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a/go.mod h1:v3UYOV
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/vishvananda/netlink v1.0.0/go.mod h1:+SR5DhBJrl6ZM7CoCKvpw5BKroDKQ+PJqOg65H/2ktk=
 github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936/go.mod h1:ZjcWmFBXmLKZu9Nxj3WKYEafiSqer2rnvPr0en9UNpI=
-github.com/vmware-tanzu/astrolabe v0.1.2-0.20201008235446-3a8d26a2c1bf h1:JCXrID2CiNOdEo9TN3Dae3EfcYCENv9i/YjXK7fDruo=
-github.com/vmware-tanzu/astrolabe v0.1.2-0.20201008235446-3a8d26a2c1bf/go.mod h1:Af9uI95FSmiaKAiyUFa21rvFAeU195hIv7dMK3XnRag=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20201114003729-394c01f13c75 h1:Us8oETgxuHdH+PAyzre0p3pWqFNsaO0v5yVpU2TwkT0=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20201114003729-394c01f13c75/go.mod h1:Af9uI95FSmiaKAiyUFa21rvFAeU195hIv7dMK3XnRag=
 github.com/vmware-tanzu/velero v1.5.1 h1:PMcPfrhv91AfO/NPIWJDVUEql+DUixPnTjg+LTV95yI=
 github.com/vmware-tanzu/velero v1.5.1/go.mod h1:SIyHunlEyLVeKjWR34rv0mLeNVsH5wiR/EmQuUEo1/k=
 github.com/vmware/govmomi v0.20.3/go.mod h1:URlwyTFZX72RmxtxuaFL2Uj3fD1JTvZdx59bHWk6aFU=
