@@ -166,6 +166,10 @@ func RetrieveStorageClassMapping(config *rest.Config, veleroNs string, logger lo
 }
 
 func UpdateSnapshotWithNewStorageClass(config *rest.Config, itemSnapshot *backupdriverv1.Snapshot, storageClassMapping map[string]string, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
+	if itemSnapshot == nil {
+		return backupdriverv1.Snapshot{}, errors.New("itemSnapshot is nil, unable to update")
+	}
+
 	var err error
 	snapshotMetadata := itemSnapshot.Status.Metadata
 
@@ -176,7 +180,18 @@ func UpdateSnapshotWithNewStorageClass(config *rest.Config, itemSnapshot *backup
 	}
 
 	// update the PVC storage class
-	old := *pvc.Spec.StorageClassName
+	var old string
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
+		_, ok := storageClassMapping[constants.EmptyStorageClass]
+		if !ok {
+			errMsg := fmt.Sprintf("PVC %s/%s has no storage class, unable to restore", pvc.Namespace, pvc.Name)
+			logger.Error(errMsg)
+			return *itemSnapshot, errors.New(errMsg)
+		}
+		old = constants.EmptyStorageClass
+	} else {
+		old = *pvc.Spec.StorageClassName
+	}
 	logger.Infof("Updating storage class name for old storage class: %s", old)
 	newName, ok := storageClassMapping[old]
 	if !ok {
