@@ -24,8 +24,8 @@ of VDDK Programming Guide. **Note: please apply privileges at the vCenter Server
 * Install Velero - please see the Velero documentation https://velero.io/docs/v1.3.1/basic-install
 * [Install the AWS plugin](#Install-the-aws-plugin)
 * [Install the plugin](#Install-the-plugin)
-* [Create a VolumeSnapshotLocation](Create-a-VolumeSnapshotLocation)
-* [Backup using the plugin](Backup-using-the-plugin)
+* [Create a VolumeSnapshotLocation](#create-a-volumesnapshotlocation)
+* [Backup using the plugin](#backup-using-the-plugin)
 
 ## Install the AWS plugin
 Volume backups are stored in an S3 bucket.  Currently these are stored in the same bucket configured for
