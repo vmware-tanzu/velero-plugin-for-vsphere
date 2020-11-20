@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	v1 "k8s.io/api/core/v1"
@@ -33,7 +34,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	astrolabe_pvc "github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	"github.com/vmware-tanzu/astrolabe/pkg/server"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
@@ -72,15 +72,15 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 		s3RepoParams["s3Url"] = params["s3Url"]
 	}
 
-	_, isVcHostExist := params[ivd.HostVcParamKey]
+	_, isVcHostExist := params[vsphere.HostVcParamKey]
 	if isVcHostExist {
-		ivdParams[ivd.HostVcParamKey] = params[ivd.HostVcParamKey]
-		ivdParams[ivd.UserVcParamKey] = params[ivd.UserVcParamKey]
-		ivdParams[ivd.PasswordVcParamKey] = params[ivd.PasswordVcParamKey]
-		ivdParams[ivd.PortVcParamKey] = params[ivd.PortVcParamKey]
-		ivdParams[ivd.DatacenterVcParamKey] = params[ivd.DatacenterVcParamKey]
-		ivdParams[ivd.InsecureFlagVcParamKey] = params[ivd.InsecureFlagVcParamKey]
-		ivdParams[ivd.ClusterVcParamKey] = params[ivd.ClusterVcParamKey]
+		ivdParams[vsphere.HostVcParamKey] = params[vsphere.HostVcParamKey]
+		ivdParams[vsphere.UserVcParamKey] = params[vsphere.UserVcParamKey]
+		ivdParams[vsphere.PasswordVcParamKey] = params[vsphere.PasswordVcParamKey]
+		ivdParams[vsphere.PortVcParamKey] = params[vsphere.PortVcParamKey]
+		ivdParams[vsphere.DatacenterVcParamKey] = params[vsphere.DatacenterVcParamKey]
+		ivdParams[vsphere.InsecureFlagVcParamKey] = params[vsphere.InsecureFlagVcParamKey]
+		ivdParams[vsphere.ClusterVcParamKey] = params[vsphere.ClusterVcParamKey]
 	}
 
 	peConfigs := make(map[string]map[string]interface{})
@@ -111,7 +111,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	// An empty ivd map must be passed to use the IVD
 	// TODO - Move this code out to the caller - this assumes we always want IVD
 	if ivdParams, ok := configInfo.PEConfigs["ivd"]; ok {
-		if _, ok := ivdParams[ivd.HostVcParamKey]; !ok {
+		if _, ok := ivdParams[vsphere.HostVcParamKey]; !ok {
 			err := utils.RetrieveVcConfigSecret(ivdParams, k8sRestConfig, logger)
 			if err != nil {
 				logger.WithError(err).Errorf("Could not retrieve vsphere credential from k8s secret")
@@ -135,7 +135,6 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 		config:        config,
 		Pem:           dpem,
 		clusterFlavor: clusterFlavor,
-		//s3PETM:      s3PETM,
 	}
 	logger.Infof("SnapshotManager is initialized with the configuration: %v", config)
 	// if so, check whether there is any specification about remote storage location in config
@@ -777,6 +776,24 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 	this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
 
 	return pe.GetID(), err
+}
+
+func (this *SnapshotManager) ReloadSnapshotManagerIvdPetmConfig(ivdParams map[string]interface{}) error {
+
+	petm := this.Pem.GetProtectedEntityTypeManager("ivd")
+	if petm == nil {
+		return errors.New("Failed to retrieve IVD Protected Type Manager from Snapshot Manager")
+	}
+	dmPetm, ok := petm.(DataManagerProtectedEntityTypeManager)
+	if ok {
+		this.Debugf("Found DataManagerProtectedEntityTypeManager during snapshot IVD Petm Reload")
+		err := dmPetm.ReloadDmIvdPetm(context.TODO(), ivdParams, this.FieldLogger)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to Reload IVD Config in SnapshotManager.")
+		}
+		return nil
+	}
+	return errors.New("Failed to find ivd petm associated with snapshot manager.")
 }
 
 func uploadCRNameForSnapshotPEID(snapshotPEID astrolabe.ProtectedEntityID) (string, error) {

@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"fmt"
+	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
@@ -30,7 +31,6 @@ import (
 	"time"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/pkg/errors"
@@ -82,8 +82,8 @@ func NewCommand(f client.Factory) *cobra.Command {
 			kubeConfig:         "",
 			resyncPeriod:       constants.ResyncPeriod,
 			workers:            cmd.DefaultBackupWorkers,
-			retryIntervalStart: cmd.DefaultRetryIntervalStart,
-			retryIntervalMax:   cmd.DefaultRetryIntervalMax,
+			retryIntervalStart: constants.DefaultRetryIntervalStart,
+			retryIntervalMax:   constants.DefaultRetryIntervalMax,
 		}
 	)
 

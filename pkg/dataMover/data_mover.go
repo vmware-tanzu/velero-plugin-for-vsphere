@@ -21,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
+	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
@@ -33,11 +34,12 @@ type DataMover struct {
 	logger              logrus.FieldLogger
 	ivdPETM             *ivd.IVDProtectedEntityTypeManager
 	inProgressCancelMap *sync.Map
+	reloadConfigLock    *sync.Mutex
 }
 
 func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldLogger) (*DataMover, error) {
 	// Retrieve VC configuration from the cluster only of it has not been passed by the caller
-	if _, ok := params[ivd.HostVcParamKey]; !ok {
+	if _, ok := params[vsphere.HostVcParamKey]; !ok {
 		err := utils.RetrieveVcConfigSecret(params, nil, logger)
 
 		if err != nil {
@@ -58,10 +60,12 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 	logger.Infof("DataMover: Get ivdPETM from the params map")
 
 	var syncMap sync.Map
+	var mut sync.Mutex
 	dataMover := DataMover{
 		logger:              logger,
 		ivdPETM:             ivdPETM,
 		inProgressCancelMap: &syncMap,
+		reloadConfigLock:    &mut,
 	}
 
 	logger.Infof("DataMover is initialized")
@@ -69,6 +73,8 @@ func NewDataMoverFromCluster(params map[string]interface{}, logger logrus.FieldL
 }
 
 func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+	this.reloadConfigLock.Lock()
+	defer this.reloadConfigLock.Unlock()
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	logger := this.logger
 	s3PETM, err := utils.GetDefaultS3PETM(logger)
@@ -80,6 +86,8 @@ func (this *DataMover) CopyToRepo(peID astrolabe.ProtectedEntityID) (astrolabe.P
 }
 
 func (this *DataMover) CopyToRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository) (astrolabe.ProtectedEntityID, error) {
+	this.reloadConfigLock.Lock()
+	defer this.reloadConfigLock.Unlock()
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	logger := this.logger
 	s3PETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, logger)
@@ -118,6 +126,8 @@ func (this *DataMover) copyToRepo(peID astrolabe.ProtectedEntityID, s3PETM *s3re
 }
 
 func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
+	this.reloadConfigLock.Lock()
+	defer this.reloadConfigLock.Unlock()
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	logger := this.logger
 	s3PETM, err := utils.GetDefaultS3PETM(logger)
@@ -129,6 +139,8 @@ func (this *DataMover) CopyFromRepo(peID astrolabe.ProtectedEntityID, targetPEID
 }
 
 func (this *DataMover) CopyFromRepoWithBackupRepository(peID astrolabe.ProtectedEntityID, targetPEID astrolabe.ProtectedEntityID, backupRepository *backupdriverv1.BackupRepository, options astrolabe.CopyCreateOptions) (astrolabe.ProtectedEntityID, error) {
+	this.reloadConfigLock.Lock()
+	defer this.reloadConfigLock.Unlock()
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	logger := this.logger
 	s3PETM, err := backuprepository.GetRepositoryFromBackupRepository(backupRepository, logger)
@@ -223,4 +235,16 @@ func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID)
 		this.inProgressCancelMap.Delete(peID)
 		log.Infof("Unregistered from on-going upload map.")
 	}
+}
+
+func (this *DataMover) ReloadDataMoverIvdPetmConfig(params map[string]interface{}) error {
+	this.reloadConfigLock.Lock()
+	defer this.reloadConfigLock.Unlock()
+	this.logger.Infof("DataMover Config Reload initiated.")
+	err := this.ivdPETM.ReloadConfig(context.TODO(), params)
+	if err != nil {
+		this.logger.Infof("Failed to reload IVD PE Type Manager config associated with DataMover")
+		return err
+	}
+	return nil
 }
