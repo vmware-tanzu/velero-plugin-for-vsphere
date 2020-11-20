@@ -59,7 +59,14 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(item.UnstructuredContent(), &pvc); err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
-	p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s started", pvc.Namespace, pvc.Name)
+	storageClassName := ""
+	if pvc.Spec.StorageClassName != nil {
+		storageClassName = *pvc.Spec.StorageClassName
+	} else {
+		p.Log.Infof("VSphere PVCBackupItemAction: StorageClass is not set for PVC %s/%s", pvc.Namespace, pvc.Name)
+	}
+	p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s started. Storage Class Name: %s", pvc.Namespace, pvc.Name, storageClassName)
+
 	defer func() {
 		p.Log.Infof("VSphere PVCBackupItemAction for PVC %s/%s completed with err: %v", pvc.Namespace, pvc.Name, err)
 	}()

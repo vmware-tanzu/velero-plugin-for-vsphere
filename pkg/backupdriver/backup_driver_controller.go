@@ -215,6 +215,13 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 		ctrl.logger.Errorf("Error extracting metadata into PVC: %v", err)
 		return err
 	}
+	if pvc.Spec.StorageClassName != nil {
+		ctrl.logger.Infof("StorageClassName is %s for PVC %s/%s", *pvc.Spec.StorageClassName, pvc.Namespace, pvc.Name)
+	} else {
+		errMsg := fmt.Sprintf("cloneFromSnapshot failed for PVC %s/%s because StorageClassName is not set", pvc.Namespace, pvc.Name)
+		ctrl.logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
 	ctrl.logger.Infof("cloneFromSnapshot: retrieved PVC %s/%s from metadata. %+v", pvc.Namespace, pvc.Name, pvc)
 
 	// cloneFromSnapshot.Spec.Kind should be "PersistentVolumeClaim" for now
