@@ -343,8 +343,13 @@ func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metad
 	svcStorageClassName := ""
 	if svcPVC.Spec.StorageClassName != nil {
 		svcStorageClassName = *svcPVC.Spec.StorageClassName
+	} else {
+		this.logger.Errorf("Failed to restore PVC %s/%s in Supervisor Cluster because StorageClassName is not set", svcPVC.Namespace, svcPVC.Name)
+		return nil, "", "", errors.Wrapf(err, "failed to restore PVC %s/%s in Supervisor Cluster because StorageClassName is not set",
+			svcPVC.Namespace, svcPVC.Name)
 	}
-	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Name, svcPVC.Namespace)
+
+	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Namespace, svcPVC.Name)
 
 	return &svcPVC, gcPVCNamespace, gcPVCName, nil
 }
