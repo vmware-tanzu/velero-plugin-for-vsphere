@@ -26,10 +26,8 @@ import (
 )
 
 // DeleteSnapshotLister helps list DeleteSnapshots.
-// All objects returned here must be treated as read-only.
 type DeleteSnapshotLister interface {
 	// List lists all DeleteSnapshots in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.DeleteSnapshot, err error)
 	// DeleteSnapshots returns an object that can list and get DeleteSnapshots.
 	DeleteSnapshots(namespace string) DeleteSnapshotNamespaceLister
@@ -60,13 +58,10 @@ func (s *deleteSnapshotLister) DeleteSnapshots(namespace string) DeleteSnapshotN
 }
 
 // DeleteSnapshotNamespaceLister helps list and get DeleteSnapshots.
-// All objects returned here must be treated as read-only.
 type DeleteSnapshotNamespaceLister interface {
 	// List lists all DeleteSnapshots in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.DeleteSnapshot, err error)
 	// Get retrieves the DeleteSnapshot from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.DeleteSnapshot, error)
 	DeleteSnapshotNamespaceListerExpansion
 }

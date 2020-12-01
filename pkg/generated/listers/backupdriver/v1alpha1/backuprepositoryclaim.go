@@ -26,10 +26,8 @@ import (
 )
 
 // BackupRepositoryClaimLister helps list BackupRepositoryClaims.
-// All objects returned here must be treated as read-only.
 type BackupRepositoryClaimLister interface {
 	// List lists all BackupRepositoryClaims in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.BackupRepositoryClaim, err error)
 	// BackupRepositoryClaims returns an object that can list and get BackupRepositoryClaims.
 	BackupRepositoryClaims(namespace string) BackupRepositoryClaimNamespaceLister
@@ -60,13 +58,10 @@ func (s *backupRepositoryClaimLister) BackupRepositoryClaims(namespace string) B
 }
 
 // BackupRepositoryClaimNamespaceLister helps list and get BackupRepositoryClaims.
-// All objects returned here must be treated as read-only.
 type BackupRepositoryClaimNamespaceLister interface {
 	// List lists all BackupRepositoryClaims in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.BackupRepositoryClaim, err error)
 	// Get retrieves the BackupRepositoryClaim from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.BackupRepositoryClaim, error)
 	BackupRepositoryClaimNamespaceListerExpansion
 }
