@@ -26,10 +26,8 @@ import (
 )
 
 // CloneFromSnapshotLister helps list CloneFromSnapshots.
-// All objects returned here must be treated as read-only.
 type CloneFromSnapshotLister interface {
 	// List lists all CloneFromSnapshots in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.CloneFromSnapshot, err error)
 	// CloneFromSnapshots returns an object that can list and get CloneFromSnapshots.
 	CloneFromSnapshots(namespace string) CloneFromSnapshotNamespaceLister
@@ -60,13 +58,10 @@ func (s *cloneFromSnapshotLister) CloneFromSnapshots(namespace string) CloneFrom
 }
 
 // CloneFromSnapshotNamespaceLister helps list and get CloneFromSnapshots.
-// All objects returned here must be treated as read-only.
 type CloneFromSnapshotNamespaceLister interface {
 	// List lists all CloneFromSnapshots in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.CloneFromSnapshot, err error)
 	// Get retrieves the CloneFromSnapshot from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.CloneFromSnapshot, error)
 	CloneFromSnapshotNamespaceListerExpansion
 }
