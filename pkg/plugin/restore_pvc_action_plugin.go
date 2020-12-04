@@ -29,7 +29,7 @@ type NewPVCRestoreItemAction struct {
 
 // AppliesTo returns information indicating that the PVCBackupItemAction should be invoked to backup PVCs.
 func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
-	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
+	p.Log.Info("VSphere PVCRestoreItemAction AppliesTo")
 
 	resources := []string{"persistentvolumeclaims"}
 	for resourceToBlock, _ := range constants.ResourcesToBlock {
