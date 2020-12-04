@@ -1,6 +1,6 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1
+apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -15,36 +15,37 @@ spec:
     plural: backuprepositoryclaims
     singular: backuprepositoryclaim
   scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: ' BackupRepositoryClaim is used to define/access a BackupRepository.  A new BackupRepository will be created  with the RepositoryDriver, Credential and AllowedNamespaces will either be the namespace that the BackupRepositorySpec  was created in or the AllowedNamespaces specified in the BackupRepositorySpec.  The BackupRepository field will  be updated with the name of the BackupRepository created.'
+      properties:
+        allowedNamespaces:
+          items:
+            type: string
+          type: array
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        backupRepository:
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        repopsitoryParameters:
+          additionalProperties:
+            type: string
+          type: object
+        repositoryDriver:
+          type: string
+      required:
+      - repopsitoryParameters
+      - repositoryDriver
+      type: object
+  version: v1alpha1
   versions:
   - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: ' BackupRepositoryClaim is used to define/access a BackupRepository.  A new BackupRepository will be created  with the RepositoryDriver, Credential and AllowedNamespaces will either be the namespace that the BackupRepositorySpec  was created in or the AllowedNamespaces specified in the BackupRepositorySpec.  The BackupRepository field will  be updated with the name of the BackupRepository created.'
-        properties:
-          allowedNamespaces:
-            items:
-              type: string
-            type: array
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          backupRepository:
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          repopsitoryParameters:
-            additionalProperties:
-              type: string
-            type: object
-          repositoryDriver:
-            type: string
-        required:
-        - repopsitoryParameters
-        - repositoryDriver
-        type: object
     served: true
     storage: true
 status:
