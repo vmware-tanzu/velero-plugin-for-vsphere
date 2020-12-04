@@ -26,10 +26,8 @@ import (
 )
 
 // UploadLister helps list Uploads.
-// All objects returned here must be treated as read-only.
 type UploadLister interface {
 	// List lists all Uploads in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Upload, err error)
 	// Uploads returns an object that can list and get Uploads.
 	Uploads(namespace string) UploadNamespaceLister
@@ -60,13 +58,10 @@ func (s *uploadLister) Uploads(namespace string) UploadNamespaceLister {
 }
 
 // UploadNamespaceLister helps list and get Uploads.
-// All objects returned here must be treated as read-only.
 type UploadNamespaceLister interface {
 	// List lists all Uploads in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Upload, err error)
 	// Get retrieves the Upload from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Upload, error)
 	UploadNamespaceListerExpansion
 }

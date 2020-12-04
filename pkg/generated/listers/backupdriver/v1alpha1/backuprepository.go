@@ -26,13 +26,10 @@ import (
 )
 
 // BackupRepositoryLister helps list BackupRepositories.
-// All objects returned here must be treated as read-only.
 type BackupRepositoryLister interface {
 	// List lists all BackupRepositories in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.BackupRepository, err error)
 	// Get retrieves the BackupRepository from the index for a given name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.BackupRepository, error)
 	BackupRepositoryListerExpansion
 }

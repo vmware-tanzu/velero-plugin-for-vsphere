@@ -26,10 +26,8 @@ import (
 )
 
 // SnapshotLister helps list Snapshots.
-// All objects returned here must be treated as read-only.
 type SnapshotLister interface {
 	// List lists all Snapshots in the indexer.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Snapshot, err error)
 	// Snapshots returns an object that can list and get Snapshots.
 	Snapshots(namespace string) SnapshotNamespaceLister
@@ -60,13 +58,10 @@ func (s *snapshotLister) Snapshots(namespace string) SnapshotNamespaceLister {
 }
 
 // SnapshotNamespaceLister helps list and get Snapshots.
-// All objects returned here must be treated as read-only.
 type SnapshotNamespaceLister interface {
 	// List lists all Snapshots in the indexer for a given namespace.
-	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Snapshot, err error)
 	// Get retrieves the Snapshot from the indexer for a given namespace and name.
-	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Snapshot, error)
 	SnapshotNamespaceListerExpansion
 }
