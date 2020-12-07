@@ -101,7 +101,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 
 	p.Log.Info("Creating a DeleteSnapshot CR")
 
-	updatedDeleteSnapshot, err := snapshotUtils.DeleteSnapshotRef(ctx, backupdriverClient, snapshotID, pvc.Namespace, *backupRepository,
+	updatedDeleteSnapshot, err := snapshotUtils.DeleteSnapshotRef(ctx, backupdriverClient, snapshotID, veleroNs, *backupRepository,
 		[]backupdriverv1.DeleteSnapshotPhase{backupdriverv1.DeleteSnapshotPhaseCompleted, backupdriverv1.DeleteSnapshotPhaseFailed}, p.Log)
 	if err != nil {
 		p.Log.Errorf("Failed to create a DeleteSnapshot CR: %v", err)
