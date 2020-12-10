@@ -121,9 +121,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	// Start with a few of prerequisite checks before installing backup-driver
 	fmt.Println("The prerequisite checks for backup-driver started")
 
-	// Check vSphere CSI driver version
-	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient)
-
 	// Check velero version
 	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)
 
@@ -131,9 +128,13 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	o.Image, _ = cmd.CheckPluginImageRepo(kubeClient, o.Namespace, o.Image, constants.BackupDriverForPlugin)
 
 	// Check cluster flavor for backup-driver
-	if err := o.CheckClusterFlavorForBackupDriver(); err != nil {
+	clusterFlavor, err := o.CheckClusterFlavorForBackupDriver()
+	if err != nil {
 		return err
 	}
+
+	// Check vSphere CSI driver version
+	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
 
 	// Check feature flags for backup-driver
 	if err := o.CheckFeatureFlagsForBackupDriver(kubeClient); err != nil {
@@ -226,10 +227,10 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	return nil
 }
 
-func (o *InstallOptions) CheckClusterFlavorForBackupDriver() error {
+func (o *InstallOptions) CheckClusterFlavorForBackupDriver() (constants.ClusterFlavor, error) {
 	clusterFlavor, err := utils.GetClusterFlavor(nil)
 	if err != nil {
-		return errors.Wrap(err, "Failed to get cluster flavor for backup-driver")
+		return constants.Unknown, errors.Wrap(err, "Failed to get cluster flavor for backup-driver")
 	}
 
 	// Assign master node affinity and host network to Supervisor deployment
@@ -239,7 +240,7 @@ func (o *InstallOptions) CheckClusterFlavorForBackupDriver() error {
 		o.HostNetwork = true
 	}
 
-	return nil
+	return clusterFlavor, nil
 }
 
 func (o *InstallOptions) CheckFeatureFlagsForBackupDriver(kubeClient kubernetes.Interface) error {
