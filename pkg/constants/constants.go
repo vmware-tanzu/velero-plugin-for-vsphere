@@ -158,6 +158,7 @@ const (
 
 const (
 	ItemSnapshotLabel   = "velero-plugin-for-vsphere/item-snapshot-blob"
+	PluginVersionLabel  = "velero-plugin-for-vsphere/plugin-version"
 	SnapshotBackupLabel = "velero.io/backup-name"
 )
 
