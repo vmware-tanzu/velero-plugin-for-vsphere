@@ -148,7 +148,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	fmt.Println("The prerequisite checks for data-manager started")
 
 	// Check cluster flavor for data-manager
-	o.CheckClusterFlavorForDataManager()
+	clusterFlavor := o.CheckClusterFlavorForDataManager()
 
 	// Check feature flags for data-manager
 	_ = o.CheckFeatureFlagsForDataManager(kubeClient)
@@ -160,7 +160,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	// Check vSphere CSI driver version
-	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient)
+	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
 
 	// Check velero version
 	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)
@@ -271,7 +271,7 @@ func (o *InstallOptions) getNumberOfNodes(kubeClient kubernetes.Interface) (int,
 	return len(nodeList.Items), nil
 }
 
-func (o *InstallOptions) CheckClusterFlavorForDataManager() {
+func (o *InstallOptions) CheckClusterFlavorForDataManager() constants.ClusterFlavor {
 	clusterFlavor, _ := utils.GetClusterFlavor(nil)
 
 	// In case of Guest or Supervisor cluster, skip installing data manager
@@ -279,6 +279,8 @@ func (o *InstallOptions) CheckClusterFlavorForDataManager() {
 		fmt.Printf("The Cluster Flavor: %s. Skipping data manager installation.\n", clusterFlavor)
 		o.SkipInstall = true
 	}
+
+	return clusterFlavor
 }
 
 func (o *InstallOptions) CheckFeatureFlagsForDataManager(kubeClient kubernetes.Interface) error {

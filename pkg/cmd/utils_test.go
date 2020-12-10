@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	kubeclientfake "k8s.io/client-go/kubernetes/fake"
 	"strconv"
 	"testing"
@@ -575,6 +576,229 @@ func TestCheckPluginImageRepo(t *testing.T) {
 			kubeClient := kubeclientfake.NewSimpleClientset(test.veleroDeployment)
 			actualImage, actualError := CheckPluginImageRepo(kubeClient, test.veleroDeployment.Namespace, test.defaultImage, test.serverType)
 			assert.Equal(t, test.expectedImage, actualImage)
+			assert.Equal(t, test.expectedError == nil, actualError == nil)
+			if actualError != nil {
+				assert.Equal(t, test.expectedError.Error(), actualError.Error())
+			}
+		})
+	}
+}
+
+func TestCheckVSphereCSIDriverVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		runtimeObjs   []runtime.Object
+		clusterFlavor constants.ClusterFlavor
+		expectedError error
+	}{
+		{
+			name: "Positive Case in CSI v2.0.1 Vanilla",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/syncer:v2.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: nil,
+		},
+		{
+			name: "Positive Case in CSI v2.0.1 Vanilla with Customized Registry Endpoint",
+			runtimeObjs: []runtime.Object{
+				&appsv1.StatefulSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.StatefulSetSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/syncer:v2.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: nil,
+		},
+		{
+			name: "Positive Case in CSI v2.1.0 dev Vanilla",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/ci/driver:latest",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "gcr.io/cloud-provider-vsphere/csi/ci/syncer:latest",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: nil,
+		},
+		{
+			name: "Negative Case in CSI v2.0.1 Vanilla with Unexpected Images",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/xyz/driver:v2.0.1",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "gcr.io/cloud-provider-vsphere/csi/ci/syncer:v2.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: errors.New("Expected CSI driver/syncer images not found"),
+		},
+		{
+			name: "Negative Case in CSI v2.0.1 Vanilla with Unexpected Deployment Name",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-driver",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/syncer:v2.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: errors.Errorf("vSphere CSI controller, %s, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster", constants.VSphereCSIController),
+		},
+		{
+			name: "Negative Case in CSI v1.0.1 Vanilla with Unexpected Deployment Name",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v1.0.1",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/syncer:v1.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
+			expectedError: errors.Errorf("The version of vSphere CSI controller is below the minimum requirement (%s)", constants.CsiMinVersion),
+		},
+		{
+			name: "Positive case in CSI driver Guest",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "abc.io/vsphere-csi:v0.0.1.alpha_abc.79-7ecdcb2",
+									},
+									{
+										Name:  "vsphere-syncer",
+										Image: "abc.io/syncer:v0.0.1.alpha_abc.79-7ecdcb2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.TkgGuest,
+			expectedError: nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			actualError := CheckVSphereCSIDriverVersion(kubeClient, test.clusterFlavor)
 			assert.Equal(t, test.expectedError == nil, actualError == nil)
 			if actualError != nil {
 				assert.Equal(t, test.expectedError.Error(), actualError.Error())
