@@ -3,15 +3,14 @@ package paravirt
 import (
 	"context"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"io"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/pvc"
 	backupdriverv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
+	"io"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -117,22 +116,17 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	snapshotToDelete astrolabe.ProtectedEntitySnapshotID,
 	params map[string]map[string]interface{}) (bool, error) {
 	this.logger.Infof("ParaVirtProtectedEntity: DeleteSnapshot called on Paravirtualized Protected Entity, %v snapshotToDelete: %s", this.id.String(), snapshotToDelete.String())
-	peInfo, err := this.GetInfo(ctx)
-	if err != nil {
-		this.logger.Errorf("Failed to get info for ParaVirtProtectedEntity %v", this.id.String())
-		return false, errors.WithStack(err)
-	}
-	this.logger.Infof("ParaVirtProtectedEntity: Retrieved info id: %s, name: %s", peInfo.GetID().String(), peInfo.GetName())
-
+	var err error
 	backupRepositoryName, ok := params[astrolabe.PvcPEType]["BackupRepositoryName"].(string)
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
 
+	peIDName := this.GetID().GetID()
 	// Reconstruct the snapshot-id to delete.
 	peID := astrolabe.NewProtectedEntityIDWithNamespaceAndSnapshot(
 		astrolabe.PvcPEType,
-		peInfo.GetName(),
+		peIDName,
 		this.pvpetm.svcNamespace,
 		snapshotToDelete.String())
 	this.logger.Infof("ParaVirtProtectedEntity: Reconstructed peID: %s", peID.String())
