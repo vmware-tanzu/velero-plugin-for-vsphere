@@ -14,7 +14,7 @@ require (
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
-	github.com/vmware-tanzu/astrolabe v0.1.2-0.20201114003729-394c01f13c75
+	github.com/vmware-tanzu/astrolabe v0.1.2-0.20201210004320-383775c81f51
 	github.com/vmware-tanzu/velero v1.5.1
 	k8s.io/api v0.18.4
 	k8s.io/apiextensions-apiserver v0.18.4
