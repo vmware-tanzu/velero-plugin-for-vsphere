@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
@@ -44,7 +45,6 @@ import (
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
@@ -195,6 +195,8 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		logger.Errorf("Failed to get client config")
 		return nil, err
 	}
+	clientConfig.QPS = config.clientQPS
+	clientConfig.Burst = config.clientBurst
 
 	// kubeClient is the client to the current cluster
 	// (vanilla, guest, or supervisor)
