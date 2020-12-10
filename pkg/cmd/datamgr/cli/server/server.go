@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
 	server2 "github.com/vmware-tanzu/astrolabe/pkg/server"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"log"
 	"net/http"
@@ -43,10 +44,8 @@ import (
 	pluginInformers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/signals"
-	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	"github.com/vmware-tanzu/velero/pkg/metrics"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -143,7 +142,6 @@ type server struct {
 	metricsAddress        string
 	kubeClientConfig      *rest.Config
 	kubeClient            kubernetes.Interface
-	veleroClient          velero_clientset.Interface
 	pluginClient          plugin_clientset.Interface
 	pluginInformerFactory pluginInformers.SharedInformerFactory
 	kubeInformerFactory   kubeinformers.SharedInformerFactory
@@ -216,19 +214,17 @@ func getVCConfigParams(config serverConfig, params map[string]interface{}, logge
 
 func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*server, error) {
 	logger.Infof("data manager server is started")
-	kubeClient, err := f.KubeClient()
-	if err != nil {
-		return nil, err
-	}
-
-	veleroClient, err := f.Client()
-	if err != nil {
-		return nil, err
-	}
 
 	clientConfig, err := f.ClientConfig()
 	if err != nil {
 		return nil, err
+	}
+	clientConfig.QPS = config.clientQPS
+	clientConfig.Burst = config.clientBurst
+
+	kubeClient, err := kubernetes.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
 
 	pluginClient, err := plugin_clientset.NewForConfig(clientConfig)
@@ -287,7 +283,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		namespace:             f.Namespace(),
 		metricsAddress:        config.metricsAddress,
 		kubeClient:            kubeClient,
-		veleroClient:          veleroClient,
 		pluginClient:          pluginClient,
 		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, constants.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
 		kubeInformerFactory:   kubeinformers.NewSharedInformerFactory(kubeClient, 0),
