@@ -99,13 +99,13 @@ const (
 )
 
 const (
-	DataManagerForPlugin  string = "data-manager-for-plugin"
-	BackupDriverForPlugin string = "backup-driver"
-	BackupDriverNamespace string = "velero-vsphere-plugin-backupdriver"
-
+	DataManagerForPlugin   string = "data-manager-for-plugin"
+	BackupDriverForPlugin  string = "backup-driver"
+	BackupDriverNamespace  string = "velero-vsphere-plugin-backupdriver"
 	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
-
-	VeleroDeployment string = "velero"
+	VeleroDeployment       string = "velero"
+	VSphereCSIController          = "vsphere-csi-controller"
+	KubeSystemNamespace           = "kube-system"
 )
 
 const (
@@ -309,8 +309,8 @@ const (
 
 const (
 	ImageRepositoryComponent = "Repository"
-	ImageContainerComponent = "Container"
-	ImageVersionComponent = "Version"
+	ImageContainerComponent  = "Container"
+	ImageVersionComponent    = "Version"
 )
 
 const (

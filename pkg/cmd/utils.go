@@ -58,7 +58,7 @@ func GetVersionFromImage(containers []v1.Container, imageName string) string {
 	var tag = ""
 	for _, container := range containers {
 		if strings.Contains(container.Image, imageName) {
-			tag = strings.Split(container.Image, ":")[1]
+			tag = utils.GetComponentFromImage(container.Image, constants.ImageVersionComponent)
 			break
 		}
 	}
@@ -195,55 +195,56 @@ func CompareVersion(currentVersion string, minVersion string) int {
 	current, _ := version.NewVersion(currentVersion)
 	minimum, _ := version.NewVersion(minVersion)
 
+	if current == nil || minimum == nil {
+		return -1
+	}
 	return current.Compare(minimum)
 }
 
-func CheckCSIVersion(containers []v1.Container) (bool, bool, error) {
-	isVersionOK := false
+func CheckCSIVersion(containers []v1.Container) error {
 	csi_driver_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/driver")
 	if csi_driver_version == "" {
-		csi_driver_version = GetVersionFromImage(containers, "cloudnativestorage/vsphere-csi")
+		csi_driver_version = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/ci/driver")
 		if csi_driver_version != "" {
-			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/vsphere-csi, setting version to min version %s\n",
-				csi_driver_version, constants.CsiMinVersion)
+			fmt.Printf("Got a prerelease version %s from container cloud-provider-vsphere/csi/ci/driver. Ignored it\n",
+				csi_driver_version)
 			csi_driver_version = constants.CsiMinVersion
 		}
 	}
+
 	csi_syncer_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/syncer")
 	if csi_syncer_version == "" {
-		csi_syncer_version = GetVersionFromImage(containers, "cloudnativestorage/syncer")
+		csi_syncer_version = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/ci/syncer")
 		if csi_syncer_version != "" {
-			fmt.Printf("Got pre-relase version %s from container cloudnativestorage/syncer, setting version to min version %s\n",
-				csi_syncer_version, constants.CsiMinVersion)
+			fmt.Printf("Got a prerelease version %s from container cloud-provider-vsphere/csi/ci/syncer. Ignored it\n",
+				csi_syncer_version)
 			csi_syncer_version = constants.CsiMinVersion
 		}
 	}
-	if CompareVersion(csi_driver_version, constants.CsiMinVersion) >= 0 && CompareVersion(csi_syncer_version, constants.CsiMinVersion) >= 0 {
-		isVersionOK = true
+
+	if csi_driver_version == "" || csi_syncer_version == "" {
+		return errors.New("Expected CSI driver/syncer images not found")
 	}
-	return true, isVersionOK, nil
+
+	if CompareVersion(csi_driver_version, constants.CsiMinVersion) < 0 || CompareVersion(csi_syncer_version, constants.CsiMinVersion) < 0 {
+		return errors.Errorf("The version of vSphere CSI controller is below the minimum requirement (%s)", constants.CsiMinVersion)
+	}
+
+	return nil
 }
 
-func CheckCSIInstalled(kubeClient kubernetes.Interface) (bool, bool, error) {
-	statefulsetList, err := kubeClient.AppsV1().StatefulSets("kube-system").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return false, false, err
+func CheckCSIInstalled(kubeClient kubernetes.Interface) error {
+	csiStatefulset, err := kubeClient.AppsV1().StatefulSets(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		return CheckCSIVersion(csiStatefulset.Spec.Template.Spec.Containers)
 	}
-	for _, item := range statefulsetList.Items {
-		if item.GetName() == "vsphere-csi-controller" {
-			return CheckCSIVersion(item.Spec.Template.Spec.Containers)
-		}
+
+	csiDeployment, err := kubeClient.AppsV1().Deployments(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		return CheckCSIVersion(csiDeployment.Spec.Template.Spec.Containers)
 	}
-	deploymentList, err := kubeClient.AppsV1().Deployments("kube-system").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return false, false, err
-	}
-	for _, item := range deploymentList.Items {
-		if item.Name == "vsphere-csi-controller" {
-			return CheckCSIVersion(item.Spec.Template.Spec.Containers)
-		}
-	}
-	return false, false, nil
+
+	return errors.Errorf("vSphere CSI controller, %s, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster", constants.VSphereCSIController)
 }
 
 func BuildConfig(master, kubeConfig string, f client.Factory) (*rest.Config, error) {
@@ -291,20 +292,15 @@ func GetCompatibleRepoAndTagFromPluginImage(kubeClient kubernetes.Interface, nam
 	return resultImage, nil
 }
 
-func CheckVSphereCSIDriverVersion(kubeClient kubernetes.Interface) error {
-	isCSIInstalled, isVersionOk, err := CheckCSIInstalled(kubeClient)
+func CheckVSphereCSIDriverVersion(kubeClient kubernetes.Interface, clusterFlavor constants.ClusterFlavor) error {
+	if clusterFlavor != constants.VSphere {
+		fmt.Println("Skipped the version check of CSI driver if it is not in a Vanilla cluster")
+		return nil
+	}
+
+	err := CheckCSIInstalled(kubeClient)
 	if err != nil {
-		fmt.Println("CSI driver check failed")
-		isCSIInstalled = false
-		isVersionOk = false
-	}
-
-	if !isCSIInstalled {
-		fmt.Println("Velero Plug-in for vSphere requires vSphere CSI/CNS and vSphere 6.7U3 to function. Please install the vSphere CSI/CNS driver")
-	}
-
-	if !isVersionOk {
-		fmt.Printf("vSphere CSI driver version is prior to %s. Velero Plug-in for vSphere requires CSI driver version to be %s or above\n", constants.CsiMinVersion, constants.CsiMinVersion)
+		fmt.Printf("Failed the version check of CSI driver. Error: %v\n", err)
 	}
 
 	return err
