@@ -21,8 +21,8 @@ const (
 	DefaultMetricsAddress = ":8085"
 
 	// server's client default qps and burst
-	DefaultClientQPS   float32 = 20.0
-	DefaultClientBurst int     = 30
+	DefaultClientQPS   float32 = 100.0
+	DefaultClientBurst int     = 100
 
 	DefaultProfilerAddress         = "localhost:6060"
 	DefaultInsecureFlag       bool = true

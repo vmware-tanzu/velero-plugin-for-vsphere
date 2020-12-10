@@ -36,7 +36,7 @@ const (
 
 const (
 	// Duration after which Reflector resyncs CRs and calls UpdateFunc on each of the existing CRs.
-	ResyncPeriod = 30 * time.Second
+	ResyncPeriod = 10 * time.Minute
 
 	DefaultSecretResyncPeriod = 5 * time.Minute
 )
