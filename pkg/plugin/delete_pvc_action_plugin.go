@@ -54,7 +54,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 	// get snapshot blob from PVC annotation
 	snapshotAnnotation, ok := pvc.Annotations[constants.ItemSnapshotLabel]
 	if !ok {
-		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
+		p.Log.Infof("Skipping PVCDeleteItemAction for PVC %s/%s, PVC does not have a vSphere BackupItemAction snapshot.", pvc.Namespace, pvc.Name)
 		return nil
 	}
 
@@ -112,7 +112,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 		p.Log.Error(errMsg)
 		return errors.New(errMsg)
 	}
-	p.Log.Info("Deleted Snapshot, %v, from PVC %s/%s in the backup", updatedDeleteSnapshot, pvc.Namespace, pvc.Name)
+	p.Log.Infof("Deleted Snapshot, %v, from PVC %s/%s in the backup", updatedDeleteSnapshot, pvc.Namespace, pvc.Name)
 
 	return nil
 }
