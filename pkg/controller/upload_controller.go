@@ -106,7 +106,7 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 	log := loggerForUpload(c.logger, req)
 
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCanceling:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCleanupFailed, pluginv1api.UploadPhaseCanceling:
 		// Process New and InProgress and UploadError and UploadCanceling Uploads
 	case pluginv1api.UploadPhaseCanceled:
 		// The upload was canceled, nothing to do.
@@ -199,7 +199,7 @@ func (c *uploadController) processUploadItem(key string) error {
 
 	// only process new items
 	switch req.Status.Phase {
-	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError:
+	case "", pluginv1api.UploadPhaseNew, pluginv1api.UploadPhaseInProgress, pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCleanupFailed:
 		// Process new items
 		// For UploadPhaseInProgress, the resource lease logic will process the Upload if the lease is not held by
 		// another DataManager. If the DataManager holding the lease has died and/or lease has expired the current node
@@ -307,7 +307,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}
 
 	// update status to InProgress
-	if req.Status.Phase != pluginv1api.UploadPhaseInProgress {
+	if req.Status.Phase != pluginv1api.UploadPhaseInProgress && req.Status.Phase != pluginv1api.UploadPhaseCleanupFailed {
 		// update status to InProgress
 		req, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseInProgress, "")
 		if err != nil {
@@ -325,6 +325,27 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		}
 		log.Error(errMsg)
 		return errors.New(errMsg)
+	}
+
+	// If upload phase is UploadPhaseCleanupFailed, manually call DeleteLocalSnapshot to retry on deleting local snapshot
+	if req.Status.Phase == pluginv1api.UploadPhaseCleanupFailed {
+		err = c.snapMgr.DeleteLocalSnapshot(peID)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to clean up local snapshot, %s, error: %v. will retry.", peID.String(), errors.WithStack(err))
+			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
+			if err != nil {
+				errMsg = fmt.Sprintf("Failed to patch upload status with retry, errror: %v", errors.WithStack(err))
+				log.Error(errMsg)
+			}
+			return errors.New(errMsg)
+		} else {
+			msg := fmt.Sprintf("Successfully deleted local snapshot, %v", peID.String())
+			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCompleted, msg)
+			if err != nil {
+				log.Error(err)
+			}
+			return nil
+		}
 	}
 
 	if req.Spec.BackupRepositoryName != "" && req.Spec.BackupRepositoryName != constants.WithoutBackupRepository {
@@ -428,10 +449,11 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 		})
-	case pluginv1api.UploadPhaseUploadError:
+	case pluginv1api.UploadPhaseUploadError, pluginv1api.UploadPhaseCleanupFailed:
 		var retry int32
 		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 			r.Status.RetryCount = r.Status.RetryCount + 1
 			log.Infof("Retry for %d times", r.Status.RetryCount)
@@ -447,12 +469,6 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			errMsg := fmt.Sprintf("Please fix the network issue on the work node, %s", c.nodeName)
 			log.Warningf(errMsg)
 		}
-	case pluginv1api.UploadPhaseCleanupFailed:
-		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
-			r.Status.Phase = newPhase
-			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
-			r.Status.Message = msg
-		})
 	case pluginv1api.UploadPhaseInProgress:
 		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
 			if r.Status.Phase == pluginv1api.UploadPhaseNew {

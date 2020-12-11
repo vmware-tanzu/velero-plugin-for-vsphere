@@ -59,11 +59,6 @@ func TestProcessUploadNonProcessedItems(t *testing.T) {
 			key:  "foo/bar",
 		},
 		{
-			name:   "CleanupFailed upload is not processed",
-			key:    "velero/upload-1",
-			upload: defaultUpload().Phase(v1.UploadPhaseCleanupFailed).Result(),
-		},
-		{
 			name:   "Completed upload is not processed",
 			key:    "velero/upload-1",
 			upload: defaultUpload().Phase(v1.UploadPhaseCompleted).Result(),
@@ -237,6 +232,14 @@ func TestPatchUploadByStatus(t *testing.T) {
 			newPhase: v1.UploadPhaseUploadError,
 			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.RETRY_WARNING_COUNT).Result(),
 			msg:      "Failed to upload snapshot, ivd:1234:1234, to durable object storage.",
+		},
+		{
+			name:     "Test max backoff for retry",
+			key:      "velero/upload-1",
+			oldPhase: v1.UploadPhaseInProgress,
+			newPhase: v1.UploadPhaseCleanupFailed,
+			upload:   defaultUpload().Phase(v1.UploadPhaseInProgress).Retry(constants.RETRY_WARNING_COUNT).Result(),
+			msg:      "Failed to clean up local snapshot, ivd:1234:1234, will retry.",
 		},
 		{
 			name:     "Test UploadError to Inprogress",
@@ -448,6 +451,84 @@ func TestUploadErrorRetry(t *testing.T) {
 			require.Nil(t, err)
 			require.Equal(t, test.expectedPhase, res.Status.Phase)
 			require.Equal(t, test.retry+1, res.Status.RetryCount)
+		})
+	}
+}
+
+func TestProcessUploadCleanupFailed(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		upload        *v1.Upload
+		expectedPhase v1.UploadPhase
+		expectedErr   bool
+		retry         int32
+	} {
+		{
+			name: "If delete local snapshot successfully, change upload phase to UploadPhaseCompleted and return without error",
+			key: "velero/upload-1",
+			upload: defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
+			expectedPhase: v1.UploadPhaseCompleted,
+			expectedErr: false,
+		},
+		{
+			name: "If fail to delete local snapshot, keep upload phase as UploadPhaseCleanupFailed and return error",
+			key: "velero/upload-1",
+			upload: defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
+			expectedPhase: v1.UploadPhaseCleanupFailed,
+			expectedErr: true,
+			retry:         constants.MIN_RETRY,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				clientset       = fake.NewSimpleClientset(test.upload)
+				sharedInformers = informers.NewSharedInformerFactory(clientset, 0)
+				logger          = veleroplugintest.NewLogger()
+				kubeClient      = kubefake.NewSimpleClientset()
+			)
+
+			c := &uploadController{
+				genericController: newGenericController("upload-test", logger),
+				kubeClient:        kubeClient,
+				uploadClient:      clientset.DatamoverV1alpha1(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
+				nodeName:          "upload-test",
+				clock:             &clock.RealClock{},
+				dataMover:         &dataMover.DataMover{},
+				snapMgr:           &snapshotmgr.SnapshotManager{},
+			}
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			c.processUploadFunc = c.processUpload
+			if test.expectedErr {
+				patches := gomonkey.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
+					return errors.New("Failed to delete local snapshot")
+				})
+				defer patches.Reset()
+				//patches.ApplyMethod(reflect.TypeOf(c), "patchUploadByStatusWithRetry", func(_ *v1.Upload, _ v1.UploadPhase, _ string) (*v1.Upload, error) {
+				//	return defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(), nil
+				//})
+				err := c.processUploadItem(test.key)
+				require.NotNil(t, err)
+				res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(context.TODO(), test.upload.Name, metav1.GetOptions{})
+				require.Nil(t, err)
+				require.Equal(t, test.expectedPhase, res.Status.Phase)
+				require.Equal(t, test.retry+1, res.Status.RetryCount)
+			} else {
+				patches := gomonkey.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
+					return nil
+				})
+				defer patches.Reset()
+				//patches.ApplyMethod(reflect.TypeOf(c), "patchUploadByStatusWithRetry", func(_ *v1.Upload, _ v1.UploadPhase, _ string) (*v1.Upload, error) {
+				//	return defaultUpload().Phase(v1.UploadPhaseCompleted).SnapshotID("ivd:1234:1234").Retry(0).Result(), nil
+				//})
+				err := c.processUploadItem(test.key)
+				require.Nil(t, err)
+				res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(context.TODO(), test.upload.Name, metav1.GetOptions{})
+				require.Nil(t, err)
+				require.Equal(t, test.expectedPhase, res.Status.Phase)
+			}
 		})
 	}
 }
