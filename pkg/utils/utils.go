@@ -397,7 +397,7 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 
 func GetDefaultS3PETM(logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
 	var s3PETM *s3repository.ProtectedEntityTypeManager
-	var params map[string]interface{}
+	params := make(map[string]interface{})
 	err := RetrieveVSLFromVeleroBSLs(params, constants.DefaultS3BackupLocation, nil, logger)
 	if err != nil {
 		logger.WithError(err).Errorf("GetDefaultS3PETM: Could not retrieve velero default backup location.")

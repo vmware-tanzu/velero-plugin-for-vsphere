@@ -859,6 +859,7 @@ func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger log
 	logger.Infof("Successfully translated snapshotID %s into pe-id: %s", snapshotID.String(), decodedPEID.String())
 	if decodedPEID.HasSnapshot() && decodedPEID.GetPeType() != astrolabe.IvdPEType {
 		logger.Infof("The translated pe-id is not ivd type, recursing for further decode")
+
 		return decodeSnapshotID(decodedPEID.GetSnapshotID(), logger)
 	}
 	return decodedPEID.GetSnapshotID().String(), nil

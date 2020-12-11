@@ -316,3 +316,5 @@ const (
 	ImageContainerComponent  = "Container"
 	ImageVersionComponent    = "Version"
 )
+
+const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
