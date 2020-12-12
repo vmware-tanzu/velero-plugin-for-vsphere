@@ -365,16 +365,18 @@ func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, 
 	return retUpload, err
 }
 
-func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID, backupRepository string) error {
+func (this *SnapshotManager) DeleteSnapshotWithBackupRepository(peID astrolabe.ProtectedEntityID,
+	backupRepository string, deleteSnapshotCRName string) error {
 	this.WithField("peID", peID.String()).Info("SnapshotManager.DeleteSnapshotWithBackupRepository was called.")
-	return this.deleteSnapshot(peID, backupRepository)
+	return this.deleteSnapshot(peID, backupRepository, deleteSnapshotCRName)
 }
 
 func (this *SnapshotManager) DeleteSnapshot(peID astrolabe.ProtectedEntityID) error {
-	return this.deleteSnapshot(peID, constants.WithoutBackupRepository)
+	return this.deleteSnapshot(peID, constants.WithoutBackupRepository, constants.WithoutDeleteSnapshot)
 }
 
-func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepositoryName string) error {
+func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, backupRepositoryName string,
+	deleteSnapshotName string) error {
 	log := this.WithField("peID", peID.String())
 	log.Info("SnapshotManager.deleteSnapshot was called.")
 	ctx := context.Background()
@@ -471,6 +473,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	guestSnapshotParams := make(map[string]interface{})
 	// Pass the backup repository name as snapshot param.
 	guestSnapshotParams["BackupRepositoryName"] = backupRepositoryName
+	guestSnapshotParams["DeleteSnapshotName"] = deleteSnapshotName
 	snapshotParams[peID.GetPeType()] = guestSnapshotParams
 	log.Infof("Step 1: Deleting the local snapshot")
 	delSnapshotStatus, err := pe.DeleteSnapshot(ctx, pe.GetID().GetSnapshotID(), snapshotParams)

@@ -121,6 +121,10 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	if !ok {
 		backupRepositoryName = "INVALID_BR_NAME"
 	}
+	deleteSnapshotName, ok := params[astrolabe.PvcPEType]["DeleteSnapshotName"].(string)
+	if !ok {
+		deleteSnapshotName = "INVALID_DELETE_SNAPSHOT_NAME"
+	}
 
 	peIDName := this.GetID().GetID()
 	// Reconstruct the snapshot-id to delete.
@@ -132,12 +136,14 @@ func (this ParaVirtProtectedEntity) DeleteSnapshot(
 	this.logger.Infof("ParaVirtProtectedEntity: Reconstructed peID: %s", peID.String())
 
 	backupRepository := snapshotUtils.NewBackupRepository(backupRepositoryName)
-	_, err = snapshotUtils.DeleteSnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, peID.String(), this.pvpetm.svcNamespace, *backupRepository,
+	svcDeleteSnap, err := snapshotUtils.DeleteSnapshotRef(ctx, this.pvpetm.svcBackupDriverClient, peID.String(), this.pvpetm.svcNamespace, *backupRepository,
 		[]backupdriverv1api.DeleteSnapshotPhase{backupdriverv1api.DeleteSnapshotPhaseCompleted, backupdriverv1api.DeleteSnapshotPhaseFailed}, this.logger)
 	if err != nil {
 		this.logger.Errorf("Failed to create a DeleteSnapshot CR: %v", err)
 		return false, err
 	}
+	this.logger.Infof("Created Supervisor DeleteSnapshot: %s for " +
+		"Guest DeleteSnapshot: %s", svcDeleteSnap.Name, deleteSnapshotName)
 	return true, nil
 }
 
