@@ -403,10 +403,19 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 			log.WithError(err).Errorf("DeleteSnapshot: Failed to lookup the env variable for velero namespace")
 			return err
 		}
-		snapIDDecoded, err := decodeSnapshotID(peID.GetSnapshotID(), this.FieldLogger)
-		if err != nil {
-			log.WithError(err).Errorf("Failed to retrieve decoded snapshot id to search for on-going uploads, original pe-id :%s", peID.String())
-			return err
+
+		var snapIDDecoded string
+		if peID.GetPeType() == astrolabe.IvdPEType {
+			log.Infof("The pe-id %s is not encoded.This maybe a request to delete the backup from plugin prior or equal to v1.0.2", peID.String())
+			// no need to decode.
+			// This occurs when deleting backups <=1.0.2, the pe-id is stored directly as ivd type.
+			snapIDDecoded = peID.GetSnapshotID().String()
+		} else {
+			snapIDDecoded, err = decodeSnapshotID(peID.GetSnapshotID(), this.FieldLogger)
+			if err != nil {
+				log.WithError(err).Errorf("Failed to retrieve decoded snapshot id to search for on-going uploads, original pe-id :%s", peID.String())
+				return err
+			}
 		}
 		uploadName := "upload-" + snapIDDecoded
 		log.Infof("Searching for Upload CR: %s", uploadName)
@@ -437,6 +446,19 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 			return nil
 		} else {
 			log.Infof("The upload %v was in terminal stage, proceeding with snapshot deletes", uploadName)
+		}
+		if peID.GetPeType() == astrolabe.IvdPEType {
+			log.Infof("This maybe a request to delete the backup from plugin prior or equal to v1.0.2, using the incoming pe-id %s as is", peID.String())
+		} else {
+			// Reset the pe-id to point to the underlying component pe-id
+			decodedPeId, err := decodePeIdFromSnapshotID(peID.GetSnapshotID(), this.FieldLogger)
+			if err != nil {
+				errorMsg := fmt.Sprintf("Failed to translate snapshotID %s into pe-id", peID.GetSnapshotID().String())
+				log.Error(errorMsg)
+				return errors.Wrap(err, errorMsg)
+			}
+			log.Infof("Translated the encoded snapshot-id %s to pe-id %s", peID.String(), decodedPeId.GetID())
+			peID = decodedPeId
 		}
 	}
 	pe, err := this.Pem.GetProtectedEntity(ctx, peID)
@@ -479,15 +501,6 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		log.Infof("Local Mode detected, skipping remote delete snapshot for PE: %s", peID)
 		return nil
 	}
-	// Retrieve the component pe-id
-	components, err := pe.GetComponents(ctx)
-	if err != nil {
-		return errors.Wrap(err, "Could not retrieve components")
-	}
-	if len(components) != 1 {
-		return errors.New(fmt.Sprintf("Expected 1 component, %s has %d", pe.GetID().String(), len(components)))
-	}
-	log.Infof("Retrieved components to delete remote snapshot component ID: %s", components[0].GetID().String())
 
 	log.Infof("Step 2: Deleting the durable snapshot from s3")
 	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
@@ -496,9 +509,9 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 			log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 			return err
 		}
-		err = this.DeleteRemoteSnapshotFromRepo(components[0].GetID(), backupRepositoryCR)
+		err = this.DeleteRemoteSnapshotFromRepo(peID, backupRepositoryCR)
 	} else {
-		err = this.DeleteRemoteSnapshot(components[0].GetID())
+		err = this.DeleteRemoteSnapshot(peID)
 	}
 	if err != nil {
 		log.WithError(err).Errorf("Failed to delete the durable snapshot for PEID")
@@ -803,6 +816,31 @@ func uploadCRNameForSnapshotPEID(snapshotPEID astrolabe.ProtectedEntityID) (stri
 	return "upload-" + snapshotPEID.GetSnapshotID().String(), nil
 }
 
+func decodePeIdFromSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger logrus.FieldLogger) (astrolabe.ProtectedEntityID, error) {
+	var peId astrolabe.ProtectedEntityID
+	snapshotID64Str := snapshotID.String()
+	snapshotIDBytes, err := base64.RawStdEncoding.DecodeString(snapshotID64Str)
+	if err != nil {
+		errorMsg := fmt.Sprintf("decodePeIdFromSnapshotID: Could not decode snapshot ID encoded string %s", snapshotID64Str)
+		logger.WithError(err).Error(errorMsg)
+		return peId, errors.Wrap(err, errorMsg)
+	}
+	peId, err = astrolabe.NewProtectedEntityIDFromString(string(snapshotIDBytes))
+	if err != nil {
+		errorMsg := fmt.Sprintf("decodePeIdFromSnapshotID: Could not translate decoded snapshotID %s into pe-id", string(snapshotIDBytes))
+		logger.WithError(err).Error(errorMsg)
+		return peId, errors.Wrap(err, errorMsg)
+	}
+	logger.Infof("decodePeIdFromSnapshotID: Successfully translated snapshotID %s into pe-id: %s", snapshotID.String(), peId.String())
+	if peId.HasSnapshot() && peId.GetPeType() != astrolabe.IvdPEType {
+		// This is exclusively called only in supervisor and vanilla execution path.
+		// This is done to allow deletion of for example a guest cluster backup in a vanilla/supervisor setup.
+		logger.Info("decodePeIdFromSnapshotID: The translated pe-id is not ivd type, recursing for further decode")
+		return decodePeIdFromSnapshotID(peId.GetSnapshotID(), logger)
+	}
+	return peId, nil
+}
+
 func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger logrus.FieldLogger) (string, error) {
 	// Decode incoming snapshot ID until we retrieve the ivd snapshot-id.
 	snapshotID64Str := snapshotID.String()
@@ -818,9 +856,9 @@ func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger log
 		logger.WithError(err).Error(errorMsg)
 		return "", errors.Wrap(err, errorMsg)
 	}
-	logger.Infof("Successfully translated snapshotID %s into pe-id: %s", string(snapshotIDBytes), decodedPEID.String())
-	if decodedPEID.HasSnapshot() && decodedPEID.GetPeType() != "ivd" {
-		logger.Infof("The translated pe-id is not ivd type, recurring for further decode")
+	logger.Infof("Successfully translated snapshotID %s into pe-id: %s", snapshotID.String(), decodedPEID.String())
+	if decodedPEID.HasSnapshot() && decodedPEID.GetPeType() != astrolabe.IvdPEType {
+		logger.Infof("The translated pe-id is not ivd type, recursing for further decode")
 		return decodeSnapshotID(decodedPEID.GetSnapshotID(), logger)
 	}
 	return decodedPEID.GetSnapshotID().String(), nil
