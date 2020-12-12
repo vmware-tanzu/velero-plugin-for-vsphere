@@ -164,7 +164,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	}
 
 	deleteSnapshotStatusFields := make(map[string]interface{})
-	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName)
+	err = ctrl.snapManager.DeleteSnapshotWithBackupRepository(peID, brName, deleteSnapshot.Name)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed at calling SnapshotManager DeleteSnapshot for peID %v, error: %v", peID, err)
 		ctrl.logger.Errorf(errMsg)
