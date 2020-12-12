@@ -33,7 +33,8 @@ func main() {
 	veleroPluginServer = veleroPluginServer.
 		RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
 		RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
-		RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction)
+		RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction).
+		RegisterVolumeSnapshotter("velero.io/vsphere", newVolumeSnapshotterPlugin)
 	veleroPluginServer.Serve()
 }
 

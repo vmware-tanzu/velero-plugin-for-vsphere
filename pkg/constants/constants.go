@@ -315,3 +315,5 @@ const (
 	DefaultRetryIntervalStart = time.Second
 	DefaultRetryIntervalMax   = 5 * time.Minute
 )
+
+const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
