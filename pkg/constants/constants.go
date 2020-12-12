@@ -154,6 +154,7 @@ const (
 
 const (
 	WithoutBackupRepository = "without-backup-repository"
+	WithoutDeleteSnapshot   = "without-delete-snapshot"
 )
 
 const (
