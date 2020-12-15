@@ -245,7 +245,7 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 // Update the snapshot status phase
 func (ctrl *backupDriverController) updateSnapshotStatusPhase(ctx context.Context, snapshotNs string, snapshotName string,
 	newPhase backupdriverapi.SnapshotPhase, snapshotStatusFields map[string]interface{}) (*backupdriverapi.Snapshot, error) {
-	ctrl.logger.Infof("Entering updateSnapshotStatusPhase: %s/%s, Phase %s", snapshotNs, snapshotName, newPhase)
+	ctrl.logger.Debugf("Entering updateSnapshotStatusPhase: %s/%s, Phase %s", snapshotNs, snapshotName, newPhase)
 
 	// Retrieve the latest version of Snapshot and update the status.
 	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotNs).Get(ctx, snapshotName, metav1.GetOptions{})
@@ -255,7 +255,7 @@ func (ctrl *backupDriverController) updateSnapshotStatusPhase(ctx context.Contex
 	}
 
 	if snapshot.Status.Phase == newPhase {
-		ctrl.logger.Infof("updateSnapshotStatusPhase: Snapshot %s/%s already updated with %s", snapshot.Namespace, snapshot.Name, newPhase)
+		ctrl.logger.Debugf("updateSnapshotStatusPhase: Snapshot %s/%s already updated with %s", snapshot.Namespace, snapshot.Name, newPhase)
 		return snapshot, nil
 	}
 
@@ -286,15 +286,17 @@ func (ctrl *backupDriverController) updateSnapshotStatusPhase(ctx context.Contex
 
 	updatedSnapshot, err := ctrl.backupdriverClient.Snapshots(snapshotClone.Namespace).UpdateStatus(ctx, snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
-		ctrl.logger.Infof("updateSnapshotStatusPhase: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
+		ctrl.logger.Errorf("updateSnapshotStatusPhase: update status for snapshot %s/%s failed: %v", snapshotClone.Namespace, snapshotClone.Name, err)
 		return nil, err
 	}
+	ctrl.logger.Infof("updateSnapshotStatusPhase: Snapshot %s/%s updated phase from %s to %s",
+		updatedSnapshot.Namespace, updatedSnapshot.Name, snapshot.Status.Phase, updatedSnapshot.Status.Phase)
 	return updatedSnapshot, nil
 }
 
 func (ctrl *backupDriverController) updateDeleteSnapshotStatusPhase(ctx context.Context, deleteSnapshotNs string, deleteSnapshotName string,
 	newPhase backupdriverapi.DeleteSnapshotPhase, deleteSnapshotStatusFields map[string]interface{}) (*backupdriverapi.DeleteSnapshot, error) {
-	ctrl.logger.Infof("Entering updateDeleteSnapshotStatusPhase: %s/%s, Phase %s", deleteSnapshotNs, deleteSnapshotName, newPhase)
+	ctrl.logger.Debugf("Entering updateDeleteSnapshotStatusPhase: %s/%s, Phase %s", deleteSnapshotNs, deleteSnapshotName, newPhase)
 
 	// Retrieve the latest version of DeleteSnapshot CRD and update the status
 	deleteSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshotNs).Get(ctx, deleteSnapshotName, metav1.GetOptions{})
@@ -304,7 +306,7 @@ func (ctrl *backupDriverController) updateDeleteSnapshotStatusPhase(ctx context.
 	}
 
 	if deleteSnapshot.Status.Phase == newPhase {
-		ctrl.logger.Infof("updateDeleteSnapshotStatusPhase: Snapshot %s/%s already updated with %s", deleteSnapshot.Namespace, deleteSnapshot.Name, newPhase)
+		ctrl.logger.Debugf("updateDeleteSnapshotStatusPhase: Snapshot %s/%s already updated with %s", deleteSnapshot.Namespace, deleteSnapshot.Name, newPhase)
 		return deleteSnapshot, nil
 	}
 
@@ -320,8 +322,10 @@ func (ctrl *backupDriverController) updateDeleteSnapshotStatusPhase(ctx context.
 
 	updatedDeleteSnapshot, err := ctrl.backupdriverClient.DeleteSnapshots(deleteSnapshotClone.Namespace).UpdateStatus(context.TODO(), deleteSnapshotClone, metav1.UpdateOptions{})
 	if err != nil {
-		ctrl.logger.Infof("updateDeleteSnapshotStatusPhase: update status for deleteSnapshot %s/%s failed: %v", deleteSnapshotClone.Namespace, deleteSnapshotClone.Name, err)
+		ctrl.logger.Errorf("updateDeleteSnapshotStatusPhase: update status for deleteSnapshot %s/%s failed: %v", deleteSnapshotClone.Namespace, deleteSnapshotClone.Name, err)
 		return nil, err
 	}
+	ctrl.logger.Infof("updateDeleteSnapshotStatusPhase: DeleteSnapshot %s/%s updated phase from %s to %s",
+		updatedDeleteSnapshot.Namespace, updatedDeleteSnapshot.Name, deleteSnapshot.Status.Phase, updatedDeleteSnapshot.Status.Phase)
 	return updatedDeleteSnapshot, nil
 }

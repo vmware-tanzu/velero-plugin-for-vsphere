@@ -54,20 +54,20 @@ func (v *vcConfigController) enqueueVcConfigSecret(obj interface{}) {
 		obj = unknown.Obj
 	}
 	if secretItem, ok := obj.(*corev1.Secret); ok {
-		v.logger.Infof("enqueueSecret on update: %s", secretItem.Name)
+		v.logger.Debugf("enqueueSecret on update: %s", secretItem.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(secretItem)
 		if err != nil {
 			v.logger.Errorf("failed to get key from object: %v, %v", err, secretItem)
 			return
 		}
-		v.logger.Infof("enqueueVcConfigSecret: enqueued %q for sync", objName)
+		v.logger.Debugf("enqueueVcConfigSecret: enqueued %q for sync", objName)
 		v.enqueue(obj)
 	}
 }
 
 func (v *vcConfigController) processVcConfigSecretItem(key string) error {
 	log := v.logger.WithField("key", key)
-	log.Info("Running processVcConfigSecretItem")
+	log.Debug("Running processVcConfigSecretItem")
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -81,7 +81,7 @@ func (v *vcConfigController) processVcConfigSecretItem(key string) error {
 		v.logger.Errorf("Failed to retrieve the latest vc config secret")
 		return err
 	}
-	v.logger.Infof("Successfully retrieved latest vSphere VC credentials.")
+	v.logger.Debug("Successfully retrieved latest vSphere VC credentials.")
 	if v.dataMover != nil {
 		err = v.dataMover.ReloadDataMoverIvdPetmConfig(ivdParams)
 		if err != nil {
@@ -97,13 +97,13 @@ func (v *vcConfigController) processVcConfigSecretItem(key string) error {
 		}
 	}
 
-	v.logger.Infof("Successfully processed updates in vc configuration.")
+	v.logger.Debugf("Successfully processed updates in vc configuration.")
 	return nil
 }
 
 func (v *vcConfigController) exponentialBackoffHandler(key string) error {
-	v.logger.Info("Running exponentialBackoffHandler")
-	v.logger.Infof("Re-adding failed secret processing to the queue")
+	v.logger.Debug("Running exponentialBackoffHandler")
+	v.logger.Debugf("Re-adding failed secret processing to the queue")
 	v.queue.AddAfter(key, time.Duration(1)*time.Minute)
 	return nil
 }

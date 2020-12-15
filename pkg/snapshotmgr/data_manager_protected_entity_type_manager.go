@@ -56,7 +56,7 @@ func (this DataManagerProtectedEntityTypeManager) CopyFromInfo(ctx context.Conte
 }
 
 func (this DataManagerProtectedEntityTypeManager) ReloadDmIvdPetm(ctx context.Context, ivdParams map[string]interface{}, logger logrus.FieldLogger) error {
-	logger.Infof("ReloadDmIvdPetm called")
+	logger.Debug("ReloadDmIvdPetm called")
 	ivdProtectedEntityTypeManager, ok := this.ProtectedEntityTypeManager.(*ivd.IVDProtectedEntityTypeManager)
 	if ok {
 		err := ivdProtectedEntityTypeManager.ReloadConfig(context.TODO(), ivdParams)
