@@ -137,19 +137,19 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 		return
 	}
 
-	log.Infof("Filtering out the retry upload request which comes in before next retry time")
+	log.Debugf("Filtering out the retry upload request which comes in before next retry time")
 	now := c.clock.Now()
 	if now.Unix() < req.Status.NextRetryTimestamp.Unix() {
 		log.WithFields(logrus.Fields{
 			"nextRetryTime": req.Status.NextRetryTimestamp,
 			"currentTime":   now,
-		}).Infof("Ignore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
+		}).Debugf("Ignore retry upload request which comes in before next retry time, upload CR: %s", req.Name)
 		return
 	}
 
 	// Check if current node is the expected upload node only if data manager is not remote.
 	if !c.externalDataMgr {
-		log.Infof("Filtering out the upload request from nodes other than %v", c.nodeName)
+		log.Debugf("Filtering out the upload request from nodes other than %v", c.nodeName)
 		peID, err := astrolabe.NewProtectedEntityIDFromString(req.Spec.SnapshotID)
 		if err != nil {
 			log.WithError(err).Errorf("Failed to extract volume ID from snapshot ID, %v", req.Spec.SnapshotID)
@@ -174,13 +174,13 @@ func (c *uploadController) enqueueUploadItem(obj interface{}) {
 		}
 	}
 
-	log.Infof("Enqueueing upload")
+	log.Debugf("Enqueueing upload")
 	c.enqueue(obj)
 }
 
 func (c *uploadController) processUploadItem(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Info("Running processUploadItem")
+	log.Debug("Running processUploadItem")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -258,7 +258,7 @@ func (c *uploadController) processUploadItem(key string) error {
 				cancel()
 			},
 			OnStoppedLeading: func() {
-				log.Infof("Processed Upload")
+				log.Info("Processed Upload")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == c.nodeName {
@@ -289,20 +289,20 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	log.WithFields(logrus.Fields{
 		"phase":      req.Status.Phase,
 		"generation": req.Generation,
-	}).Info("Upload request updated by retrieving from kubernetes API server")
+	}).Debug("Upload request updated by retrieving from kubernetes API server")
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCanceled {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceled. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is canceled. Skipping it")
 		return nil
 	}
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCanceling {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is canceling. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is canceling. Skipping it")
 		return nil
 	}
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Info("The status of upload CR in kubernetes API server is completed. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is completed. Skipping it")
 		return nil
 	}
 
@@ -403,10 +403,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 		return errors.WithStack(err)
 	}
 
-	log.WithFields(logrus.Fields{
-		"phase":      req.Status.Phase,
-		"generation": req.Generation,
-	}).Info("Upload Completed")
+	log.Info("Upload Completed")
 
 	return nil
 }
@@ -420,7 +417,7 @@ func (c *uploadController) patchUploadByStatusWithRetry(req *pluginv1api.Upload,
 	var updatedUpload *pluginv1api.Upload
 	var err error
 	log := loggerForUpload(c.logger, req)
-	log.Infof("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", constants.RetryInterval, constants.RetryMaximum)
+	log.Debugf("Ready to call patchUploadByStatus API. Will retry on patch failure of Upload status every %d seconds up to %d seconds.", constants.RetryInterval, constants.RetryMaximum)
 	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		updatedUpload, err = c.patchUploadByStatus(req, newPhase, msg)
 		if err != nil {
@@ -456,7 +453,7 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 			r.Status.RetryCount = r.Status.RetryCount + 1
-			log.Infof("Retry for %d times", r.Status.RetryCount)
+			log.Debugf("Retry for %d times", r.Status.RetryCount)
 			retry = r.Status.RetryCount
 			currentBackOff := math.Exp2(float64(retry - 1))
 			if currentBackOff >= constants.UPLOAD_MAX_BACKOFF {
@@ -521,7 +518,7 @@ func loggerForUpload(baseLogger logrus.FieldLogger, req *pluginv1api.Upload) log
 
 func (c *uploadController) exponentialBackoffHandler(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Info("Running exponentialBackoffHandler")
+	log.Debug("Running exponentialBackoffHandler")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {

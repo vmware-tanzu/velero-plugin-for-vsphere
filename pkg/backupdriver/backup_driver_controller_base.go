@@ -373,7 +373,7 @@ func (ctrl *backupDriverController) Run(
 }
 
 func (ctrl *backupDriverController) secretWorker() {
-	ctrl.logger.Infof("secretWorker: Enter secretWorker")
+	ctrl.logger.Debug("secretWorker: Enter secretWorker")
 
 	key, quit := ctrl.secretQueue.Get()
 	if quit {
@@ -389,7 +389,7 @@ func (ctrl *backupDriverController) secretWorker() {
 }
 
 func (ctrl *backupDriverController) syncSecretByKey(key string) error {
-	ctrl.logger.Infof("syncSecretByKey: Started Secret processing %s", key)
+	ctrl.logger.Debugf("syncSecretByKey: Started Secret processing %s", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		ctrl.logger.Errorf("Split meta namespace key of secret %s failed: %v", key, err)
@@ -402,13 +402,13 @@ func (ctrl *backupDriverController) syncSecretByKey(key string) error {
 		ctrl.logger.Errorf("Failed to retrieve the latest vc config secret")
 		return err
 	}
-	ctrl.logger.Infof("Successfully retrieved latest vSphere VC credentials.")
+	ctrl.logger.Debugf("Successfully retrieved latest vSphere VC credentials.")
 	err = ctrl.snapManager.ReloadSnapshotManagerIvdPetmConfig(params)
 	if err != nil {
 		ctrl.logger.Errorf("Secret %s/%s Reload failed, err: %v", namespace, name, err)
 		return err
 	}
-	ctrl.logger.Infof("Successfully processed updates in vc configuration.")
+	ctrl.logger.Debugf("Successfully processed updates in vc configuration.")
 	return nil
 }
 
@@ -418,20 +418,20 @@ func (ctrl *backupDriverController) enqueueSecret(obj interface{}) {
 		obj = unknown.Obj
 	}
 	if secretItem, ok := obj.(*corev1.Secret); ok {
-		ctrl.logger.Infof("enqueueSecret on update: %s", secretItem.Name)
+		ctrl.logger.Debugf("enqueueSecret on update: %s", secretItem.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(secretItem)
 		if err != nil {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, secretItem)
 			return
 		}
-		ctrl.logger.Infof("enqueueSecret: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("enqueueSecret: enqueued %q for sync", objName)
 		ctrl.secretQueue.Add(objName)
 	}
 }
 
 // snapshotWorker is the main worker for snapshot request.
 func (ctrl *backupDriverController) snapshotWorker() {
-	ctrl.logger.Infof("snapshotWorker: Enter snapshotWorker")
+	ctrl.logger.Debugf("snapshotWorker: Enter snapshotWorker")
 
 	key, quit := ctrl.snapshotQueue.Get()
 	if quit {
@@ -449,7 +449,7 @@ func (ctrl *backupDriverController) snapshotWorker() {
 
 // syncSnapshotByKey processes one Snapshot CRD
 func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
-	ctrl.logger.Infof("syncSnapshotByKey: Started Snapshot processing %s", key)
+	ctrl.logger.Debugf("syncSnapshotByKey: Started Snapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -482,7 +482,7 @@ func (ctrl *backupDriverController) syncSnapshotByKey(key string) error {
 		ctrl.logger.Debugf("Skipping snapshot, %v, which is not in New phase. Current phase: %v", key, snapshot.Status.Phase)
 		if snapshot.Status.Phase == backupdriverapi.SnapshotPhaseUploaded {
 			// If Snapshot CR status reaches terminal state, Snapshot CR should be deleted after clean up window
-			ctrl.logger.Info("Snapshot CR is in Uploaded phase.")
+			ctrl.logger.Debug("Snapshot CR is in Uploaded phase.")
 			now := time.Now()
 			if now.After(snapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
 				ctrl.logger.Infof("Snapshot CR %s reaches phase %v more than %v hours, deleting this CR.", snapshot.Name, snapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
@@ -510,13 +510,13 @@ func (ctrl *backupDriverController) enqueueSnapshot(obj interface{}) {
 		obj = unknown.Obj
 	}
 	if snapshot, ok := obj.(*backupdriverapi.Snapshot); ok {
-		ctrl.logger.Infof("enqueueSnapshot: %s", snapshot.Name)
+		ctrl.logger.Debugf("enqueueSnapshot: %s", snapshot.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(snapshot)
 		if err != nil {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, snapshot)
 			return
 		}
-		ctrl.logger.Infof("enqueueSnapshot: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("enqueueSnapshot: enqueued %q for sync", objName)
 		ctrl.snapshotQueue.Add(objName)
 	}
 }
@@ -551,7 +551,7 @@ func (ctrl *backupDriverController) pvWorker() {
 
 // cloneFromSnapshotWorker is the main worker for restore request.
 func (ctrl *backupDriverController) cloneFromSnapshotWorker() {
-	ctrl.logger.Infof("cloneFromSnapshotWorker: Enter cloneFromSnapshotWorker")
+	ctrl.logger.Debug("cloneFromSnapshotWorker: Enter cloneFromSnapshotWorker")
 
 	key, quit := ctrl.cloneFromSnapshotQueue.Get()
 	if quit {
@@ -569,7 +569,7 @@ func (ctrl *backupDriverController) cloneFromSnapshotWorker() {
 
 // syncCloneFromSnapshotByKey processes one CloneFromSnapshot CRD
 func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error {
-	ctrl.logger.Infof("syncCloneFromSnapshotByKey: Started CloneFromSnapshot processing %s", key)
+	ctrl.logger.Debugf("syncCloneFromSnapshotByKey: Started CloneFromSnapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -592,11 +592,11 @@ func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error
 	case backupdriverapi.ClonePhaseFailed:
 	case backupdriverapi.ClonePhaseCanceling:
 	case backupdriverapi.ClonePhaseCanceled:
-		ctrl.logger.Infof("Skipping cloneFromSnapshot %s which is not in New or Retry phase. Current phase: %v", key, cloneFromSnapshot.Status.Phase)
+		ctrl.logger.Debugf("Skipping cloneFromSnapshot %s which is not in New or Retry phase. Current phase: %v", key, cloneFromSnapshot.Status.Phase)
 		return nil
 	case backupdriverapi.ClonePhaseCompleted:
 		// If CloneFromSnapshot CR status reaches terminal state, Snapshot CR should be deleted after clean up window
-		ctrl.logger.Info("CloneFromSnapshot CR is in completed phase.")
+		ctrl.logger.Debug("CloneFromSnapshot CR is in completed phase.")
 		now := time.Now()
 		if now.After(cloneFromSnapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
 			ctrl.logger.Infof("CloneFromSnapshot CR %s reaches phase %v more than %v hours, deleting this CR.", cloneFromSnapshot.Name, cloneFromSnapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
@@ -626,7 +626,7 @@ func (ctrl *backupDriverController) syncCloneFromSnapshotByKey(key string) error
 
 // enqueueCloneFromSnapshot adds CloneFromSnapshotto given work queue.
 func (ctrl *backupDriverController) enqueueCloneFromSnapshot(obj interface{}) {
-	ctrl.logger.Infof("enqueueCloneFromSnapshot: %+v", obj)
+	ctrl.logger.Debugf("enqueueCloneFromSnapshot: %+v", obj)
 
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
@@ -638,7 +638,7 @@ func (ctrl *backupDriverController) enqueueCloneFromSnapshot(obj interface{}) {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, cloneFromSnapshot)
 			return
 		}
-		ctrl.logger.Infof("enqueueCloneFromSnapshot: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("enqueueCloneFromSnapshot: enqueued %q for sync", objName)
 		ctrl.cloneFromSnapshotQueue.Add(objName)
 	}
 }
@@ -647,7 +647,7 @@ func (ctrl *backupDriverController) svcCloneFromSnapshotWorker() {
 }
 
 func (ctrl *backupDriverController) backupRepositoryClaimWorker() {
-	ctrl.logger.Infof("backupRepositoryClaimWorker: Enter backupRepositoryClaimWorker")
+	ctrl.logger.Debug("backupRepositoryClaimWorker: Enter backupRepositoryClaimWorker")
 
 	key, quit := ctrl.backupRepositoryClaimQueue.Get()
 	if quit {
@@ -666,7 +666,7 @@ func (ctrl *backupDriverController) backupRepositoryClaimWorker() {
 
 // syncBackupRepositoryClaim processes one BackupRepositoryClaim CRD
 func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) error {
-	ctrl.logger.Infof("syncBackupRepositoryClaimByKey: Started BackupRepositoryClaim processing %s", key)
+	ctrl.logger.Debugf("syncBackupRepositoryClaimByKey: Started BackupRepositoryClaim processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -718,7 +718,7 @@ func (ctrl *backupDriverController) syncBackupRepositoryClaimByKey(key string) e
 
 // enqueueBackupRepositoryClaimWork adds BackupRepositoryClaim to given work queue.
 func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}) {
-	ctrl.logger.Debugf("Entering enqueueBackupRepositoryClaim")
+	ctrl.logger.Debug("Entering enqueueBackupRepositoryClaim")
 
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
@@ -730,7 +730,7 @@ func (ctrl *backupDriverController) enqueueBackupRepositoryClaim(obj interface{}
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
 			return
 		}
-		ctrl.logger.Infof("enqueueBackupRepositoryClaim: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("enqueueBackupRepositoryClaim: enqueued %q for sync", objName)
 		ctrl.backupRepositoryClaimQueue.Add(objName)
 	}
 }
@@ -763,7 +763,7 @@ func (ctrl *backupDriverController) dequeBackupRepositoryClaim(obj interface{}) 
 }
 
 func (ctrl *backupDriverController) deleteSnapshotWorker() {
-	ctrl.logger.Infof("deleteSnapshotWorker: Enter deleteSnapshotWorker")
+	ctrl.logger.Debug("deleteSnapshotWorker: Enter deleteSnapshotWorker")
 
 	key, quit := ctrl.deleteSnapshotQueue.Get()
 	if quit {
@@ -780,7 +780,7 @@ func (ctrl *backupDriverController) deleteSnapshotWorker() {
 }
 
 func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
-	ctrl.logger.Infof("syncDeleteSnapshotByKey: Started DeleteSnapshot processing %s", key)
+	ctrl.logger.Debugf("syncDeleteSnapshotByKey: Started DeleteSnapshot processing %s", key)
 	//ctx := context.Background()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -799,11 +799,11 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 	}
 
 	if delSnapshot.Status.Phase != backupdriverapi.DeleteSnapshotPhaseNew {
-		ctrl.logger.Infof("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
+		ctrl.logger.Debugf("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
 			key, delSnapshot.Status.Phase)
 		if delSnapshot.Status.Phase == backupdriverapi.DeleteSnapshotPhaseCompleted {
 			// If DeleteSnapshot CR status reaches terminal state, DeleteSnapshot CR should be deleted after clean up window
-			ctrl.logger.Info("DeleteSnapshot CR is in Completed phase.")
+			ctrl.logger.Debug("DeleteSnapshot CR is in Completed phase.")
 			now := time.Now()
 			if now.After(delSnapshot.Status.CompletionTimestamp.Add(constants.DefaultCRCleanUpWindow * time.Hour)) {
 				ctrl.logger.Infof("DeleteSnapshot CR %s reaches phase %v more than %v hours, deleting this CR.", delSnapshot.Name, delSnapshot.Status.Phase, constants.DefaultCRCleanUpWindow)
@@ -826,7 +826,7 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 
 // enqueueDeleteSnapshot adds DeleteSnap given work queue.
 func (ctrl *backupDriverController) enqueueDeleteSnapshot(obj interface{}) {
-	ctrl.logger.Infof("enqueueDeleteSnapshot: %+v", obj)
+	ctrl.logger.Debugf("enqueueDeleteSnapshot: %+v", obj)
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
 	}
@@ -836,7 +836,7 @@ func (ctrl *backupDriverController) enqueueDeleteSnapshot(obj interface{}) {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, brc)
 			return
 		}
-		ctrl.logger.Infof("enqueueDeleteSnapshot: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("enqueueDeleteSnapshot: enqueued %q for sync", objName)
 		ctrl.deleteSnapshotQueue.Add(objName)
 	}
 }
@@ -869,7 +869,7 @@ func (ctrl *backupDriverController) dequeDeleteSnapshot(obj interface{}) {
 
 // uploadWorker is the main worker for upload request.
 func (ctrl *backupDriverController) uploadWorker() {
-	ctrl.logger.Infof("uploadWorker: Enter uploadWorker")
+	ctrl.logger.Debugf("uploadWorker: Enter uploadWorker")
 
 	key, quit := ctrl.uploadQueue.Get()
 	if quit {
@@ -887,7 +887,7 @@ func (ctrl *backupDriverController) uploadWorker() {
 
 // syncUploadByKey processes one Upload CRD
 func (ctrl *backupDriverController) syncUploadByKey(key string) error {
-	ctrl.logger.Infof("syncUploadByKey: Started Upload processing %s", key)
+	ctrl.logger.Debugf("syncUploadByKey: Started Upload processing %s", key)
 	ctx := context.Background()
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -919,7 +919,7 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	// Get the corresponding snapshot
 	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotParts[0]).Get(ctx, snapshotParts[1], metav1.GetOptions{})
 	if err != nil {
-		ctrl.logger.WithError(err).Info("No matching snapshot found. Skipping updating snapshot")
+		ctrl.logger.WithError(err).Debug("No matching snapshot found. Skipping updating snapshot")
 		return nil
 	}
 
@@ -943,11 +943,11 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 	case datamoverapi.UploadPhaseCleanupFailed:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCleanupFailed
 	default:
-		ctrl.logger.Infof("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
+		ctrl.logger.Debugf("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
 		return nil
 	}
 	snapshotStatusFields := make(map[string]interface{})
-	ctrl.logger.Infof("syncUploadByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
+	ctrl.logger.Debugf("syncUploadByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
 	_, err = ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, newSnapshotStatusPhase, snapshotStatusFields)
 	return err
 }
@@ -968,14 +968,14 @@ func (ctrl *backupDriverController) updateUpload(newObj interface{}) {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, uploadNew)
 			return
 		}
-		ctrl.logger.Infof("updateUpload: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("updateUpload: enqueued %q for sync", objName)
 		ctrl.uploadQueue.Add(objName)
 	}
 }
 
 // svcSnapshotWorker is the main worker for supervisor Snapshot update request.
 func (ctrl *backupDriverController) svcSnapshotWorker() {
-	ctrl.logger.Infof("svcSnapshotWorker: Enter svcSnapshotWorker")
+	ctrl.logger.Debug("svcSnapshotWorker: Enter svcSnapshotWorker")
 
 	key, quit := ctrl.svcSnapshotQueue.Get()
 	if quit {
@@ -994,7 +994,7 @@ func (ctrl *backupDriverController) svcSnapshotWorker() {
 // syncSvcSnapshotByKey processes one supervisor snapshot CRD
 func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	ctx := context.Background()
-	ctrl.logger.Infof("syncSvcSnapshotByKey: Started SvcSnapshot processing %s", key)
+	ctrl.logger.Debugf("syncSvcSnapshotByKey: Started SvcSnapshot processing %s", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -1015,7 +1015,7 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 
 	// Get the corresponding guest snapshot
 	if _, ok := ctrl.svcSnapshotMap[svcSnapshot.Name]; !ok {
-		ctrl.logger.Infof("The supervisor snapshot %s does not belong to this cluster, or is still not Snapshotted. Skipping updating snapshot status", svcSnapshot.Name)
+		ctrl.logger.Debugf("The supervisor snapshot %s does not belong to this cluster, or is still not Snapshotted. Skipping updating snapshot status", svcSnapshot.Name)
 		return nil
 	}
 
@@ -1024,7 +1024,7 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	snapshotName := snapshotParts[1]
 	snapshot, err := ctrl.backupdriverClient.Snapshots(snapshotNamespace).Get(context.TODO(), snapshotName, metav1.GetOptions{})
 	if err != nil {
-		ctrl.logger.WithError(err).Info("No matching snapshot found. Skipping updating snapshot")
+		ctrl.logger.WithError(err).Debug("No matching snapshot found. Skipping updating snapshot")
 		return nil
 	}
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
@@ -1049,11 +1049,11 @@ func (ctrl *backupDriverController) syncSvcSnapshotByKey(key string) error {
 	case backupdriverapi.SnapshotPhaseSnapshotFailed:
 		newSnapshotStatusPhase = svcSnapshot.Status.Phase
 	default:
-		ctrl.logger.Infof("syncUploadByKey: No change needed for snapshot phase %s", svcSnapshot.Status.Phase)
+		ctrl.logger.Debugf("syncSvcSnapshotByKey: No change needed for snapshot phase %s", svcSnapshot.Status.Phase)
 		return nil
 	}
 	snapshotStatusFields := make(map[string]interface{})
-	ctrl.logger.Infof("syncSvcSnapshotByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
+	ctrl.logger.Debugf("syncSvcSnapshotByKey: calling updateSnapshotStatusPhase %s/%s", snapshot.Namespace, snapshot.Name)
 	_, err = ctrl.updateSnapshotStatusPhase(ctx, snapshot.Namespace, snapshot.Name, newSnapshotStatusPhase, snapshotStatusFields)
 	return err
 }
@@ -1072,7 +1072,7 @@ func (ctrl *backupDriverController) updateSvcSnapshot(newObj interface{}) {
 		// Skip snapshots not in the svc snapshot map
 		// TODO: Add filter to informer to get snapshot owned by this cluster
 		if _, ok := ctrl.svcSnapshotMap[svcSnapshotNew.Name]; !ok {
-			ctrl.logger.Infof("The supervisor snapshot %s either does not belong to this cluster, or is still not snapshotted. Skipping updating snapshot status", svcSnapshotNew.Name)
+			ctrl.logger.Debugf("The supervisor snapshot %s either does not belong to this cluster, or is still not snapshotted. Skipping updating snapshot status", svcSnapshotNew.Name)
 			return
 		}
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(svcSnapshotNew)
@@ -1080,7 +1080,7 @@ func (ctrl *backupDriverController) updateSvcSnapshot(newObj interface{}) {
 			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, svcSnapshotNew)
 			return
 		}
-		ctrl.logger.Infof("updateSvcSnapshot: enqueued %q for sync", objName)
+		ctrl.logger.Debugf("updateSvcSnapshot: enqueued %q for sync", objName)
 		ctrl.svcSnapshotQueue.Add(objName)
 	}
 }

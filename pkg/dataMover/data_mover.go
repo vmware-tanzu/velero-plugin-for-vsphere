@@ -240,7 +240,7 @@ func (this *DataMover) UnregisterOngoingUpload(peID astrolabe.ProtectedEntityID)
 func (this *DataMover) ReloadDataMoverIvdPetmConfig(params map[string]interface{}) error {
 	this.reloadConfigLock.Lock()
 	defer this.reloadConfigLock.Unlock()
-	this.logger.Infof("DataMover Config Reload initiated.")
+	this.logger.Debug("DataMover Config Reload initiated.")
 	err := this.ivdPETM.ReloadConfig(context.TODO(), params)
 	if err != nil {
 		this.logger.Infof("Failed to reload IVD PE Type Manager config associated with DataMover")
