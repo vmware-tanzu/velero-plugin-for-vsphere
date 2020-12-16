@@ -116,23 +116,23 @@ func (c *downloadController) enqueueDownloadItem(obj interface{}) {
 		return
 	}
 
-	log.Infof("Filtering out the retry download request which comes in before next retry time")
+	log.Debug("Filtering out the retry download request which comes in before next retry time")
 	now := c.clock.Now()
 	if now.Unix() < req.Status.NextRetryTimestamp.Unix() {
 		log.WithFields(logrus.Fields{
 			"nextRetryTime": req.Status.NextRetryTimestamp,
 			"currentTime":   now,
-		}).Infof("Ignore retry download request which comes in before next retry time, download CR: %s", req.Name)
+		}).Debugf("Ignore retry download request which comes in before next retry time, download CR: %s", req.Name)
 		return
 	}
 
-	log.Infof("Enqueueing download")
+	log.Debug("Enqueueing download")
 	c.enqueue(obj)
 }
 
 func (c *downloadController) processDownloadItem(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Info("Running processDownloadItem")
+	log.Debug("Running processDownloadItem")
 
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -188,11 +188,12 @@ func (c *downloadController) processDownloadItem(key string) error {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Current node got the lease process request.
+				log.Infof("Lock is acquired by current node - %s to process Download %s.", c.nodeName, req.Name)
 				processErr = c.processDownload(req)
 				cancel()
 			},
 			OnStoppedLeading: func() {
-				log.Infof("Processed Download.")
+				log.Info("Processed Download")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == c.nodeName {
@@ -223,10 +224,10 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	log.WithFields(logrus.Fields{
 		"phase":      req.Status.Phase,
 		"generation": req.Generation,
-	}).Info("Download request updated by retrieving from kubernetes API server")
+	}).Debug("Download request updated by retrieving from kubernetes API server")
 
 	if req.Status.Phase == pluginv1api.DownloadPhaseCompleted {
-		log.Info("The status of download CR in kubernetes API server is completed. Skipping it")
+		log.Debug("The status of download CR in kubernetes API server is completed. Skipping it")
 		return nil
 	}
 
@@ -295,7 +296,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	} else {
 		msg = fmt.Sprintf("An existing volume %s was just overwritten from the call to CopyFromRepo", returnPeId.String())
 	}
-	log.Debugf(msg)
+	log.Infof(msg)
 
 	// update status to Completed with path & snapshot id
 	req, err = c.patchDownloadByStatusWithRetry(req, pluginv1api.DownloadPhaseCompleted, returnPeId.String())
@@ -306,6 +307,7 @@ func (c *downloadController) processDownload(req *pluginv1api.Download) error {
 	log.WithFields(logrus.Fields{
 		"phase":      req.Status.Phase,
 		"generation": req.Generation,
+		"name":		  req.Name,
 	}).Infof("Download completed")
 
 	return nil
@@ -349,7 +351,7 @@ func (c *downloadController) patchDownloadByStatusWithRetry(req *pluginv1api.Dow
 	var updatedDownload *pluginv1api.Download
 	var err error
 	log := loggerForDownload(c.logger, req)
-	log.Infof("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", constants.RetryInterval, constants.RetryMaximum)
+	log.Debugf("Ready to call patchDownloadByStatus API. Will retry on patch failure of Download status every %v seconds up to %v seconds.", constants.RetryInterval, constants.RetryMaximum)
 	err = wait.PollImmediate(constants.RetryInterval*time.Second, constants.RetryInterval*constants.RetryMaximum*time.Second, func() (bool, error) {
 		updatedDownload, err = c.patchDownloadByStatus(req, newPhase, msg)
 		if err != nil {
@@ -382,7 +384,7 @@ func (c *downloadController) patchDownloadByStatus(req *pluginv1api.Download, ne
 		})
 	case pluginv1api.DownLoadPhaseRetry:
 		if req.Status.RetryCount > constants.DOWNLOAD_MAX_RETRY {
-			log.Debugf("Number of retry for download %s exceeds maximum limit, mark this download as DownloadPhaseFailed", req.Name)
+			log.Infof("Number of retry for download %s exceeds maximum limit, mark this download as DownloadPhaseFailed", req.Name)
 			req, err = c.patchDownload(req, func(r *pluginv1api.Download) {
 				r.Status.Phase = pluginv1api.DownloadPhaseFailed
 				r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
@@ -435,8 +437,8 @@ func loggerForDownload(baseLogger logrus.FieldLogger, req *pluginv1api.Download)
 
 func (c *downloadController) reEnqueueHandler(key string) error {
 	log := c.logger.WithField("key", key)
-	log.Info("Running reEnqueueHandler for re-adding failed download CR")
-	log.Infof("Re-adding failed download %s to the queue", key)
+	log.Debug("Running reEnqueueHandler for re-adding failed download CR")
+	log.Debugf("Re-adding failed download %s to the queue", key)
 	c.queue.AddAfter(key, constants.DOWNLOAD_BACKOFF*time.Minute)
 	return nil
 }
