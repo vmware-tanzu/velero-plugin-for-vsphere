@@ -96,7 +96,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	for _, vsphere_secret := range vsphere_secrets {
 		secret, err = secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
 		if err == nil {
-			logger.Infof("Retrieved k8s secret, %s", vsphere_secret)
+			logger.Debugf("Retrieved k8s secret, %s", vsphere_secret)
 			break
 		}
 		logger.WithError(err).Infof("Skipping k8s secret %s as it does not exist", vsphere_secret)
@@ -133,7 +133,7 @@ func ParseLines(lines []string, params map[string]interface{}, logger logrus.Fie
 			// Skip the quotes in the value if present
 			unquotedValue, err := strconv.Unquote(string(value))
 			if err != nil {
-				logger.WithError(err).Errorf("Failed to unquote value %v for key %v. Just store the original value string", value, key)
+				logger.WithError(err).Debugf("Failed to unquote value %v for key %v. Just store the original value string", value, key)
 				params[key] = string(value)
 				continue
 			}
