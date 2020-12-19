@@ -26,3 +26,11 @@ type: Opaque
 ## Backup and restore in maintenance mode
 
 Backup or Restore operation while the ESXi host (which has PVC/PV/Pods associated with the workload) in maintenance mode is not recommended as the volumes may be inaccessible during this period.
+
+## Resolve `no space left on device` Issue in Velero Pod
+
+The default capacity of local ephemeral storage in Pods in vSphere with Kubernetes supervisor cluster is set to around
+256 MB, which is comparatively too small. With the default configuration, Velero pod might be likely to crash due to
+the `no space left on device` issue. To temporarily resolve this issue, users can refer to
+[this Kubernetes document](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#setting-requests-and-limits-for-local-ephemeral-storage)
+and set requests and limits for local ephemeral storage accordingly.
