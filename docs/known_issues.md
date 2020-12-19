@@ -23,6 +23,10 @@ metadata:
 type: Opaque
 ```
 
+## Storage class
+
+Velero Plugin for vSphere v1.1.0 or higher requires a storage class to restore a PVC. This is because a PVC will be provisioned dynamically at the restore time. If a storage class is not available, restore will fail. For statically provisioned volumes, user can specify `com.vmware.cnsdp.emptystorageclass` as the old storage class name to map to a new existing storage class name at restore time.
+
 ## Backup and restore in maintenance mode
 
 Backup or Restore operation while the ESXi host (which has PVC/PV/Pods associated with the workload) in maintenance mode is not recommended as the volumes may be inaccessible during this period.
