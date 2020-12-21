@@ -204,6 +204,8 @@ Below is an example command of Velero restore.
 velero restore create --from-backup <your-backup-name>
 ```
 
+For the volume restores with changing storage class, please refer to [StorageClass Mapping](storageclass-mapping.md)
+
 For more restore options, please refer to [Velero Document](https://velero.io/docs/v1.5/).
 
 Velero restore will be marked as `Completed` when volume snapshots and other Kubernetes metadata have been successfully
