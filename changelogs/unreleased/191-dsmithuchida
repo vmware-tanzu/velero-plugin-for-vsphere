@@ -1,3 +1,0 @@
-Added resource blocking at the plug-in level for vSphere with Kubernetes 
-resources and plug-in resources
-Added velero exclude-from-backup labels to our resources when created
