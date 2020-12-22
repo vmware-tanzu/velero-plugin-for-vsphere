@@ -11,7 +11,7 @@ This repository contains the Velero Plugin for vSphere.  This plugin provides cr
 
 ### Kubernetes distributions
 
-Velero Plugin for vSphere supports the following Kubernetes distributions in the upcoming release:
+Velero Plugin for vSphere supports the following Kubernetes distributions:
 
 - [Vanilla Kubernetes](https://github.com/kubernetes/kubernetes)
 - [vSphere with Kubernetes](https://blogs.vmware.com/vsphere/2019/08/introducing-project-pacific.html) aka Supervisor Cluster. For more information, see [vSphere with Kubernetes Configuration and Management](https://docs.vmware.com/en/VMware-vSphere/7.0/vmware-vsphere-with-kubernetes/GUID-152BE7D2-E227-4DAA-B527-557B564D9718.html).
