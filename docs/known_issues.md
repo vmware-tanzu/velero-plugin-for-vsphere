@@ -38,3 +38,11 @@ The default capacity of local ephemeral storage in Pods in vSphere with Kubernet
 the `no space left on device` issue. To temporarily resolve this issue, users can refer to
 [this Kubernetes document](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#setting-requests-and-limits-for-local-ephemeral-storage)
 and set requests and limits for local ephemeral storage accordingly.
+
+## Resolve `Too Many Requests` Issue in Pulling Images
+Currently, container images of Velero and Velero Plugin for vSphere are hosted in Docker Hub.
+Due to [the recent rate limiting mechanism](https://www.docker.com/increase-rate-limits) in Docker Hub, you may see
+more `ImagePullBackOff` errors with `Too Many Requests` error message while deploying Velero
+and Velero Plugin for vSphere. To workaround this issue, please download these container images from Docker Hub,
+upload them to the alternative container registry service of your choice, and update image fields in API objects
+of Velero and Velero Plugin for vSphere.
