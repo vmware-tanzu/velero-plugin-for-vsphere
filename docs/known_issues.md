@@ -2,7 +2,7 @@
 
 This section lists the major known issues with Velero Plugin for vSphere. For a complete list of issues, check the [Github issues](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/issues) page. If you notice an issue not listed in Github issues page, please file an issue on the Github repository.
 
-## vSphere CSI driver config file
+## vSphere CSI Driver Config File
 
 On a Vanilla cluster, Velero Plugin for vSphere expects the key `csi-vsphere.conf` being presented in the `data` field of the secret `vsphere-config-secret`. If it is not present, backup will fail. The secret name `vsphere-config-secret` and the key `csi-vsphere.conf` are default names when installing vSphere CSI driver.
 
@@ -23,11 +23,11 @@ metadata:
 type: Opaque
 ```
 
-## Storage class
+## Storage Class
 
-Velero Plugin for vSphere v1.1.0 or higher requires a storage class to restore a PVC. This is because a PVC will be provisioned dynamically at the restore time. If a storage class is not available, restore will fail. For statically provisioned volumes, user can specify `com.vmware.cnsdp.emptystorageclass` as the old storage class name to map to a new existing storage class name at restore time.
+Velero Plugin for vSphere v1.1.0 or higher requires a storage class to restore a PVC. This is because a PVC will be provisioned dynamically at the restore time. If a storage class is not available, restore will fail. To restore a PVC which is backed up without a storage class, i.e., statically provisioned persistent volumes on Vanilla cluster, user can specify `com.vmware.cnsdp.emptystorageclass` as the old storage class name to map to a new existing storage class name at restore time. See document about [storage class mapping](storageclass-mapping.md) for more details.
 
-## Backup and restore in maintenance mode
+## Backup and Restore in Maintenance Mode
 
 Backup or Restore operation while the ESXi host (which has PVC/PV/Pods associated with the workload) in maintenance mode is not recommended as the volumes may be inaccessible during this period.
 
@@ -46,3 +46,11 @@ more `ImagePullBackOff` errors with `Too Many Requests` error message while depl
 and Velero Plugin for vSphere. To workaround this issue, please download these container images from Docker Hub,
 upload them to the alternative container registry service of your choice, and update image fields in API objects
 of Velero and Velero Plugin for vSphere.
+
+## Backup Statically Provisioned Persistent Volumes on Supervisor Cluster
+
+On Supervisor Cluster, persistent volumes can be statically provisioned using `CNSRegisterVolume`. This custom resource, `CNSRegisterVolume`, however, cannot be included in the backup. See details [here](supervisor-notes.md). To workaround this limitation, this custom resource should be excluded from the backup.
+
+```
+velero backup create my-backup --include-namespaces my-namespace --snapshot-volumes --exclude-resources cnsregistervolumes.cns.vmware.com
+```
