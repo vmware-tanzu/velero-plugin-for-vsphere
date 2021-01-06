@@ -23,6 +23,10 @@ For details on how to use Velero Plugin for vSphere for each Kubernetes flavor, 
 - [vSphere with Kubernetes](docs/supervisor.md)
 - [Tanzu Kubernetes Grid Service](docs/guest.md)
 
+### Backward Compatibility
+
+See documentation [here](docs/backward-compat.md)
+
 ### Known issues
 
 Know issues are documented [here](docs/known_issues.md).
