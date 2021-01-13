@@ -1,11 +1,10 @@
 # StorageClass Mapping
 
-Velero plugin for vsphere v1.1.0 and above supports changing the storage class persistent volumes during restores, 
-by configuring a storage class mapping in config map in the Velero namespace. For more details, please refer to [Velero Restore Reference](https://velero.io/docs/v1.5/restore-reference/).
+Velero plugin for vsphere v1.1.0 and above supports changing the storage class persistent volumes during restores, by configuring a storage class mapping in config map in the Velero namespace. For more details, please refer to [Velero Restore Reference](https://velero.io/docs/v1.5/restore-reference/).
 
-Here is an example for ConfigMap in YAML, which contains <old-storage-class>:<new-storage-class> mapping pairs.
+Here is an example for ConfigMap in YAML, which contains ```<old-storage-class>:<new-storage-class>``` mapping pairs.
 
-```bash
+```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -30,10 +29,9 @@ data:
   <old-storage-class>: <new-storage-class>
 ```
 
-Storage class is required for restore. If no storage class is specified in the PVC during backup, user can specify 
-"com.vmware.cnsdp.emptystorageclass" as the old storage class name to map to a new existing storage class name at restore time.
+Storage class is required for restore. If no storage class is specified in the PVC during backup, user can specify ```com.vmware.cnsdp.emptystorageclass``` as the old storage class name to map to a new existing storage class name at restore time.
 
-```bash
+```yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
