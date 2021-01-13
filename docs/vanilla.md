@@ -1,6 +1,7 @@
 # Velero Plugin for vSphere in Vanilla Kubernetes Cluster
 
 ## Table of Contents
+
 1. [Compatibility](#compatibility)
 2. [Prerequisites](#prerequisites)
 3. [Install](#install)
@@ -9,6 +10,7 @@
 6. [Restore](#restore)
 
 ## Compatibility
+
 | vSphere Version         | vSphere CSI Version                                       | Kubernetes Version | Velero Version    | Velero Plugin for vSphere Version |
 |-------------------------|-----------------------------------------------------------|--------------------|-------------------|-----------------------------------|
 | vSphere 6.7U3 / ESXi 6.7U3         | v1.0.2 (update to 1.0.3 when available)                   | v1.14 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
@@ -17,26 +19,29 @@
 | vSphere 7.0 / ESXi 7.0 and higher  | v2.0.1 and higher                                         | v1.17 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
 
 ## Prerequisites
+
 * Meet the prerequisites of vSphere CSI driver on vSphere roles and privileges - please refer to
 [vSphere Roles and Privileges](https://vsphere-csi-driver.sigs.k8s.io/driver-deployment/prerequisites.html#roles_and_privileges)
 of vSphere CSI Driver.
 * Meet the prerequisites of Virtual Disk Development Kit (VDDK).
-    * Please refer to [Credentials and Privileges for VMDK Access](https://code.vmware.com/docs/11750/virtual-disk-development-kit-programming-guide/GUID-8301C6CF-37C2-42CC-B4C5-BB1DD28F79C9.html)
+  * Please refer to [Credentials and Privileges for VMDK Access](https://code.vmware.com/docs/11750/virtual-disk-development-kit-programming-guide/GUID-8301C6CF-37C2-42CC-B4C5-BB1DD28F79C9.html)
 of VDDK Programming Guide. **Note: please apply privileges at the vCenter Server level**.
-    * Please make sure port **902** is opened on each ESXi host based on the requirement of the VDDK NBD transport mode.
+  * Please make sure port **902** is opened on each ESXi host based on the requirement of the VDDK NBD transport mode.
 
 ## Install
+
 1. [Install Velero](https://velero.io/docs/v1.5/basic-install/)
 2. [Install Object Storage Plugin](#install-object-storage-plugin)
 3. [Install Velero Plugin for vSphere](#install-velero-plugin-for-vsphere)
 
 ### Install Object Storage Plugin
+
 Volume backups are stored in an object store bucket, e.g., S3. Currently these are stored in the same bucket configured for
 the object storage plugin of Velero. Before installing the vSphere plugin, please install and configure the object storage plugin.
 Here is an example, [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md).
 
-
 ### Install Velero Plugin for vSphere
+
 ```bash
 velero plugin add <plugin-image>
 ```
@@ -48,11 +53,15 @@ velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.1.0
 ```
 
 ## Uninstall
+
 To uninstall the plugin, run the following command to remove the InitContainer of velero-plugin-for-vsphere from the Velero deployment first.
+
 ```bash
 velero plugin remove <plugin image>
 ```
+
 To finish the cleanup, delete the Backup Driver deployment, Data Manager daemonset and their related CRDs.
+
 ```bash
 kubectl -n velero delete deployment.apps/backup-driver
 kubectl delete crds backuprepositories.backupdriver.cnsdp.vmware.com \
@@ -65,10 +74,12 @@ kubectl delete crds uploads.datamover.cnsdp.vmware.com downloads.datamover.cnsdp
 ```
 
 ## Backup
+
 * [Backup vSphere CNS Block Volumes](#backup-vsphere-cns-block-volumes)
 * [Backup vSphere CNS File Volumes](#backup-vsphere-cns-file-volumes)
 
 ### Backup vSphere CNS Block Volumes
+
 Below is an example command of Velero backup.
 
 ```bash
@@ -81,6 +92,7 @@ Velero backup will be marked as `Completed` after all local snapshots have been 
 **except** volume snapshots, has been uploaded to the object store. At this point, async data movement tasks, i.e., the upload
 of volume snapshot, are still happening in the background and may take some time to complete. We can check the
 status of volume snapshot by monitoring Snapshot/Upload CRs as below.
+
 * [Snapshots](#snapshots)
 * [Uploads](#uploads)
 
@@ -94,6 +106,7 @@ kubectl get -n <pvc namespace> snapshot
 ```
 
 Here is an example Snapshot CR in YAML.
+
 ```bash
 apiVersion: backupdriver.cnsdp.vmware.com/v1alpha1
 kind: Snapshot
@@ -123,7 +136,9 @@ status:
   snapshotID: pvc:test-ns-mctwohb/etcd0-pv-claim:aXZkOmQ4NzQwNDE0LTZmZjMtNDZjNi05YjM4LTllNDdlNDBhZmIwNjozZDU3MDU3ZC1lMDcwLTRkNDktYmJlNC0xY2Y0YWYxM2NiNjQ
   svcSnapshotName: ""
 ```
+
 Snapshot CRD has a number of phases for the `.status.phase` field:
+
 * New: not processed yet
 * Snapshotted: local snapshot was taken
 * SnapshotFailed: local snapshot was failed
@@ -144,6 +159,7 @@ kubectl get -n <velero namespace> upload
 ```
 
 Here is an example Upload CR in YAML.
+
 ```bash
 apiVersion: datamover.cnsdp.vmware.com/v1alpha1
 kind: Upload
@@ -174,6 +190,7 @@ status:
 ```
 
 Upload CRD has a number of phases for the `.status.phase` field:
+
 * New: not processed yet
 * InProgress: upload is in progress
 * Completed: upload is completed
@@ -186,6 +203,7 @@ UploadError uploads will be periodically retried.  At that point their phase wil
 successfully completed, its record will remain for a period of time and eventually be removed.
 
 ### Backup vSphere CNS File Volumes
+
 The Velero Plugin for vSphere is designed to backup vSphere CNS block volumes. vSphere CNS
 file volumes should be backed up with the [Velero Restic Integration](https://velero.io/docs/v1.5/restic/).  File volumes must be annotated for Restic backup.  Block and file volumes may be backed up together.
 
@@ -193,11 +211,13 @@ To use Restic backup for file volumes, please use the `--use-restic` flag to `ve
 installing Velero.  Annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
 commands by using the following command for each pod that contains one or more file folumes to
 back up:
-```
+
+```bash
 kubectl -n YOUR_POD_NAMESPACE annotate pod/YOUR_POD_NAME backup.velero.io/backup-volumes=FILE_VOLUME_NAME_1,FILE_VOLUME_NAME_2,...
 ```
 
 ## Restore
+
 Below is an example command of Velero restore.
 
 ```bash
@@ -219,6 +239,7 @@ CRs as below.
 * [Downloads](#downloads)
 
 ### CloneFromSnapshots
+
 For restore from each volume snapshot, a CloneFromSnapshot CR will be created in the same namespace as the PVC that is
 originally snapshotted. We can get all CloneFromSnapshots in PVC namespace by running the following command.
 
@@ -227,6 +248,7 @@ kubectl -n <pvc namespace> get clonefromsnapshot
 ```
 
 Here is an example CloneFromSnapshot CR in YAML.
+
 ```bash
 apiVersion: backupdriver.cnsdp.vmware.com/v1alpha1
 kind: CloneFromSnapshot
@@ -265,6 +287,7 @@ CloneFromSnapshot CRD has some key phases for the `.status.phase` field:
 * Failed: clone from snapshot is failed
 
 ### Downloads
+
 From each restore of volume snapshot to be downloaded from object store, a Download CR will be created in the same
 namespace as Velero. We can get all Downloads in Velero namespace by running the following command.
 
@@ -273,6 +296,7 @@ kubectl -n <velero namespace> get download
 ```
 
 Here is an example Download CR in YAML.
+
 ```bash
 apiVersion: datamover.cnsdp.vmware.com/v1alpha1
 kind: Download

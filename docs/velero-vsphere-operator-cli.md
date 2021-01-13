@@ -1,15 +1,18 @@
 # Velero vSphere Operator CLI Reference
 
 ## Table of Contents
+
 1. [Prerequisites](#prerequisites)
 2. [Install Velero & Plugins](#install-velero--plugins)
 3. [Uninstall Velero & Plugins](#uninstall-velero--plugins)
 4. [Configure Velero & Plugins](#configure-velero--plugins)
 
 ## Prerequisites
+
 * `Velero vSphere Operator` supervisor service is expected to be **enabled** before running any CLI command.
 
 ## Install Velero & Plugins
+
 1. [Install Usage](#command-usage)
 2. [Install Prerequisites](#install-prerequisites)
 3. [Install Notes](#install-notes)
@@ -17,7 +20,8 @@
 5. [Check Install Status](#check-install-status)
 
 ### Install Usage
-```
+
+```bash
 Install Velero Instance
 
 Usage:
@@ -48,23 +52,27 @@ Global Flags:
 ```
 
 ### Install Prerequisites
+
 * Users are expected to create a Supervisor namespace via vSphere UI/API/DCLI before running the install command. Otherwise, the install command would fail.
-* Users are expected to ensure that the Cluster Config Status in the Workload Management plane shows `Running`
-before running the install command. Otherwise, the Velero pod will be stuck at `Pending` state and the 
-install operation can never be completed. There are multiple ways to check the status.
-    * UI. Select `Workload Management` from `menu` in the home page of vSphere UI. Then, navigate to the `Clusters` tab.
-    * DCLI. Run the following command and check the `config_status` field for the corresponding cluster.
+* Users are expected to ensure that the Cluster Config Status in the Workload Management plane shows `Running` before running the install command. Otherwise, the Velero pod will be stuck at `Pending` state and the install operation can never be completed. There are multiple ways to check the status.
+  * **UI**. Select `Workload Management` from `menu` in the home page of vSphere UI. Then, navigate to the `Clusters` tab.
+  * **DCLI**. Run the following command and check the `config_status` field for the corresponding cluster.
+
     ```bash
     dcli com vmware vcenter namespacemanagement clusters list
     ```
 
 ### Install Notes
+
 * The Velero vSphere plugin, velero-plugin-for-vsphere, must be provided in the install command. Otherwise, the install command would fail.
 
 ### Install Examples
+
 Below are some examples.
+
 1. Installing Velero with default backup location and snapshot location
-    ```
+
+    ```bash
     velero-vsphere install \
            --namespace velero \
            --version v1.5.1 \
@@ -75,8 +83,10 @@ Below are some examples.
            --snapshot-location-config region=$REGION \
            --backup-location-config region=$REGION
     ```
+
 2. Installing Velero without default backup location and snapshot location
-    ```
+
+    ```bash
     velero-vsphere install \
         --version v1.5.1 \
         --plugins vsphereveleroplugin/velero-plugin-for-vsphere:1.1.0 \
@@ -84,8 +94,10 @@ Below are some examples.
         --use-volume-snapshots=false \
         --no-default-backup-location
     ```
+
 3. Install Velero in the an Air-gap environment
-    ```
+
+    ```bash
     velero-vsphere install \
         --namespace velero \
         --image <private registry name>/velero:v1.5.1 --use-private-registry \
@@ -98,14 +110,17 @@ Below are some examples.
     ```
 
 ### Check Install Status
+
 The following command can be used to check if installing Velero and vSphere plugin are completed in Supervisor cluster.
 
 ```bash
-$ kubectl -n velero get veleroservice default -o json | jq '.status'
+kubectl -n velero get veleroservice default -o json | jq '.status'
 ```
+
 Before the install operation is completed, the `installphase` field in the `veleroservice.status` will be left unset.
 When the install operation is completed successfully, the follow result will be returned.
-```
+
+```yaml
 {
   "enabled": true,
   "installphase": "Completed",
@@ -115,7 +130,8 @@ When the install operation is completed successfully, the follow result will be 
 
 Instead, when the install operation is completed with any failure, corresponding error message
 will be shown. Below is an example.
-```
+
+```yaml
 {
   "enabled": true,
   "installmessage": "Failed to install Velero since there is existing Velero instance in the cluster. Error: The expected annotation already exists, velero-service=velero",
@@ -124,7 +140,8 @@ will be shown. Below is an example.
 ```
 
 ## Uninstall Velero & Plugins
-```
+
+```bash
 Uninstall Velero Instance
 
 Usage:
@@ -136,8 +153,10 @@ Flags:
 ```
 
 Below is an example,
-```
+
+```bash
 velero-vsphere uninstall -n velero
 ```
+
 **Note**: users are expected to delete the corresponding Supervisor namespace via vSphere UI/API/DCLI after
 running the command above to uninstall Velero.
