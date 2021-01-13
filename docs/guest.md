@@ -154,7 +154,7 @@ as below.
 
 ### CloneFromSnapshots
 
-For restore from each volume snapshot, a ```CloneFromSnapshot`` Custom Resource (CR) will be created in the same namespace as the PVC that is originally snapshotted. We can get all CloneFromSnapshots in PVC namespace by running the following command.
+To restore from each volume snapshot, a ``CloneFromSnapshot`` Custom Resource (CR) will be created in the same namespace as the PVC that is originally snapshotted. We can get all CloneFromSnapshots in PVC namespace by running the following command.
 
 ```bash
 kubectl -n <pvc namespace> get clonefromsnapshot
