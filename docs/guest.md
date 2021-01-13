@@ -1,29 +1,36 @@
 # Tanzu Kubernetes Grid Service
-This document discusses the velero vSphere plugin installation process in a Tanzu Kubernetes Grid Service environment
-aka as Guest Cluster. For more information on Tanzu Kubernetes Grid Service refer to their [documentation](https://docs.vmware.com/en/VMware-Tanzu-Kubernetes-Grid/index.html).
+
+This document discusses the velero vSphere plugin installation process in a **Tanzu Kubernetes Grid Service** environment aka TKG Guest Clusters. For more information on the Tanzu Kubernetes Grid Service refer to the following [documentation](https://docs.vmware.com/en/VMware-Tanzu-Kubernetes-Grid/index.html).
 
 ## Compatibility
+
 | vSphere/ESXi Version                   | vSphere CSI Version          | Kubernetes Version | Velero Version    | Velero Plugin for vSphere Version |
 |----------------------------------------|------------------------------|--------------------|-------------------|-----------------------------------|
 | vSphere 7.0(U1c/P02)/ESXi 7.0(U1c/P02) | CSI driver bundled with TKGS | v1.16-v1.19        | v1.5.1 and higher | v1.1.0 and higher                 |
 
 ## Prerequisites
-* Prior to the installation of Velero vSphere plugin in Guest cluster it is necessary to have Velero and Velero 
-vSphere plugin installed in the Supervisor Cluster, please refer to [Supervisor Cluster Velero vSphere Plugin](supervisor.md)
-installation guide.
-* DataManager needs to be installed, please refer [DataManager Documentation](supervisor-datamgr.md)
 
-## Install
+### Install Velero plugin for vSphere in Supervisor cluster
+
+Prior to the installation of the **Velero plugin for vSphere** in Guest cluster it is necessary to have Velero and **Velero plugin for vSphere** installed in the Supervisor Cluster. Please refer to [Supervisor Cluster Velero vSphere Plugin](supervisor.md) installation guide.
+
+### Install the Data Manager
+
+The Data Manager Virtual Machine also needs to be installed to enable TKGS backups and restores. Please refer to [DataManager Documentation](supervisor-datamgr.md) for details on how to deploy the Data Manager.
+
+## Installation Steps
+
 1. [Install Velero](https://velero.io/docs/v1.5/basic-install/)
 2. [Install Object Storage Plugin](#install-object-storage-plugin)
 3. [Install Velero Plugin for vSphere](#install-velero-plugin-for-vsphere)
 
 ### Install Object Storage Plugin
-Volume backups are stored in an object store bucket, e.g., S3. Currently these are stored in the same bucket configured for
-the object storage plugin of Velero. Before installing the vSphere plugin, please install and configure the object storage plugin.
+
+Volume backups are stored in an object store bucket, e.g., S3. Currently these are stored in the same bucket configured for the object storage plugin of Velero. Before installing the vSphere plugin, please install and configure the object storage plugin.
 Here is an example, [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md).
 
 ### Install Velero Plugin for vSphere
+
 ```bash
 velero plugin add <plugin-image>
 ```
@@ -34,52 +41,55 @@ For Version 1.1.0 the command is
 velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.1.0
 ```
 
-* The installation of Velero vSphere Plugin in Guest Cluster may take over ten minutes to complete, this is primarily
-because the plugin waits for the Velero app operator to write the Secret into a predefined namespace.
+* The installation of Velero vSphere Plugin in Guest Cluster may take over ten minutes to complete, this is primarily because the plugin waits for the Velero app operator to write the Secret into a predefined namespace.
 * The installation may hang forever if Velero is not installed in the Supervisor Cluster.
 
 ## Uninstall
-To uninstall the plugin, run the following command to remove the InitContainer of velero-plugin-for-vsphere from the Velero deployment first.
+
+To uninstall the plugin, run the following command to remove the **InitContainer** of velero-plugin-for-vsphere from the Velero deployment first.
+
 ```bash
 velero plugin remove <plugin image>
 ```
+
 To finish the cleanup, delete the Backup Driver deployment, and their related CRDs.
+
 ```bash
 kubectl -n velero delete deployment.apps/backup-driver
+
 kubectl delete crds backuprepositories.backupdriver.cnsdp.vmware.com \
                     backuprepositoryclaims.backupdriver.cnsdp.vmware.com \
                     clonefromsnapshots.backupdriver.cnsdp.vmware.com \
                     deletesnapshots.backupdriver.cnsdp.vmware.com \
                     snapshots.backupdriver.cnsdp.vmware.com
+
 kubectl delete crds uploads.datamover.cnsdp.vmware.com downloads.datamover.cnsdp.vmware.com
 ```
 
 ## Backup
 
 ### Backup vSphere CNS Block Volumes
+
 Below is an example command of Velero backup.
 
 ```bash
 velero backup create <backup name> --include-namespaces=my-namespace
 ```
 
-For more backup options, please refer to [Velero Document](https://velero.io/docs/v1.5/). 
+For more backup options, please refer to [Velero Document](https://velero.io/docs/v1.5/).
 
-Velero backup will be marked as `Completed` after all local snapshots have been taken and Kubernetes metadata,
-**except** volume snapshots, has been uploaded to the object store. At this point, async data movement tasks, i.e., the upload
-of volume snapshot, are still happening in the background and may take some time to complete. We can check the
-status of volume snapshot by monitoring [Snapshot](#snapshots) CRs
+Velero backup will be marked as `Completed` after all local snapshots have been taken and Kubernetes metadata, **except** volume snapshots, has been uploaded to the object store. At this point, async data movement tasks, i.e., the upload of volume snapshot, are still happening in the background and may take some time to complete. We can check the status of volume snapshot by monitoring [Snapshot](#snapshots) Custom Resources (CRs).
 
-#### Snapshots
+### Snapshots
 
-For each volume snapshot, a Snapshot CR will be created in the same namespace as the PVC that is snapshotted. We can get
-all Snapshots in PVC namespace by running the following command.
+For each volume snapshot, a Snapshot CR will be created in the same namespace as the PVC that is snapshotted. We can get all Snapshots in PVC namespace by running the following command.
 
 ```bash
 kubectl get -n <pvc namespace> snapshot
 ```
 
 Here is an example Snapshot CR in YAML.
+
 ```bash
 apiVersion: backupdriver.cnsdp.vmware.com/v1alpha1
 kind: Snapshot
@@ -111,6 +121,7 @@ status:
 ```
 
 Snapshot CRD has a number of phases for the `.status.phase` field:
+
 * New: not processed yet
 * Snapshotted: local snapshot was taken
 * SnapshotFailed: local snapshot was failed
@@ -122,11 +133,13 @@ Snapshot CRD has a number of phases for the `.status.phase` field:
 * CleanupAfterUploadFailed: the Cleanup of local snapshot after the upload of snapshot was failed
 
 ## Restore
+
 Below is an example command of Velero restore.
 
 ```bash
 velero restore create --from-backup <your-backup-name>
 ```
+
 Velero restore will be marked as `Completed` when volume snapshots and other Kubernetes metadata have been successfully
 restored to the current cluster. At this point, all tasks of vSphere plugin related to this restore are completed as well.
 There are no any async data movement tasks behind the scene as that in the case of Velero backup.
@@ -140,14 +153,15 @@ as below.
 * Restore of a Backup created in Guest Cluster to a Supervisor Cluster is not supported.
 
 ### CloneFromSnapshots
-For restore from each volume snapshot, a CloneFromSnapshot CR will be created in the same namespace as the PVC that is
-originally snapshotted. We can get all CloneFromSnapshots in PVC namespace by running the following command.
+
+To restore from each volume snapshot, a ``CloneFromSnapshot`` Custom Resource (CR) will be created in the same namespace as the PVC that is originally snapshotted. We can get all CloneFromSnapshots in PVC namespace by running the following command.
 
 ```bash
 kubectl -n <pvc namespace> get clonefromsnapshot
 ```
 
-Here is an example CloneFromSnapshot CR in YAML.
+Here is an example ```CloneFromSnapshot``` CR in YAML.
+
 ```bash
 apiVersion: backupdriver.cnsdp.vmware.com/v1alpha1
 kind: CloneFromSnapshot
