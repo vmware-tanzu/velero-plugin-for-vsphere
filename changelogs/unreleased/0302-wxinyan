@@ -1,0 +1,1 @@
+Updated velero-plugin-for-vsphere plugin to support user to use a storage provider secured by a self-signed certificate.
