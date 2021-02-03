@@ -6,11 +6,11 @@ To troubleshoot issues in velero-plugin-for-vsphere, the following information i
 
 The following environment information will also be **required**.
 
-- velero-plugin-for-vsphere version
-- Kubernetes cluster flavor
-- vSphere CSI driver version
 - Velero version (use `velero version`)
 - Velero features (use `velero client config get features`)
+- velero-plugin-for-vsphere version, and all other plugins in velero deployment
+- Kubernetes cluster flavor (`Vanilla`, `Tanzu Kubernetes Grid Service` or `vSphere with Tanzu`)
+- vSphere CSI driver version, and all images  in `vsphere-csi-controller` deployment and `vsphere-csi-node` daemonset
 - Kubernetes version (use `kubectl version`)
 - vSphere versions, including vCenter version and ESXi version
 
