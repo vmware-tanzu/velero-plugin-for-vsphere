@@ -21,4 +21,4 @@ about: Suggest an idea for this project
 
 **Environment:**
 
-[Provide the [required environment information](../../docs/troubleshooting.md#environment)]
+[Provide the [required environment information](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/blob/main/docs/troubleshooting.md#environment)]

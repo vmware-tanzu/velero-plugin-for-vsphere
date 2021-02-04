@@ -18,7 +18,7 @@ about: Tell us about a problem you are experiencing
 
 **Troubleshooting Information**
 
-[Please refer to the [Troubleshooting](../../docs/troubleshooting.md) page and collect the required information]
+[Please refer to the [Troubleshooting](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/blob/main/docs/troubleshooting.md) page and collect the required information]
 
 **Screenshots**
 
