@@ -26,8 +26,9 @@ The Data Manager Virtual Machine also needs to be installed to enable TKGS backu
 
 ### Install Object Storage Plugin
 
-Volume backups are stored in an object store bucket, e.g., S3. Currently these are stored in the same bucket configured for the object storage plugin of Velero. Before installing the vSphere plugin, please install and configure the object storage plugin.
-Here is an example, [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md).
+Volume backups are stored in an object store bucket. They are stored in the same bucket configured for the object storage plugin of Velero. Before installing the vSphere plugin, a Velero object storage plugin is required.
+
+Currently, only AWS plugin is supported and compatible with vSphere plugin. Please refer to [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md) for more details about using **AWS S3** as the object store for backups. S3-compatible object stores, e.g, **MinIO**, are also supported via AWS plugin. Please refer to [install with MinIO](https://velero.io/docs/v1.5/contributions/minio/).
 
 ### Install Velero Plugin for vSphere
 
