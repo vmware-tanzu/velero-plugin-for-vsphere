@@ -787,13 +787,15 @@ github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a/go.mod h1:v3UYOV
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/vishvananda/netlink v1.0.0/go.mod h1:+SR5DhBJrl6ZM7CoCKvpw5BKroDKQ+PJqOg65H/2ktk=
 github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936/go.mod h1:ZjcWmFBXmLKZu9Nxj3WKYEafiSqer2rnvPr0en9UNpI=
-github.com/vmware-tanzu/astrolabe v0.2.0 h1:P2/4hAp9msdOaZs6cy6HuMrR4h6GTTZBFBAkXiJNTqI=
-github.com/vmware-tanzu/astrolabe v0.2.0/go.mod h1:Af9uI95FSmiaKAiyUFa21rvFAeU195hIv7dMK3XnRag=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20210226062805-d433214638d2 h1:nmAutQ5TN8C/Spf5iMZmfUeZMQ1MJxs8ow52vec8zFE=
+github.com/vmware-tanzu/astrolabe v0.1.2-0.20210226062805-d433214638d2/go.mod h1:kyAPAsg0rv1h/uMEvAiu4ZgTBFJvi4VoMzV4qOGS06I=
 github.com/vmware-tanzu/velero v1.5.1 h1:PMcPfrhv91AfO/NPIWJDVUEql+DUixPnTjg+LTV95yI=
 github.com/vmware-tanzu/velero v1.5.1/go.mod h1:SIyHunlEyLVeKjWR34rv0mLeNVsH5wiR/EmQuUEo1/k=
 github.com/vmware/govmomi v0.20.3/go.mod h1:URlwyTFZX72RmxtxuaFL2Uj3fD1JTvZdx59bHWk6aFU=
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f h1:6LIYlihC1/LDUhZ7zYVp1WOEY5owzsvogiaHBqvBzPU=
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f/go.mod h1:Y+Wq4lst78L85Ge/F8+ORXIWiKYqaro1vhAulACy9Lc=
+github.com/vmware/virtual-disks v0.0.2 h1:zDlvkj2MIBYeujBBYNr9zCaMAcTnP4mAgdIBcHmmaeM=
+github.com/vmware/virtual-disks v0.0.2/go.mod h1:GrUXFHPgc8MovXpbn3YduOIbRfzpKNNTagwjoY2bfAI=
 github.com/vmware/vmw-guestinfo v0.0.0-20170707015358-25eff159a728/go.mod h1:x9oS4Wk2s2u4tS29nEaDLdzvuHdB19CvSGJjPgkZJNk=
 github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c/go.mod h1:lB8K/P019DLNhemzwFU4jHLhdvlE6uDZjXFejJXr49I=
 github.com/xdg/stringprep v0.0.0-20180714160509-73f8eece6fdc/go.mod h1:Jhud4/sHMO4oL310DaZAKk9ZaJ08SJfe+sJh0HrGL1Y=

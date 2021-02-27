@@ -16,15 +16,11 @@
 
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
-ASTROLABE:= github.com/vmware-tanzu/astrolabe
-#
+
 # The Virtual Disk Development Kit (VDDK) is required for interfacing with vSphere and VADP.
-# Please see the gvddk README.md file for instructions on downloading and
-# installing.
-# <gopath>/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk/README.md
-#
-GVDDK:= github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
-VDDK_LIBS:= $(GVDDK)/vmware-vix-disklib-distrib/lib64
+# Please refer to https://github.com/vmware/virtual-disks/blob/main/README.md
+# for instructions on downloading and installing.
+VDDK_LIBS:= $(PKG)/.libs/vmware-vix-disklib-distrib/lib64
 
 # The binary to build (just the basename).
 PLUGIN_BIN ?= velero-plugin-for-vsphere
@@ -66,18 +62,18 @@ all: dep plugin
 
 dep:
 ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
-	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency")
+	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path. Please refer to: https://github.com/vmware/virtual-disks#dependency")
 endif
 
 plugin: datamgr backup-driver
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN) VERSION=$(VERSION)
 
-datamgr: astrolabe
+datamgr:
 	@echo "making: $@"
 	$(MAKE) build BIN=$(DATAMGR_BIN) VERSION=$(VERSION)
 
-backup-driver: astrolabe
+backup-driver:
 	@echo "making: $@"
 	$(MAKE) build BIN=$(BACKUPDRIVER_BIN) VERSION=$(VERSION)
 
@@ -120,6 +116,7 @@ shell: build-dirs
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
+		-v $$(pwd)/.libs/vmware-vix-disklib-distrib:/usr/local/vmware-vix-disklib-distrib:delegated \
 		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
 		-v $$(pwd)/.go/src:/go/src:delegated \
 		-v $$(pwd)/.go/std:/go/std:delegated \
@@ -137,42 +134,13 @@ build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
 
-copy-pkgs:
-	@echo "copy astrolabe for vendor directory to .go"
-	@rm -rf $$(pwd)/.go/src/$(ASTROLABE)
-	@mkdir -p $$(pwd)/.go/src/$(ASTROLABE)
-	@cp -R $(GOPATH)/src/$(ASTROLABE)/* $$(pwd)/.go/src/$(ASTROLABE)
-
-#	@echo "copy gvddk for vendor directory to .go"
-#	@rm -rf $$(pwd)/.go/src/$(GVDDK)
-#	mkdir -p $$(pwd)/.go/src/$(GVDDK)
-#	@cp -R $(GOPATH)/src/$(GVDDK)/* $$(pwd)/.go/src/$(GVDDK)
-
-astrolabe: build-dirs copy-pkgs 
-	@echo "building astrolabe"
-	docker run \
-		-e GOFLAGS \
-		-i $(TTY) \
-		--rm \
-		-u $$(id -u):$$(id -g) \
-		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
-		-v $$(pwd)/.go/src:/go/src:delegated \
-		-v $$(pwd)/.go/std:/go/std:delegated \
-		-v $$(pwd):/go/src/$(PKG):delegated \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
-		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-e CGO_ENABLED=1 \
-		-w /go/src/$(ASTROLABE) \
-		$(BUILDER_IMAGE) \
-		make
-
 container-name:
 	@echo "container: $(IMAGE):$(VERSION)"
 
 copy-vix-libs:
 	mkdir -p _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
 	cp -R $(GOPATH)/src/$(VDDK_LIBS)/* _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64
-# Some of the libraries have the executable bit set and this causes plugin startup to fail
+	# Some of the libraries have the executable bit set and this causes plugin startup to fail
 	chmod 644 _output/bin/$(GOOS)/$(GOARCH)/lib/vmware-vix-disklib/lib64/*
 
 copy-install-script:
