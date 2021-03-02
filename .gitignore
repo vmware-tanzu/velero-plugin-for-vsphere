@@ -1,4 +1,5 @@
 .go
+.libs
 .idea
 _output
 .container-*

@@ -1,0 +1,1 @@
+Updated plugin Makefile and CI script to adapt the latest change in astrolabe that spin off the gvddk component to be an independent project, vmware/virtual-disks.
