@@ -13,14 +13,9 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: src/github.com/vmware-tanzu/velero-plugin-for-vsphere
-      - name: Check out the code of astrolabe
-        uses: actions/checkout@v2
-        with:
-          repository: vmware-tanzu/astrolabe
-          path: src/github.com/vmware-tanzu/astrolabe
       - name: Download essential GVDDK libraries
         run: |
-          cd src/github.com/vmware-tanzu/astrolabe/vendor/github.com/vmware/gvddk
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere && mkdir .libs && cd .libs
           wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
           tar xzf VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
           chmod 644 $(find vmware-vix-disklib-distrib/lib64/ -type f)
