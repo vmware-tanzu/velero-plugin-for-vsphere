@@ -1,0 +1,1 @@
+Updated Makefile to support compile with local change in astrolabe and also updated description and error msg about the virtual-disks dependency
