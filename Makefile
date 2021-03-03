@@ -16,11 +16,15 @@
 
 # This repo's root import path (under GOPATH).
 PKG := github.com/vmware-tanzu/velero-plugin-for-vsphere
+ASTROLABE:= github.com/vmware-tanzu/astrolabe
+
 
 # The Virtual Disk Development Kit (VDDK) is required for interfacing with vSphere and VADP.
-# Please refer to https://github.com/vmware/virtual-disks/blob/main/README.md
-# for instructions on downloading and installing.
-VDDK_LIBS:= $(PKG)/.libs/vmware-vix-disklib-distrib/lib64
+# Please refer to https://github.com/vmware/virtual-disks#dependency for the dependency.
+# To compile plugin, we need to download the VDDK tarball
+# under $(PKG)/.libs directory (create the directory if it unexists)
+LIB_DIR := $(PKG)/.libs
+VDDK_LIBS:= $(LIB_DIR)/vmware-vix-disklib-distrib/lib64
 
 # The binary to build (just the basename).
 PLUGIN_BIN ?= velero-plugin-for-vsphere
@@ -62,7 +66,7 @@ all: dep plugin
 
 dep:
 ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
-	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path. Please refer to: https://github.com/vmware/virtual-disks#dependency")
+	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path. Please refer to: https://github.com/vmware/virtual-disks#dependency, download the VDDK tarball to the directory $(GOPATH)/src/$(LIB_DIR)/ and untar it")
 endif
 
 plugin: datamgr backup-driver
@@ -91,7 +95,7 @@ local: build-dirs
 
 build: _output/bin/$(GOOS)/$(GOARCH)/$(BIN)
 
-_output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
+_output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs copy-astrolabe
 	@echo "building: $@"
 	$(MAKE) shell CMD="-c '\
 		GOOS=$(GOOS) \
@@ -109,7 +113,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs
 
 TTY := $(shell tty -s && echo "-t")
 
-shell: build-dirs 
+shell: build-dirs
 	@echo "running docker: $@"
 	docker run \
 		-e GOFLAGS \
@@ -133,6 +137,17 @@ shell: build-dirs
 build-dirs:
 	@mkdir -p _output/bin/$(GOOS)/$(GOARCH)
 	@mkdir -p .go/src/$(PKG) .go/pkg .go/bin .go/std/$(GOOS)/$(GOARCH) .go/go-build
+
+copy-astrolabe:
+ifeq (,$(wildcard $(GOPATH)/src/$(ASTROLABE)))
+	@echo "skip copying astrolabe as it is not available at $(GOPATH)/src/$(ASTROLABE)"
+else
+	@echo "copy astrolabe to .go/src directory"
+	@rm -rf $$(pwd)/.go/src/$(ASTROLABE)
+	@mkdir -p $$(pwd)/.go/src/$(ASTROLABE)
+	@cp -R $(GOPATH)/src/$(ASTROLABE)/* $$(pwd)/.go/src/$(ASTROLABE)
+endif
+
 
 container-name:
 	@echo "container: $(IMAGE):$(VERSION)"
