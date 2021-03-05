@@ -117,8 +117,6 @@ const (
 	VCSecretNsSupervisor   = "vmware-system-csi"
 	VCSecret               = "vsphere-config-secret"
 	VCSecretTKG            = "csi-vsphere-config"
-	VCSecretData           = "csi-vsphere.conf"
-	VCSecretDataSupervisor = "vsphere-cloud-provider.conf"
 )
 
 const (

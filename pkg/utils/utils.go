@@ -76,17 +76,15 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	}
 
 	// Get the cluster flavor
-	var ns, secretData string
+	var ns string
 	clusterFlavor, err := GetClusterFlavor(config)
 	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Unknown {
 		logger.Errorf("RetrieveVcConfigSecret: Cannot retrieve VC secret in cluster flavor %s", clusterFlavor)
 		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret")
 	} else if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
-		secretData = constants.VCSecretDataSupervisor
 	} else {
 		ns = constants.VCSecretNs
-		secretData = constants.VCSecretData
 	}
 
 	secretApis := clientset.CoreV1().Secrets(ns)
@@ -106,9 +104,21 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 		logger.WithError(err).Errorf("Failed to get k8s secret, %s", vsphere_secrets)
 		return err
 	}
+	// No kv pairs in the secret.
+	if len(secret.Data) == 0 {
+		errMsg := fmt.Sprintf("Failed to get any data in k8s secret, %s", vsphere_secrets)
+		logger.Errorf(errMsg)
+		return errors.New(errMsg)
+	}
 
-	sEnc := string(secret.Data[secretData])
-	lines := strings.Split(sEnc, "\n")
+	var sEnc string
+	var lines []string
+	for _, value := range secret.Data {
+		sEnc = string(value)
+		lines = strings.Split(sEnc, "\n")
+		logger.Debugf("Successfully retrieved vCenter configuration from secret %s", secret.Name)
+		break
+	}
 
 	ParseLines(lines, params, logger)
 
