@@ -24,7 +24,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"net"
 	"os"
@@ -907,16 +906,9 @@ func IsResourceBlockedOnRestore(resourceName string) bool {
 }
 
 func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
-	// Retrieve the common object metadata and check to see if this is a blocked type
-	accessor := meta.NewAccessor()
-
-	selfLink, err := accessor.SelfLink(item)
+	crdName, err := util.UnstructuredToCRDName(item)
 	if err != nil {
-		return false, "", errors.Wrap(err, "Failed to retrieve SelfLink")
-	}
-	crdName := util.SelfLinkToCRDName(selfLink)
-	if crdName == "" {
-		return false, "", errors.Errorf("Could not translate selfLink %s to CRD name", selfLink)
+		return false, "", errors.Errorf("Could not translate item kind %s to CRD name", item.GetObjectKind())
 	}
 	if IsResourceBlocked(crdName) {
 		return true, crdName, nil

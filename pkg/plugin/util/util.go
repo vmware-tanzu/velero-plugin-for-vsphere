@@ -10,7 +10,10 @@ import (
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"strings"
@@ -115,6 +118,48 @@ func SelfLinkToCRDName(selfLink string) string {
 	} else {
 		return components[pluralIndex]
 	}
+}
+
+/*
+ * Extracts the CRD name from a K8S Unstructured into the CRD name.  Supports namespaced and cluster level CRs
+ * K8S Cluster Resource Self Link format: /api/<version>/<resource plural name>/<item name>,
+ *     e.g. /api/v1/persistentvolumes/pvc-3240e5ed-9a97-446c-a6ab-b2442d852d04
+ * K8S Resource Name = <resource plural name>, e.g. persistentvolumes
+ * Custom Resource Cluster Self Link format: /apis/<CR group>/<version>/<CR plural name>/<item name>,
+ *     e.g. /api/cnsdp.vmware.com/v1/backuprepositories/br-1
+ * Custom Resource Name = <CR plural name>.<CR group>, e.g. backuprepositories.cnsdp.vmware.com
+ * TODO - replace with a better system that does need singular to plural translation
+ */
+func UnstructuredToCRDName(item runtime.Unstructured) (string, error) {
+	// Retrieve the common object metadata and check to see if this is a blocked type
+	accessor := meta.NewAccessor()
+	apiVersion, err := accessor.APIVersion(item)
+	if err != nil {
+		return "", err
+	}
+	var group string
+
+	gv, err := schema.ParseGroupVersion(apiVersion)
+	kind, err := accessor.Kind(item)
+	if err != nil {
+		return "", err
+	}
+	group = gv.Group
+
+	var pluralName string
+	// Singular to plural conversion is done by adding an 's' unless the kind ends in a 'y' in which case
+	// y gets replaced with ies.  This is not a complete set of rules, it doesn't handle shelf->shelves for example
+	// but the rules are weird.  Currently works for the resources defined, this is the place to add additional plural rules
+	// if necessary
+	if strings.HasSuffix(kind, "y") {
+		pluralName = strings.ToLower(kind)[0:len(kind) - 1] + "ies"
+	} else {
+		pluralName = strings.ToLower(kind) + "s"
+	}
+	if group != "" {
+		return pluralName + "." + group, nil
+	}
+	return pluralName, nil
 }
 
 func GetKubeClient(config *rest.Config, logger logrus.FieldLogger) (*kubernetes.Clientset, error) {

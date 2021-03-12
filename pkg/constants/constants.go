@@ -175,6 +175,10 @@ const (
 	SupervisorResourcePoolKey = "SupervisorResourcePool"
 )
 
+// We are currently translating Group + Kind -> the names below.  This involves
+// a singular to plural conversion.  When adding new resources, ensure that they
+// work with the singular to plural rule of words ending in "y" the "y" becomes "ies" and other
+// words get an "s" attached.
 var ResourcesToBlock = map[string]bool{
 	// Kubernetes with vSphere Supervisor Cluster resources
 	"agentinstalls.installers.tmc.cloud.vmware.com":           true,
