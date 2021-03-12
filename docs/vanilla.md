@@ -26,7 +26,8 @@ of vSphere CSI Driver.
 * Meet the prerequisites of Virtual Disk Development Kit (VDDK).
   * Please refer to [Credentials and Privileges for VMDK Access](https://code.vmware.com/docs/11750/virtual-disk-development-kit-programming-guide/GUID-8301C6CF-37C2-42CC-B4C5-BB1DD28F79C9.html)
 of VDDK Programming Guide. **Note: please apply privileges at the vCenter Server level**.
-  * Please make sure port **902** is opened on each ESXi host based on the requirement of the VDDK NBD transport mode.
+  * Please make sure to open port **902** on any ESXi that hosts Kubernetes node VMs. This port requirement is specific to the NBD transport mode of VDDK. Below is an example of networking setup in Vanilla cluster on vSphere.
+    ![Networking in Vanilla](vanilla-networking.png)
 
 ## Install
 

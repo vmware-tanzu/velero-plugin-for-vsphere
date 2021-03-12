@@ -8,6 +8,10 @@ The networking considerations have already been mentioned in the [README.md](vel
 
 ```TKGS``` is the Tanzu Kubernetes Grid Service, a service available in vSphere with Tanzu to enable the deployment of TKG (guest) clusters in vSphere with Tanzu namespaces. Whilst TKGS is available in both deployments types of vSphere with Tanzu (NSX-T and native vSphere networking), the ability to backup TKGS guest clusters also requires the Supervisor Cluster to have the Velero Plugin for vSphere to be installed in the Supervisor Cluster. Since this is not possible with vSphere with Tanzu which uses native vSphere distributed switch networking, the Velero Plugin for vSphere is currently unable to backup and restore TKG guest clustes in these deployments.
 
+Below is the networking diagram of velero-plugin-for-vsphere in vSphere with Tanzu cluster.
+
+![Networking in vSphere with Tanzu](supervisor-networking.png)
+
 ## Restricted resources
 
 Certain resources with the **vSphere with Tanzu** Supervisor Cluster need to be created by the Supervisor Cluster and cannot be restored. The **Velero Plugin for vSphere** blocks backup and restore of these resources and will generate errors if an attempt is made to backup or restore these resources and the backup or restore will be marked as "Partially Failed".
