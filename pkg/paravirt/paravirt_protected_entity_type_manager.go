@@ -207,7 +207,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 
 	// Get Supervisor Cluster PVC and Guest Cluster PVC name and
 	// namespace by retrieving from metadata
-	svcPVC, gcPVCNamespace, gcPVCName, err := this.getSuperPVCandGuestPVCName(metadata)
+	svcPVC, gcPVCNamespace, gcPVCName, gcPVCLabels, err := this.getSuperPVCandGuestPVCName(metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 		return nil, err
 	}
 
-	gcPVC, err := this.createGuestPVC(ctx, gcPVCNamespace, gcPVCName, gcPV.Name, svcPVC)
+	gcPVC, err := this.createGuestPVC(ctx, gcPVCNamespace, gcPVCName, gcPVCLabels, gcPV.Name, svcPVC)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +311,7 @@ func decodeSnapshotID(snapshotID astrolabe.ProtectedEntitySnapshotID, logger log
 
 // getSuperPVCandGuestPVCName converts metadata to PVC and returns the PVC
 // in Supervisor Cluster and namespace and name of the PVC in Guest Cluster
-func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metadata []byte) (*v1.PersistentVolumeClaim, string, string, error) {
+func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metadata []byte) (*v1.PersistentVolumeClaim, string, string, map[string]string, error) {
 	// Decode metadata, change namespace of PVC
 	// from Guest Cluster namespace to Supervisor Cluster namespace,
 	// and encode again before calling CreateFromMetadata
@@ -323,20 +323,26 @@ func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metad
 	svcPVC := v1.PersistentVolumeClaim{}
 	err := svcPVC.Unmarshal(metadata)
 	if err != nil {
-		return nil, "", "", errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
+		return nil, "", "", map[string]string{}, errors.Wrapf(err, "failed to unmarshal metadata to get PVC")
 	}
 	// Construct Supervisor Cluster PVC name
 	pvcUUID, err := uuid.NewRandom()
 	if err != nil {
 		// NOTE: svcPVC is marshaled from metadata which is originally
 		// from the Guest Cluster PVC
-		return nil, "", "", errors.Wrapf(err, "could not generate PVC name in the Supervisor Cluster for Guest Cluster PVC %s/%s",
+		return nil, "", "", map[string]string{}, errors.Wrapf(err, "could not generate PVC name in the Supervisor Cluster for Guest Cluster PVC %s/%s",
 			svcPVC.Name, svcPVC.Namespace)
 	}
 	// Save original Guest Cluster PVC name and namespace
 	gcPVCName := svcPVC.Name
 	gcPVCNamespace := svcPVC.Namespace
-
+	gcPVCLabel := make(map[string]string)
+	// vSphere CSI Driver does not keep Labels on Supervisor PVC. Clear out labels from supervisor cluster after copying to guest pvc label map.
+	for k, v := range svcPVC.Labels {
+		gcPVCLabel[k] = v
+		delete(svcPVC.Labels, k)
+	}
+	
 	// Construct a name for the PVC in Supervisor cluster
 	svcPVC.Name = svcPVC.Name[0:4] + "-" + pvcUUID.String()
 	svcPVC.Namespace = this.svcNamespace
@@ -345,13 +351,13 @@ func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metad
 		svcStorageClassName = *svcPVC.Spec.StorageClassName
 	} else {
 		this.logger.Errorf("Failed to restore PVC %s/%s in Supervisor Cluster because StorageClassName is not set", svcPVC.Namespace, svcPVC.Name)
-		return nil, "", "", errors.Wrapf(err, "failed to restore PVC %s/%s in Supervisor Cluster because StorageClassName is not set",
+		return nil, "", "", map[string]string{}, errors.Wrapf(err, "failed to restore PVC %s/%s in Supervisor Cluster because StorageClassName is not set",
 			svcPVC.Namespace, svcPVC.Name)
 	}
 
 	this.logger.Infof("StorageClassName is %s in Supervisor PVC: %s/%s", svcStorageClassName, svcPVC.Namespace, svcPVC.Name)
 
-	return &svcPVC, gcPVCNamespace, gcPVCName, nil
+	return &svcPVC, gcPVCNamespace, gcPVCName, gcPVCLabel, nil
 }
 
 // convertSnapshotID constructs the snapshotID to this format:
@@ -418,7 +424,7 @@ func (this *ParaVirtProtectedEntityTypeManager) createGuestPV(gcPVCNamespace str
 
 // createGuestPVC creates a PVC in Guest Cluster and waits for it to bound
 // with PV
-func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(ctx context.Context, gcPVCNamespace string, gcPVCName string, gcPVName string, svcPVC *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(ctx context.Context, gcPVCNamespace string, gcPVCName string, gcPVCLabels map[string]string, gcPVName string, svcPVC *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
 	// Construct PVC, setting PVC's VolumeName to PV Name
 	accessModes := svcPVC.Spec.AccessModes
 	resources := svcPVC.Spec.Resources
@@ -427,6 +433,7 @@ func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(ctx context.Conte
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: gcPVCNamespace,
 			Name:      gcPVCName,
+			Labels:    gcPVCLabels,
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: accessModes,
