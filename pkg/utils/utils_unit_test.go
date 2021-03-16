@@ -17,10 +17,13 @@ limitations under the License.
 package utils
 
 import (
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"k8s.io/client-go/rest"
 	"strings"
 	"testing"
@@ -381,4 +384,66 @@ func Test_ItemToCRDName(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, pvcCRDName, "persistentvolumeclaims")
+}
+
+func TestGetS3SessionOptionsFromParamsMap(t *testing.T) {
+	params1 := make(map[string]interface{})
+	params1["region"] = "us-west-1"
+	options1 := session.Options{Config: aws.Config{
+		Region:      aws.String("us-wes-1"),
+	}}
+	params2 := make(map[string]interface{})
+	params2["region"] = "us-west-1"
+	params2[constants.AWS_ACCESS_KEY_ID] = "key-id"
+	params2[constants.AWS_SECRET_ACCESS_KEY] = "secret-access-key"
+	options2 := session.Options{Config: aws.Config{
+		Region:      aws.String("us-wes-1"),
+		Credentials: credentials.NewStaticCredentials("key-id", "secret-access-key", ""),
+	}}
+	params3 := make(map[string]interface{})
+	params3["region"] = "us-west-1"
+	params3["caCert"] = "caCert"
+	options3 := session.Options{Config: aws.Config{
+		Region:      aws.String("us-wes-1"),
+	}}
+	options3.CustomCABundle = strings.NewReader("caCert")
+	tests := []struct {
+		name string
+		params map[string]interface{}
+		expected session.Options
+	} {
+		{
+			name: "If the credentials are not explicitly provided in params. No caCert is provided.",
+			params: params1,
+			expected: options1,
+		},
+		{
+			name: "If the credentials are explicitly provided in params. No caCert is provided.",
+			params: params2,
+			expected: options2,
+		},
+		{
+			name: "If caCert is provided.",
+			params: params3,
+			expected: options3,
+		},
+	}
+	logger := veleroplugintest.NewLogger()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sessionOptions, err := GetS3SessionOptionsFromParamsMap(test.params, logger)
+			assert.Nil(t, err)
+			assert.Equal(t, test.params["region"], *sessionOptions.Config.Region)
+
+			_, ok := test.params[constants.AWS_ACCESS_KEY_ID]
+			if ok {
+				assert.NotNil(t, sessionOptions.Config.Credentials)
+			}
+
+			_, ok = test.params["caCert"]
+			if ok {
+				assert.NotNil(t, sessionOptions.CustomCABundle)
+			}
+		})
+	}
 }

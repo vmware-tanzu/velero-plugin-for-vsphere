@@ -314,6 +314,10 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 	params["s3Url"] = backupStorageLocation.Spec.Config["s3Url"]
 	params["profile"] = backupStorageLocation.Spec.Config["profile"]
 
+	if backupStorageLocation.Spec.ObjectStorage.CACert != nil {
+		params["caCert"] = string(backupStorageLocation.Spec.ObjectStorage.CACert)
+	}
+
 	return nil
 }
 
@@ -351,28 +355,12 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 		return nil, errors.New("Missing bucket param, cannot initialize S3 PETM")
 	}
 
-	// If the credentials are explicitly provided in params, use it.
-	// else let aws API pick the default credential provider.
-	var sess *session.Session
-	if _, ok := params[constants.AWS_ACCESS_KEY_ID]; ok {
-		s3AccessKeyId, ok := GetStringFromParamsMap(params, constants.AWS_ACCESS_KEY_ID, logger)
-		if !ok {
-			return nil, errors.New("Failed to retrieve S3 Access Key.")
-		}
-		s3SecretAccessKey, ok := GetStringFromParamsMap(params, constants.AWS_SECRET_ACCESS_KEY, logger)
-		if !ok {
-			return nil, errors.New("Failed to retrieve S3 Secret Access Key.")
-		}
-		logger.Infof("Using explicitly found credentials for S3 repository access.")
-		sess = session.Must(session.NewSession(&aws.Config{
-			Region:      aws.String(region),
-			Credentials: credentials.NewStaticCredentials(s3AccessKeyId, s3SecretAccessKey, ""),
-		}))
-	} else {
-		sess = session.Must(session.NewSession(&aws.Config{
-			Region: aws.String(region),
-		}))
+	sessionOption, err := GetS3SessionOptionsFromParamsMap(params, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get s3 session option from params.")
+		return nil, err
 	}
+	sess := session.Must(session.NewSessionWithOptions(sessionOption))
 
 	s3Url, ok := GetStringFromParamsMap(params, "s3Url", logger)
 	if ok {
@@ -404,6 +392,34 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 	return s3PETM, nil
 }
 
+func GetS3SessionOptionsFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (session.Options, error) {
+	region, _ := GetStringFromParamsMap(params, "region", logger)
+	// If the credentials are explicitly provided in params, use it.
+	// else let aws API pick the default credential provider.
+	sessionOptions := session.Options{Config: aws.Config{
+		Region:      aws.String(region),
+	}}
+	var credential *credentials.Credentials
+	if _, ok := params[constants.AWS_ACCESS_KEY_ID]; ok {
+		s3AccessKeyId, ok := GetStringFromParamsMap(params, constants.AWS_ACCESS_KEY_ID, logger)
+		if !ok {
+			return session.Options{}, errors.New("Failed to retrieve S3 Access Key.")
+		}
+		s3SecretAccessKey, ok := GetStringFromParamsMap(params, constants.AWS_SECRET_ACCESS_KEY, logger)
+		if !ok {
+			return session.Options{}, errors.New("Failed to retrieve S3 Secret Access Key.")
+		}
+		logger.Infof("Using explicitly found credentials for S3 repository access.")
+		credential = credentials.NewStaticCredentials(s3AccessKeyId, s3SecretAccessKey, "")
+		sessionOptions.Config.Credentials = credential
+	}
+	caCert, ok := GetStringFromParamsMap(params, "caCert", logger)
+	if ok && len(caCert) > 0 {
+		sessionOptions.CustomCABundle = strings.NewReader(caCert)
+	}
+	return sessionOptions, nil
+}
+
 func GetDefaultS3PETM(logger logrus.FieldLogger) (*s3repository.ProtectedEntityTypeManager, error) {
 	var s3PETM *s3repository.ProtectedEntityTypeManager
 	params := make(map[string]interface{})
@@ -433,7 +449,7 @@ func GetStringFromParamsMap(params map[string]interface{}, key string, logger lo
 		}
 		return value, ok
 	} else {
-		logger.Errorf("No such key %s in params map", key)
+		logger.Infof("No such key %s in params map", key)
 		return "", ok
 	}
 }
