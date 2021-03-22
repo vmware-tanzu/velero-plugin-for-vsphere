@@ -47,4 +47,9 @@ The backup workflow in a vSphere with Tanzu Supervisor cluster is the same as th
 
 ## Restore
 
-The restore workflow in a vSphere with Tanzu Supervisor cluster is the same as that in Vanilla Kubernetes cluster. Please refer to [Restore](vanilla.md#restore) in Vanilla Kubernetes Cluster document.
+In a vSphere with Tanzu Supervisor cluster, users need to take extra steps via either vSphere UI or VMware [DCLI](https://code.vmware.com/web/tool/3.0.0/vmware-datacenter-cli) before restoring a workload.
+
+1. Create a namespace in Supervisor cluster.
+2. Configure the Storage policy in the namespace.
+
+The rest of restore workflow in a vSphere with Tanzu Supervisor cluster is the same as that in Vanilla Kubernetes cluster. Please refer to [Restore](vanilla.md#restore) in Vanilla Kubernetes Cluster document.
