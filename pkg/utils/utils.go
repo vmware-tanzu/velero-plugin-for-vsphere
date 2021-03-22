@@ -335,9 +335,9 @@ func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldL
 
 	ivdPETM, err := ivd.NewIVDProtectedEntityTypeManager(params, s3Config, logger)
 	if err != nil {
-		logger.WithError(err).Errorf("Error at creating new IVD PETM from vc params: %v, s3Config: %v",
+		logger.WithError(err).Errorf("Error initializing new IVD PETM from vc params: %v, s3Config: %v",
 			params, s3Config)
-		return nil, err
+		logger.Warnf("Registering uninitialized IVD PETM, will retry connection on access..")
 	}
 
 	return ivdPETM, nil
