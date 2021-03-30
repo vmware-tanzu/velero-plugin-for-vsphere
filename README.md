@@ -28,13 +28,27 @@ For more information on TKGS, the ```Tanzu Kubernetes Grid Service```, please se
 
 **TKGS** is the Tanzu Kubernetes Grid Service, a service available in vSphere with Tanzu to enable the deployment of TKG (guest) clusters in vSphere with Tanzu namespaces. Whilst TKGS is available in both deployments types of vSphere with Tanzu (NSX-T and native vSphere networking), the ability to backup TKGS guest clusters also requires the Supervisor Cluster to have the Velero Plugin for vSphere to be installed in the Supervisor Cluster. Since this is not possible with vSphere with Tanzu which uses native vSphere distributed switch networking, the Velero Plugin for vSphere is currently unable to backup and restore TKG guest clustes in these deployments.
 
+## Architecture
+
+Velero handles Kubernetes metadata during backup and retore. Velero relies on its plugin to backup and retore PVCs. Velero Plugin for vSphere includes the following components:
+* Velero vSphere Operator - a Supervisor Service that helps users install Velero and its vSphere plugin on the Supervisor Cluster; must be enabled through vSphere UI to support backup and restore on Supervisor and Guest Clusters
+* vSphere Plugin - deployed with Velero; called by Velero to backup and restore a PVC
+* Backupdriver - handles the backup and restore of PVCs; relies on the Data Mover to upload or download data
+* Data Mover - handles upload of snapshot data to object store and download of snapshot data from object store
+
+![Velero Plugin for vSphere Architecture](docs/vsphere-plugin-architecture.png)
+
+Backup and restore workflows are described in details [here](docs/backup-restore-workflows.md).
+
 ## Velero Plugin for vSphere Installation and Configuration details
 
 For details on how to use Velero Plugin for vSphere for each Kubernetes flavor, refer to the following documents:
 
-- [Vanilla Kubernetes](docs/vanilla.md)
-- [vSphere with Tanzu](docs/supervisor.md)
-- [Tanzu Kubernetes Grid Service](docs/guest.md)
+- [Guide for Vanilla Kubernetes](docs/vanilla.md)
+- [Guide for vSphere with Tanzu](docs/supervisor.md)
+- [Guide for Tanzu Kubernetes Grid Service](docs/guest.md)
+
+Note: Velero needs to be installed in each TKG workload cluster.
 
 ## Known issues
 
