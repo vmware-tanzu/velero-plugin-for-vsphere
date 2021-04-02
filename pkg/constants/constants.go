@@ -192,6 +192,7 @@ var ResourcesToBlock = map[string]bool{
 	"cnsvolumemetadatas.cns.vmware.com":                       true,
 	"compatibilities.run.tanzu.vmware.com":                    true,
 	"contentlibraryproviders.vmoperator.vmware.com":           true,
+	"contentsourcebindings.vmoperator.vmware.com":             true,
 	"contentsources.vmoperator.vmware.com":                    true,
 	"imagedisks.imagecontroller.vmware.com":                   true,
 	"installoptions.appplatform.wcp.vmware.com":               true,
