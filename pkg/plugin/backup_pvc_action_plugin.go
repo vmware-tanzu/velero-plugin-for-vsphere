@@ -53,7 +53,8 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	if blocked {
-		return nil, nil, errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
+		p.Log.Infof("Resource CRD %s is blocked, skipping", crdName)
+		return nil, nil, nil
 	}
 
 	var pvc corev1.PersistentVolumeClaim
