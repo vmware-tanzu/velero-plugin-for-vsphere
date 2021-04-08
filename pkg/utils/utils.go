@@ -417,6 +417,16 @@ func GetS3SessionOptionsFromParamsMap(params map[string]interface{}, logger logr
 	if ok && len(caCert) > 0 {
 		sessionOptions.CustomCABundle = strings.NewReader(caCert)
 	}
+	credentialsFile, ok := GetStringFromParamsMap(params, "credentialsFileKey", logger)
+	if ok && credentialsFile != "" {
+		if _, err := os.Stat(credentialsFile); err != nil {
+			if os.IsNotExist(err) {
+				return session.Options{}, errors.Wrapf(err, "provided credentialsFile does not exist")
+			}
+			return session.Options{}, errors.Wrapf(err, "could not get credentialsFile info")
+		}
+		sessionOptions.SharedConfigFiles = []string{credentialsFile}
+	}
 	return sessionOptions, nil
 }
 
