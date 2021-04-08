@@ -113,10 +113,10 @@ const (
 )
 
 const (
-	VCSecretNs             = "kube-system"
-	VCSecretNsSupervisor   = "vmware-system-csi"
-	VCSecret               = "vsphere-config-secret"
-	VCSecretTKG            = "csi-vsphere-config"
+	VCSecretNs           = "kube-system"
+	VCSecretNsSupervisor = "vmware-system-csi"
+	VCSecret             = "vsphere-config-secret"
+	VCSecretTKG          = "csi-vsphere-config"
 )
 
 const (
@@ -201,7 +201,7 @@ var ResourcesToBlock = map[string]bool{
 	"haproxyloadbalancerconfigs.netoperator.vmware.com":       true,
 	"httproutes.networking.x-k8s.io":                          true,
 	"imagedisks.imagecontroller.vmware.com":                   true,
-	"images.imagecontroller.vmware.com":                       true,
+	//"images.imagecontroller.vmware.com":                     true, // DO NOT ADD IT BACK
 	"installoptions.appplatform.wcp.vmware.com":               true,
 	"installrequirements.appplatform.wcp.vmware.com":          true,
 	"ipamblocks.crd.projectcalico.org":                        true,
@@ -227,8 +227,8 @@ var ResourcesToBlock = map[string]bool{
 	"networkinterfaces.netoperator.vmware.com":                true,
 	"networks.netoperator.vmware.com":                         true,
 	"nsxerrors.nsx.vmware.com":                                true,
-	"nsxlbmonitors.vmware.com":                                true,
-	"nsxloadbalancermonitors.vmware.com":                      true,
+	//"nsxlbmonitors.vmware.com":                              true, // DO NOT ADD IT BACK
+	//"nsxloadbalancermonitors.vmware.com":                    true, // DO NOT ADD IT BACK
 	"nsxlocks.nsx.vmware.com":                                 true,
 	"nsxnetworkinterfaces.nsx.vmware.com":                     true,
 	"orders.acme.cert-manager.io":                             true,
@@ -277,16 +277,26 @@ var ResourcesToBlock = map[string]bool{
 var ResourcesToBlockOnRestore = map[string]bool{
 	// Kubernetes with vSphere Supervisor Cluster resources
 
-	// The image resource is backed up everytime when a container
-	// is backed up on Supervisor Cluster.
-	// We should skip it at restore time.
-	"images.imagecontroller.vmware.com": true,
-
 	// We need to remove some metadata from the Pod resource on
 	// Supervisor Cluster, i.e., annotation "vmware-system-vm-uuid"
 	// before the restore as the existing VM UUID is associated with
 	// the old VM that does not exist any more
 	"pods": true,
+
+	// The following resources are backed up everytime when a container
+	// is backed up on Supervisor Cluster.
+	// We should skip it at restore time.
+	"images.imagecontroller.vmware.com": true,
+
+	// "nsxlbmonitors.vmware.com" is the real name for this resource,
+	// however, our existing name parsing mechanism for resource matches
+	// with the parsed name. Adding both of them to the list.
+	// The real name will be used to make sure the resource is
+	// picked up in the AppliesTo func of item action plugin, while
+	// the parsed name will be used to skip restoring the resource
+	// in the Execute func of item action plugin.
+	"nsxlbmonitors.vmware.com":           true, // real name
+	"nsxloadbalancermonitors.vmware.com": true, // parsed name
 }
 
 var ResourcesToHandle = map[string]bool{

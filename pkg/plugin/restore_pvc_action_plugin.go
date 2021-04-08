@@ -45,29 +45,31 @@ func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 
 func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
 	blocked, crdName, err := utils.IsObjectBlocked(input.ItemFromBackup) // Use ItemFromBackup here so that selflink is available
-
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
 	}
 
 	if blocked == false {
-		// "pods" and "images" are two additional resources
+		// "pods", "images" and "nsxlbmonitors" are additional resources
 		// blocked on restore only for now
 		blocked = utils.IsResourceBlockedOnRestore(crdName)
 	}
 	item := input.Item // Use Item for everything else so that previous actions had a chance to modify the object
 	// (e.g. Velero removes extraneous metadata earlier in the restore process)
 
+	p.Log.Infof("Restoring resource %v: blocked = %v", crdName, blocked)
+
 	if blocked {
 		if crdName == "pods" {
 			return p.createPod(item)
-		} else if crdName == "images.imagecontroller.vmware.com" {
-			// Skip the restore of image resources on Supervisor Cluster
+		} else if utils.IsResourceBlockedOnRestore(crdName) {
+			// Skip the restore of image and nsxlbmonitor resources on Supervisor Cluster
+			p.Log.Infof("Skipping resource %s on restore", crdName)
 			return &velero.RestoreItemActionExecuteOutput{
 				SkipRestore: true,
 			}, nil
 		}
-		return nil, errors.Errorf("Resource CRD %s is blocked, skipping", crdName)
+		return nil, errors.Errorf("Resource CRD %s is blocked in restore, skipping", crdName)
 	}
 
 	var pvc corev1.PersistentVolumeClaim
