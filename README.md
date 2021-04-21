@@ -58,6 +58,12 @@ you set above with the --volume-snapshot-locations flag
 velero backup create my-backup --include-namespaces=my-namespace --snapshot-volumes --volume-snapshot-locations vsl-vsphere
 ```
 
+If attempting to backup the entire cluster please exclude the upload and download crds by using the --exclude-resources flag
+
+```bash
+velero backup create my-backup --snapshot-volumes --volume-snapshot-locations vsl-vsphere --exclude-resources uploads.veleroplugin.io,downloads.veleroplugin.io,uploads.veleroplugin.io,downloads.veleroplugin.io
+```
+
 Your backup will complete after the local snapshots have completed and your Kubernetes metadata has been uploaded to the object
 store specified.  At this point, all of the data may not have been uploaded to your S3 object store.  Data movement happens in the
 background and may take a significant amount of time to complete.
@@ -107,6 +113,12 @@ and configured.  There are no special options to the plugin required for restore
 
 ```bash
 velero restore create --from-backup <your-backup-name>
+```
+
+If attempting to restore an entire cluster from backup then exclude the upload and download crds by using the --exclude-resources flag
+
+```bash
+velero restore create --from-backup <my-full-cluster-backup-name> --exclude-resources uploads.veleroplugin.io,downloads.veleroplugin.io,uploads.veleroplugin.io,downloads.veleroplugin.io
 ```
 
 Please refer to the Velero documentation for usage and additional restore options.
