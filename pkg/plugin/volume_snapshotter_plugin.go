@@ -33,7 +33,7 @@ import (
 type NewVolumeSnapshotter struct {
 	config map[string]string
 	logrus.FieldLogger
-	snapMgr *snapshotmgr.SnapshotManager
+	snapMgr       *snapshotmgr.SnapshotManager
 	clusterFlavor constants.ClusterFlavor
 }
 

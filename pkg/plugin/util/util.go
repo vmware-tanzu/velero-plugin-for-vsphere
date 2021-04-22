@@ -12,6 +12,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/restic"
 	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -369,6 +370,41 @@ func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.
 			}
 		}
 	}
+	return false, nil
+}
 
+// SkipPVCCreation checks whether to skip creation of the PVC.
+// Returns true to indicate skipping PVC creation and false otherwise.
+// If an error occurrs, it returns true and the error.
+// If PVC already exists, it returns true and nil.
+// If PVC is not found, it returns false and nil to indicate
+// PVC should be created.
+func SkipPVCCreation(ctx context.Context, config *rest.Config, pvc *corev1.PersistentVolumeClaim, logger logrus.FieldLogger) (bool, error) {
+	if pvc == nil {
+		errMsg := "Input PVC cannot be nil"
+		logger.Error(errMsg)
+		return true, errors.New(errMsg)
+	}
+	logger.Infof("Check if PVC %s/%s creation should be skipped", pvc.Namespace, pvc.Name)
+	kubeClient, err := GetKubeClient(config, logger)
+	if err != nil {
+		logger.Error("Failed to get clientset from given config")
+		return true, err
+	}
+
+	getPvc, err := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(ctx, pvc.Name, metav1.GetOptions{})
+	if err != nil && !apierrs.IsNotFound(err) {
+		logger.Errorf("Error occurred when trying to get PVC %s/%s: %v", pvc.Namespace, pvc.Name, err)
+		return true, err
+	} else if getPvc != nil && getPvc.Namespace == pvc.Namespace && getPvc.Name == pvc.Name {
+		// NOTE: If PVC does not exist, "Get" may return an empty PersistentVolumeClaim object, not nil; so we need to check Namespace/Name match here
+		// NOTE: Need to skip it here in the plugin to avoid hanging as Velero skips restoring already existing resources
+		logger.Warnf("Skipping PVC %s/%s creation since it already exists.", pvc.Namespace, pvc.Name)
+		return true, nil
+	} else if err != nil && apierrs.IsNotFound(err) {
+		logger.Debugf("PVC %s/%s is not found. Create a new one.", pvc.Namespace, pvc.Name)
+	}
+
+	// Create a new PVC
 	return false, nil
 }
