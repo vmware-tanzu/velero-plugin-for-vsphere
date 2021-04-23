@@ -7,7 +7,7 @@ Users here are expected to be vSphere users with access to:
 
 ## Installing Velero on Supervisor cluster
 
-1. Enable `Velero vSphere Operator` Supervisor Service via vSphere UI.
+1. Enable `Velero vSphere Operator` Supervisor Service via vSphere UI. If you do not see any of the Supervisor Services as shown below, please double check the [compatibility](supervisor.md#compatibility) matrix.
     ![How to enable `Velero vSphere Operator` supervisor service](how-to-enable-supervisor-service.png)
 
 2. Create a supervisor namespace for Velero instance via vSphere UI.

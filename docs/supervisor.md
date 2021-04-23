@@ -22,6 +22,11 @@
   * SupervisorServices.Manage
   * Namespaces.Manage
   * Namespaces.Configure
+* Download `Velero vSphere Operator` CLI [from here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/download/v1.1.0/velero-vsphere-1.1.0-linux-amd64.tar.gz).
+
+## vSphere with Tanzu notes
+
+Please read [vSphere with Tanzu notes](supervisor-notes.md) before moving forward with the following sections.
 
 ## Install
 
@@ -29,17 +34,13 @@ In a **vSphere with Tanzu** Supervisor cluster, users are supposed to leverage `
 [Installing Velero on Supervisor cluster](velero-vsphere-operator-user-manual.md#installing-velero-on-supervisor-cluster)
 for the detail.
 
-**Note**: `Velero vSphere Operator` CLI that comes with `Velero vSphere Operator` aims to provide a similar user experience as the Velero CLI in install and uninstall operations. For other Velero operations, users must continue to use the Velero CLI.
+**Note**: `Velero vSphere Operator` CLI that comes with `Velero vSphere Operator` aims to provide a similar user experience as the Velero CLI in install and uninstall operations. For other Velero operations, users must continue to use the Velero CLI. Please download `Velero vSphere Operator` CLI [from here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/download/v1.1.0/velero-vsphere-1.1.0-linux-amd64.tar.gz) if you haven't done so.
 
 ## Uninstall
 
 In a vSphere with Tanzu Supervisor cluster, users should use `Velero vSphere Operator` CLI to uninstall [Uninstalling Velero on Supervisor cluster](velero-vsphere-operator-user-manual.md#uninstalling-velero-on-supervisor-cluster).
 
 **Note**: Disabling the `Velero vSphere Operator` Supervisor Service will also uninstall Velero as well as the ```velero-plugin-for-vsphere``` in the Supervisor cluster. However, as a best practice, it is recommended to uninstall velero and velero-plugin-for-vsphere using `Velero vSphere Operator CLI`.
-
-## vSphere with Tanzu notes
-
-Please read this section before doing backup and restore in vSphere with Tanzu Supervisor Cluster. The details are documented at [vSphere with Tanzu notes](supervisor-notes.md).
 
 ## Backup
 

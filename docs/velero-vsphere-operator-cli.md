@@ -10,6 +10,8 @@
 ## Prerequisites
 
 * `Velero vSphere Operator` supervisor service is expected to be **enabled** before running any CLI command.
+* Download `Velero vSphere Operator` CLI [from here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/download/v1.1.0/velero-vsphere-1.1.0-linux-amd64.tar.gz).
+
 
 ## Install Velero & Plugins
 
