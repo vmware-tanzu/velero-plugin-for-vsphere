@@ -30,11 +30,9 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"github.com/vmware-tanzu/velero/pkg/features"
+	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -240,9 +238,9 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	}
 	namespace := string(content)
 
-	config, err := rest.InClusterConfig()
+	config, err := utils.GetKubeClientConfig()
 	if err != nil {
-		fmt.Println("Failed to get k8s inClusterConfig")
+		fmt.Println("Failed to get k8s client config")
 		return errors.WithStack(err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)

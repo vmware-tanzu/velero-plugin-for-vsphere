@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
-	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,7 +166,7 @@ func UnstructuredToCRDName(item runtime.Unstructured) (string, error) {
 func GetKubeClient(config *rest.Config, logger logrus.FieldLogger) (*kubernetes.Clientset, error) {
 	var err error
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = utils.GetKubeClientConfig()
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 			return nil, errors.Wrap(err, "could not retrieve in-cluster config")
@@ -265,3 +266,34 @@ func UpdateSnapshotWithNewStorageClass(config *rest.Config, itemSnapshot *backup
 
 	return *itemSnapshot, nil
 }
+
+func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
+	crdName, err := UnstructuredToCRDName(item)
+	if err != nil {
+		return false, "", errors.Errorf("Could not translate item kind %s to CRD name", item.GetObjectKind())
+	}
+	if IsResourceBlocked(crdName) {
+		return true, crdName, nil
+	}
+	return false, crdName, nil
+}
+
+func GetResources() []string {
+	desiredResources := make([]string, len(constants.ResourcesToHandle)+len(constants.ResourcesToBlock))
+	for resourceToHandle, _ := range constants.ResourcesToHandle {
+		desiredResources = append(desiredResources, resourceToHandle)
+	}
+	for resourceToBlock, _ := range constants.ResourcesToBlock {
+		desiredResources = append(desiredResources, resourceToBlock)
+	}
+	return desiredResources
+}
+
+func IsResourceBlocked(resourceName string) bool {
+	return constants.ResourcesToBlock[resourceName]
+}
+
+func IsResourceBlockedOnRestore(resourceName string) bool {
+	return constants.ResourcesToBlockOnRestore[resourceName]
+}
+

@@ -296,14 +296,9 @@ Creates an Upload CR
 func (this *SnapshotManager) UploadSnapshot(uploadPE astrolabe.ProtectedEntity, ctx context.Context, backupRepositoryName string,
 	snapshotRef string) (*v1api.Upload, error) {
 	this.Info("Start creating Upload CR")
-	config, err := rest.InClusterConfig()
+	pluginClient, err := utils.CreatePluginClientSet()
 	if err != nil {
-		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-		return nil, err
-	}
-	pluginClient, err := plugin_clientset.NewForConfig(config)
-	if err != nil {
-		this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
+		this.WithError(err).Error("Failed to get k8s clientset")
 		return nil, err
 	}
 
@@ -380,7 +375,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	log := this.WithField("peID", peID.String())
 	log.Info("SnapshotManager.deleteSnapshot was called.")
 	ctx := context.Background()
-	config, err := rest.InClusterConfig()
+	config, err := utils.GetKubeClientConfig()
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return err
@@ -612,14 +607,10 @@ const PollLogInterval = time.Minute
 
 func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.ProtectedEntityID, destinationPEID astrolabe.ProtectedEntityID, params map[string]map[string]interface{}) (updatedID astrolabe.ProtectedEntityID, err error) {
 	this.Infof("Start creating Download CR for %s", sourcePEID.String())
-	config, err := rest.InClusterConfig()
+
+	pluginClient, err := utils.CreatePluginClientSet()
 	if err != nil {
-		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
-		return
-	}
-	pluginClient, err := plugin_clientset.NewForConfig(config)
-	if err != nil {
-		this.WithError(err).Errorf("Failed to get k8s clientset with the given config: %v", config)
+		this.WithError(err).Error("Failed to get k8s clientset")
 		return
 	}
 

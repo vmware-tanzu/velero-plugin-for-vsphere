@@ -22,9 +22,8 @@ import (
 	"fmt"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd"
 	"net"
 	"os"
 	"strconv"
@@ -43,11 +42,11 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
-	pluginv1api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
+	datamover_api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
-	pluginv1client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
-	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	datamover_client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
+	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
 	k8sv1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,9 +60,9 @@ import (
  * under the kube-system namespace.
  */
 func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
-	var err error // Declare here to avoid shadowing on config using := with rest.InClusterConfig
+	var err error // Declare here to avoid shadowing on using in cluster config only
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = GetKubeClientConfig()
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 			return errors.Wrap(err, "Could not retrieve in-cluster config")
@@ -222,13 +221,13 @@ func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.
 	var err error
 	var bslName string
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = GetKubeClientConfig()
 		if err != nil {
 			return bslName, errors.Wrap(err, "Could not retrieve in-cluster config")
 		}
 	}
 
-	veleroClient, err := versioned.NewForConfig(config)
+	veleroClient, err := velero_clientset.NewForConfig(config)
 	if err != nil {
 		return bslName, err
 	}
@@ -256,15 +255,15 @@ func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.
  * of Velero. It will always pick up the first available one.
  */
 func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, config *rest.Config, logger logrus.FieldLogger) error {
-	var err error // Declare here to avoid shadowing on config using := with rest.InClusterConfig
+	var err error // Declare here to avoid shadowing on using in cluster config only
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = GetKubeClientConfig()
 		if err != nil {
 			return errors.Wrap(err, "Could not retrieve in-cluster config")
 		}
 	}
 
-	veleroClient, err := versioned.NewForConfig(config)
+	veleroClient, err := velero_clientset.NewForConfig(config)
 	if err != nil {
 		return err
 	}
@@ -275,7 +274,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 		return err
 	}
 
-	var backupStorageLocation *v1.BackupStorageLocation
+	var backupStorageLocation *velero_api.BackupStorageLocation
 	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations(veleroNs).
 		Get(context.TODO(), bslName, metav1.GetOptions{})
 
@@ -473,7 +472,7 @@ func IsFeatureEnabled(feature string, defValue bool, logger logrus.FieldLogger) 
 	if feature == "" {
 		return defValue
 	}
-	config, err := rest.InClusterConfig()
+	config, err := GetKubeClientConfig()
 	if err != nil {
 		logger.Errorf("Failed to retrieve cluster config: %v", err)
 		return defValue
@@ -520,7 +519,7 @@ func NewNotFoundError(errMsg string) NotFoundError {
 }
 
 func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
-	config, err := rest.InClusterConfig()
+	config, err := GetKubeClientConfig()
 	if err != nil {
 		return "", err
 	}
@@ -577,7 +576,7 @@ func RetrievePodNodesByVolumeId(volumeId string) (string, error) {
 	return nodeName, nil
 }
 
-func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uploadClient pluginv1client.UploadInterface, logger logrus.FieldLogger) (*pluginv1api.Upload, error) {
+func PatchUpload(req *datamover_api.Upload, mutate func(*datamover_api.Upload), uploadClient datamover_client.UploadInterface, logger logrus.FieldLogger) (*datamover_api.Upload, error) {
 
 	// Record original json
 	oldData, err := json.Marshal(req)
@@ -610,7 +609,7 @@ func PatchUpload(req *pluginv1api.Upload, mutate func(*pluginv1api.Upload), uplo
 func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 	var err error
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = GetKubeClientConfig()
 		if err != nil {
 			return constants.Unknown, err
 		}
@@ -669,7 +668,7 @@ func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 func GetSupervisorConfig(guestConfig *rest.Config, logger logrus.FieldLogger) (*rest.Config, string, error) {
 	var err error
 	if guestConfig == nil {
-		guestConfig, err = rest.InClusterConfig()
+		guestConfig, err = GetKubeClientConfig()
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 			return nil, "", errors.Wrap(err, "Could not retrieve in-cluster config")
@@ -811,7 +810,7 @@ func GetComponentsFromImage(image string) map[string]string {
 func checkAndCreateNamespace(config *rest.Config, ns string, logger logrus.FieldLogger) error {
 	var err error
 	if config == nil {
-		config, err = rest.InClusterConfig()
+		config, err = GetKubeClientConfig()
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 			return errors.Wrap(err, "Could not retrieve in-cluster config")
@@ -912,36 +911,6 @@ func AppendVeleroExcludeLabels(origLabels map[string]string) map[string]string {
 	return origLabels
 }
 
-func GetResources() []string {
-	desiredResources := make([]string, len(constants.ResourcesToHandle)+len(constants.ResourcesToBlock))
-	for resourceToHandle, _ := range constants.ResourcesToHandle {
-		desiredResources = append(desiredResources, resourceToHandle)
-	}
-	for resourceToBlock, _ := range constants.ResourcesToBlock {
-		desiredResources = append(desiredResources, resourceToBlock)
-	}
-	return desiredResources
-}
-
-func IsResourceBlocked(resourceName string) bool {
-	return constants.ResourcesToBlock[resourceName]
-}
-
-func IsResourceBlockedOnRestore(resourceName string) bool {
-	return constants.ResourcesToBlockOnRestore[resourceName]
-}
-
-func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
-	crdName, err := util.UnstructuredToCRDName(item)
-	if err != nil {
-		return false, "", errors.Errorf("Could not translate item kind %s to CRD name", item.GetObjectKind())
-	}
-	if IsResourceBlocked(crdName) {
-		return true, crdName, nil
-	}
-	return false, crdName, nil
-}
-
 func GetBackupdriverClient(config *rest.Config) (v1alpha1.BackupdriverV1alpha1Interface, error) {
 	pluginClient, err := plugin_clientset.NewForConfig(config)
 	if err != nil {
@@ -983,7 +952,7 @@ func DeleteSvcSnapshot(svcSnapshotName string, gcSnapshotName string, gcSnapshot
 }
 
 func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}) bool {
-	config, err := rest.InClusterConfig()
+	config, err := GetKubeClientConfig()
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return nil
@@ -1007,4 +976,61 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 		}
 		return false
 	}
+}
+
+type ClientConfigNotFoundError struct {
+	errMsg string
+}
+
+func (this ClientConfigNotFoundError) Error() string {
+	return this.errMsg
+}
+
+func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
+	err := ClientConfigNotFoundError{
+		errMsg: errMsg,
+	}
+	return err
+}
+
+func GetKubeClientConfig() (*rest.Config, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	// if you want to change the loading rules (which files in which order), you can do so here
+
+	configOverrides := &clientcmd.ConfigOverrides{}
+	// if you want to change override values or bind them to flags, there are methods to help you
+
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	clientConfig, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error finding Kubernetes API server config in $KUBECONFIG, or in-cluster configuration")
+	}
+
+	return clientConfig, nil
+}
+
+func CreateKubeClientSet() (*kubernetes.Clientset, error) {
+	clientConfig, err := GetKubeClientConfig()
+	if err != nil {
+		return nil, NewClientConfigNotFoundError(fmt.Sprintf("Could not get client config with err: %v", err))
+	}
+
+	clientset, err := kubernetes.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not create kubernetes clientset")
+	}
+	return clientset, err
+}
+
+func CreatePluginClientSet() (*plugin_clientset.Clientset, error) {
+	clientConfig, err := GetKubeClientConfig()
+	if err != nil {
+		return nil, NewClientConfigNotFoundError(fmt.Sprintf("Could not get client config with err: %v", err))
+	}
+
+	pluginClientSet, err := plugin_clientset.NewForConfig(clientConfig)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create plugin clientset with the given config: %v", clientConfig)
+	}
+	return pluginClientSet, err
 }

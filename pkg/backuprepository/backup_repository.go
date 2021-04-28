@@ -300,9 +300,9 @@ func GetRepositoryFromBackupRepository(backupRepository *backupdriverv1.BackupRe
 }
 
 func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*backupdriverv1.BackupRepository, error) {
-	config, err := rest.InClusterConfig()
+	config, err := utils.GetKubeClientConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get k8s inClusterConfig")
+		return nil, errors.Wrap(err, "Failed to get k8s client config")
 	}
 	pluginClient, err := versioned.NewForConfig(config)
 	if err != nil {

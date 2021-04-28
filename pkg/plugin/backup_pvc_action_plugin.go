@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 	"os"
 )
 
@@ -32,7 +31,7 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
 	return velero.ResourceSelector{
-		IncludedResources: utils.GetResources(),
+		IncludedResources: pluginUtil.GetResources(),
 	}, nil
 }
 
@@ -46,7 +45,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return item, nil, nil
 	}
 
-	blocked, crdName, err := utils.IsObjectBlocked(item)
+	blocked, crdName, err := pluginUtil.IsObjectBlocked(item)
 
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
@@ -80,7 +79,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.New(errMsg)
 	}
 
-	restConfig, err := rest.InClusterConfig()
+	restConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
 		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, nil, errors.WithStack(err)
