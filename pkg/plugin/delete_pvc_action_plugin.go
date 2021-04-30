@@ -15,7 +15,6 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 	"os"
 )
 
@@ -35,7 +34,7 @@ func (p *NewPVCDeleteItemAction) AppliesTo() (velero.ResourceSelector, error) {
 func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteInput) error {
 	item := input.Item
 
-	blocked, crdName, err := utils.IsObjectBlocked(item)
+	blocked, crdName, err := pluginItem.IsObjectBlocked(item)
 
 	if err != nil {
 		return errors.Wrap(err, "Failed during IsObjectBlocked check")
@@ -74,7 +73,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 		p.Log.Error(errMsg)
 		return errors.New(errMsg)
 	}
-	restConfig, err := rest.InClusterConfig()
+	restConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
 		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
 		return errors.WithStack(err)

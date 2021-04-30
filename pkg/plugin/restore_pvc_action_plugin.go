@@ -19,7 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 )
 
 // PVCBackupItemAction is a backup item action plugin for Velero.
@@ -44,7 +43,7 @@ func (p *NewPVCRestoreItemAction) AppliesTo() (velero.ResourceSelector, error) {
 }
 
 func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
-	blocked, crdName, err := utils.IsObjectBlocked(input.ItemFromBackup) // Use ItemFromBackup here so that selflink is available
+	blocked, crdName, err := pluginItem.IsObjectBlocked(input.ItemFromBackup) // Use ItemFromBackup here so that selflink is available
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
 	}
@@ -52,7 +51,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	if blocked == false {
 		// "pods", "images" and "nsxlbmonitors" are additional resources
 		// blocked on restore only for now
-		blocked = utils.IsResourceBlockedOnRestore(crdName)
+		blocked = pluginItem.IsResourceBlockedOnRestore(crdName)
 	}
 	item := input.Item // Use Item for everything else so that previous actions had a chance to modify the object
 	// (e.g. Velero removes extraneous metadata earlier in the restore process)
@@ -62,7 +61,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 	if blocked {
 		if crdName == "pods" {
 			return p.createPod(item)
-		} else if utils.IsResourceBlockedOnRestore(crdName) {
+		} else if pluginItem.IsResourceBlockedOnRestore(crdName) {
 			// Skip the restore of image and nsxlbmonitor resources on Supervisor Cluster
 			p.Log.Infof("Skipping resource %s on restore", crdName)
 			return &velero.RestoreItemActionExecuteOutput{
@@ -130,7 +129,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		p.Log.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}
-	restConfig, err := rest.InClusterConfig()
+	restConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
 		p.Log.Errorf("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, errors.WithStack(err)

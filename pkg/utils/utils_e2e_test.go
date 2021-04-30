@@ -24,13 +24,10 @@ import (
 	"testing"
 	"time"
 
-	k8sv1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -83,50 +80,11 @@ func TestRetrieveParamsFromBSL(t *testing.T) {
 	}
 }
 
-
-
-
-func createClientSet() (*kubernetes.Clientset, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	// if you want to change the loading rules (which files in which order), you can do so here
-
-	configOverrides := &clientcmd.ConfigOverrides{}
-	// if you want to change override values or bind them to flags, there are methods to help you
-
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, NewClientConfigNotFoundError("Could not create client config")
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "Could not create clientset")
-	}
-	return clientset, err
-}
-
-type ClientConfigNotFoundError struct {
-	errMsg string
-}
-
-func (this ClientConfigNotFoundError) Error() string {
-	return this.errMsg
-}
-
-func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
-	err := ClientConfigNotFoundError{
-		errMsg: errMsg,
-	}
-	return err
-}
-
 /*
  * For this test, set KUBECONFIG to point to a valid setup, with a BackupDriverNamespace created.
  */
 func Test_waitForPvSecret(t *testing.T) {
-	clientSet, err := createClientSet()
+	clientSet, err := CreateKubeClientSet()
 
 	if err != nil {
 		_, ok := err.(ClientConfigNotFoundError)

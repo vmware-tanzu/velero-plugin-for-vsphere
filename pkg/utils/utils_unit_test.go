@@ -17,13 +17,10 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"k8s.io/client-go/rest"
 	"strings"
 	"testing"
@@ -350,40 +347,6 @@ func TestGetComponentFromImage(t *testing.T) {
 			assert.Equal(t, actualVersion, test.expectedVersion)
 		})
 	}
-}
-
-func Test_ItemToCRDName(t *testing.T) {
-	accessor := meta.NewAccessor()
-
-	backupUnstructuredMock := unstructured.Unstructured{}
-	accessor.SetKind(&backupUnstructuredMock, "Backup")
-	accessor.SetAPIVersion(&backupUnstructuredMock,"velero.io/v1")
-
-	backupCRDName, err := util.UnstructuredToCRDName(&backupUnstructuredMock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, backupCRDName, "backups.velero.io")
-
-	repositoryUnstructuredMock := unstructured.Unstructured{}
-	accessor.SetKind(&repositoryUnstructuredMock, "ResticRepository")
-	accessor.SetAPIVersion(&repositoryUnstructuredMock,"velero.io/v1")
-
-	repositoryCRDName, err := util.UnstructuredToCRDName(&repositoryUnstructuredMock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, repositoryCRDName, "resticrepositories.velero.io")
-
-	pvcUnstructuredMock:= unstructured.Unstructured{}
-	accessor.SetKind(&pvcUnstructuredMock, "PersistentVolumeClaim")
-	accessor.SetAPIVersion(&pvcUnstructuredMock,"v1")
-
-	pvcCRDName, err := util.UnstructuredToCRDName(&pvcUnstructuredMock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, pvcCRDName, "persistentvolumeclaims")
 }
 
 func TestGetS3SessionOptionsFromParamsMap(t *testing.T) {

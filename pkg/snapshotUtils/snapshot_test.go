@@ -10,16 +10,14 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
 	"testing"
 	"time"
 )
 
 func TestWaitForPhases(t *testing.T) {
-	clientSet, err := createClientSet()
-
+	clientSet, err := createBackupdriverClientSet()
 	if err != nil {
-		_, ok := err.(ClientConfigNotFoundError)
+		_, ok := err.(utils.ClientConfigNotFoundError)
 		if ok {
 			t.Skip(err)
 		}
@@ -85,10 +83,9 @@ func TestWaitForPhases(t *testing.T) {
 }
 
 func TestWaitForClonePhases(t *testing.T) {
-	clientSet, err := createClientSet()
-
+	clientSet, err := createBackupdriverClientSet()
 	if err != nil {
-		_, ok := err.(ClientConfigNotFoundError)
+		_, ok := err.(utils.ClientConfigNotFoundError)
 		if ok {
 			t.Skip(err)
 		}
@@ -188,38 +185,16 @@ func TestSnapshotRef(t *testing.T) {
 	fmt.Printf("Snapshot created with name %s\n", snapshot.Name)
 }
 */
-func createClientSet() (*v1.BackupdriverV1alpha1Client, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	// if you want to change the loading rules (which files in which order), you can do so here
 
-	configOverrides := &clientcmd.ConfigOverrides{}
-	// if you want to change override values or bind them to flags, there are methods to help you
-
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.ClientConfig()
+func createBackupdriverClientSet() (*v1.BackupdriverV1alpha1Client, error) {
+	clientConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
-		return nil, NewClientConfigNotFoundError("Could not create client config")
+		return nil, utils.NewClientConfigNotFoundError("Could not create client config")
 	}
 
-	clientset, err := v1.NewForConfig(config)
-
+	backupDriverClientset, err := v1.NewForConfig(clientConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not create clientset")
 	}
-	return clientset, err
-}
-
-type ClientConfigNotFoundError struct {
-	errMsg string
-}
-
-func (this ClientConfigNotFoundError) Error() string {
-	return this.errMsg
-}
-
-func NewClientConfigNotFoundError(errMsg string) ClientConfigNotFoundError {
-	err := ClientConfigNotFoundError{
-		errMsg: errMsg,
-	}
-	return err
+	return backupDriverClientset, err
 }
