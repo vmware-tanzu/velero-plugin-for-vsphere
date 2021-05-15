@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-version"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"io/ioutil"
@@ -83,7 +84,19 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	} else if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
 	} else {
-		ns = constants.VCSecretNs
+		// check the current CSI version for vanilla setups.
+		// If >=2.3, then the secret is in vmware-system-csi
+		// If <2.3, then the secret is in kube-system
+		csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
+		if err != nil {
+			logger.WithError(err).Errorf("Unable to find installed CSI drivers while retrieving VC configuration Secret")
+			return err
+		}
+		if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
+			ns = constants.VCSystemCSINs
+		} else {
+			ns = constants.VCSecretNs
+		}
 	}
 
 	secretApis := clientset.CoreV1().Secrets(ns)
@@ -396,7 +409,7 @@ func GetS3SessionOptionsFromParamsMap(params map[string]interface{}, logger logr
 	// If the credentials are explicitly provided in params, use it.
 	// else let aws API pick the default credential provider.
 	sessionOptions := session.Options{Config: aws.Config{
-		Region:      aws.String(region),
+		Region: aws.String(region),
 	}}
 	var credential *credentials.Credentials
 	if _, ok := params[constants.AWS_ACCESS_KEY_ID]; ok {
@@ -605,7 +618,6 @@ func PatchUpload(req *datamover_api.Upload, mutate func(*datamover_api.Upload), 
 	return req, nil
 }
 
-// Check the cluster flavor that the plugin is deployed in
 func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 	var err error
 	if config == nil {
@@ -620,37 +632,7 @@ func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 		return constants.Unknown, err
 	}
 
-	// Direct vSphere deployment.
-	// Check if vSphere secret is available in appropriate namespace.
-	ns := constants.VCSecretNs
-	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secrets := []string{constants.VCSecret, constants.VCSecretTKG}
-	for _, vsphere_secret := range vsphere_secrets {
-		_, err := secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
-		if err == nil {
-			return constants.VSphere, nil
-		}
-	}
-
-	// Check if in supervisor.
-	// Check if vSphere secret is available in appropriate namespace.
-	ns = constants.VCSecretNsSupervisor
-	secretApis = clientset.CoreV1().Secrets(ns)
-	_, err = secretApis.Get(context.TODO(), constants.VCSecret, metav1.GetOptions{})
-	if err == nil {
-		return constants.Supervisor, nil
-	}
-
-	// Check if in guest cluster.
-	// Check for the supervisor service in the guest cluster.
-	serviceApi := clientset.CoreV1().Services("default")
-	_, err = serviceApi.Get(context.TODO(), constants.TkgSupervisorService, metav1.GetOptions{})
-	if err == nil {
-		return constants.TkgGuest, nil
-	}
-
-	// Did not match any search criteria. Unknown cluster flavor.
-	return constants.Unknown, errors.New("GetClusterFlavor: Failed to identify cluster flavor")
+	return GetCSIClusterType(clientset)
 }
 
 /*
@@ -957,14 +939,34 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 		logger.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return nil
 	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Errorf("Failed to get k8s clientset from the given config")
+		return nil
+	}
+
 	var ns string
 	// Get the cluster flavor
 	clusterFlavor, err := GetClusterFlavor(config)
 	if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
 	} else if clusterFlavor == constants.VSphere {
-		ns = constants.VCSecretNs
+		// check the current CSI version for vanilla setups.
+		// If >=2.3, then the secret is in vmware-system-csi
+		// If <2.3, then the secret is in kube-system
+		csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
+		if err != nil {
+			logger.WithError(err).Errorf("Unable to find installed CSI drivers during VC configuration Secret watch filtering.")
+		}
+		logger.Infof("CSI version : %s for VC configuration Secret watch.", csiInstalledVersion)
+		if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
+			ns = constants.VCSystemCSINs
+		} else {
+			ns = constants.VCSecretNs
+		}
 	}
+	logger.Infof("VC Configuration Secret: Namespace: %s Name: %s", ns, constants.VCSecret)
 	return func(obj interface{}) bool {
 		switch obj.(type) {
 		case *k8sv1.Secret:
@@ -1033,4 +1035,163 @@ func CreatePluginClientSet() (*plugin_clientset.Clientset, error) {
 		return nil, errors.Wrapf(err, "Could not create plugin clientset with the given config: %v", clientConfig)
 	}
 	return pluginClientSet, err
+}
+
+func GetCSIInstalledVersion(kubeClient kubernetes.Interface) (string, error) {
+	csiVersion := ""
+	// For CSI >=2.3.0, the CSI Deployment is in vmware-system-csi namespace.
+	csiDeployment, err := kubeClient.AppsV1().Deployments(constants.VSphereCSIControllerNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiVersion, err = GetCSIVersionFromImage(csiDeployment.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return "", err
+		}
+		if csiVersion == constants.CsiDevVersion {
+			// Using a unreleased csi version, defaulting to 2.3.0 since vSphere csi driver 2.3.0
+			// is always installed in vmware-system-csi namespace.
+			return constants.Csi2_3_0_Version, nil
+		}
+		return csiVersion, nil
+	}
+
+	// Search in kube-system next.
+	csiDeployment, err = kubeClient.AppsV1().Deployments(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiVersion, err = GetCSIVersionFromImage(csiDeployment.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return "", err
+		}
+		if csiVersion == constants.CsiDevVersion {
+			// Using unreleased version, defaulting to 2.1.0 since vSphere CSI driver is installed as a
+			// Deployment on `kube-system` for versions greater than v1.0.3 and lesser than v2.3.0
+			return constants.Csi2_0_0_Version, nil
+		}
+		return csiVersion, nil
+	}
+	// CSI driver is deployed as StatefulSet for v1.0.2 and v1.0.3.
+	csiStatefulset, err := kubeClient.AppsV1().StatefulSets(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiVersion, err = GetCSIVersionFromImage(csiStatefulset.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return "", err
+		}
+		if csiVersion == constants.CsiDevVersion {
+			// Using unreleased version, defaulting to 1.0.2 since vSphere CSI driver is installed as a
+			// StatefulSet on `kube-system` namespace for versions greater than v1.0.2 and lesser than v2.0.0
+			return constants.CsiMinVersion, nil
+		}
+		return csiVersion, nil
+	}
+
+	// vSphere CSI controller not installed.
+	return csiVersion, errors.Errorf("vSphere CSI controller, %s, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster", constants.VSphereCSIController)
+}
+
+func GetCSIClusterType(kubeClient kubernetes.Interface) (constants.ClusterFlavor, error) {
+	csiClusterType := constants.Unknown
+	// For CSI >=2.3.0, the CSI Deployment is in vmware-system-csi namespace.
+	csiDeployment, err := kubeClient.AppsV1().Deployments(constants.VSphereCSIControllerNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiClusterType, err = GetCSIClusterTypeFromEnv(csiDeployment.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return constants.Unknown, err
+		}
+		return csiClusterType, nil
+	}
+	// Search in kube-system next.
+	csiDeployment, err = kubeClient.AppsV1().Deployments(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiClusterType, err = GetCSIClusterTypeFromEnv(csiDeployment.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return constants.Unknown, err
+		}
+		return csiClusterType, nil
+	}
+	// CSI driver is deployed as StatefulSet for v1.0.2 and v1.0.3.
+	csiStatefulset, err := kubeClient.AppsV1().StatefulSets(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
+	if err == nil {
+		if csiClusterType, err = GetCSIClusterTypeFromEnv(csiStatefulset.Spec.Template.Spec.Containers); err != nil {
+			// Image not found.
+			return constants.Unknown, err
+		}
+		return csiClusterType, nil
+	}
+	// vSphere CSI controller not installed.
+	return csiClusterType, errors.Errorf("vSphere CSI controller, %s, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster", constants.VSphereCSIController)
+}
+
+func GetCSIVersionFromImage(containers []k8sv1.Container) (string, error) {
+	var csiDriverVersion string
+	csiDriverVersion = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/driver")
+	if csiDriverVersion == "" {
+		csiDriverVersion = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/ci/driver")
+		// The version received from cloud-provider-vsphere/csi/ci/driver is not nil.
+		// This is used to support latest images on public repository.
+		if csiDriverVersion != "" {
+			// Developer image
+			csiDriverVersion = constants.CsiDevVersion
+		}
+	}
+	if csiDriverVersion == "" {
+		// vSphere driver found but the images are invalid.
+		return "", errors.New("Expected CSI driver images not found")
+	}
+	return csiDriverVersion, nil
+}
+
+func GetCSIClusterTypeFromEnv(containers []k8sv1.Container) (constants.ClusterFlavor, error) {
+	for _, container := range containers {
+		if container.Name == constants.VSphereCSIController {
+			// Iterate through the env variables and check if "CLUSTER_FLAVOR" env variable is defined.
+			for _, envVar := range container.Env {
+				if envVar.Name == "CLUSTER_FLAVOR" {
+					if envVar.Value == "WORKLOAD" {
+						return constants.Supervisor, nil
+					} else if envVar.Value == "GUEST_CLUSTER" {
+						return constants.TkgGuest, nil
+					} else {
+						// Should not happen, if "CLUSTER_FLAVOR" is defined, the value should be guest or supervisor.
+						return constants.Unknown, nil
+					}
+				}
+			}
+			// For Vanilla deployment the "CLUSTER_FLAVOR" environment variable is not defined.
+			return constants.VSphere, nil
+		}
+	}
+	return constants.Unknown, errors.New("Expected CSI driver container images not found while inferring cluster type.")
+}
+
+// Return version in the format: vX.Y.Z
+func GetVersionFromImage(containers []k8sv1.Container, imageName string) string {
+	var tag = ""
+	for _, container := range containers {
+		if strings.Contains(container.Image, imageName) {
+			tag = GetComponentFromImage(container.Image, constants.ImageVersionComponent)
+			break
+		}
+	}
+	if tag == "" {
+		return ""
+	}
+	if strings.Contains(tag, "-") {
+		imgVersion := strings.Split(tag, "-")[0]
+		return imgVersion
+	} else {
+		return tag
+	}
+}
+
+// If currentVersion < minVersion, return -1
+// If currentVersion == minVersion, return 0
+// If currentVersion > minVersion, return 1
+// Assume input versions are both valid
+func CompareVersion(currentVersion string, minVersion string) int {
+	current, _ := version.NewVersion(currentVersion)
+	minimum, _ := version.NewVersion(minVersion)
+
+	if current == nil || minimum == nil {
+		return -1
+	}
+	return current.Compare(minimum)
 }

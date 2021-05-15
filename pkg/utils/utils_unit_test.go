@@ -17,10 +17,15 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubeclientfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"strings"
 	"testing"
@@ -353,7 +358,7 @@ func TestGetS3SessionOptionsFromParamsMap(t *testing.T) {
 	params1 := make(map[string]interface{})
 	params1["region"] = "us-west-1"
 	options1 := session.Options{Config: aws.Config{
-		Region:      aws.String("us-wes-1"),
+		Region: aws.String("us-wes-1"),
 	}}
 	params2 := make(map[string]interface{})
 	params2["region"] = "us-west-1"
@@ -367,27 +372,27 @@ func TestGetS3SessionOptionsFromParamsMap(t *testing.T) {
 	params3["region"] = "us-west-1"
 	params3["caCert"] = "caCert"
 	options3 := session.Options{Config: aws.Config{
-		Region:      aws.String("us-wes-1"),
+		Region: aws.String("us-wes-1"),
 	}}
 	options3.CustomCABundle = strings.NewReader("caCert")
 	tests := []struct {
-		name string
-		params map[string]interface{}
+		name     string
+		params   map[string]interface{}
 		expected session.Options
-	} {
+	}{
 		{
-			name: "If the credentials are not explicitly provided in params. No caCert is provided.",
-			params: params1,
+			name:     "If the credentials are not explicitly provided in params. No caCert is provided.",
+			params:   params1,
 			expected: options1,
 		},
 		{
-			name: "If the credentials are explicitly provided in params. No caCert is provided.",
-			params: params2,
+			name:     "If the credentials are explicitly provided in params. No caCert is provided.",
+			params:   params2,
 			expected: options2,
 		},
 		{
-			name: "If caCert is provided.",
-			params: params3,
+			name:     "If caCert is provided.",
+			params:   params3,
 			expected: options3,
 		},
 	}
@@ -406,6 +411,301 @@ func TestGetS3SessionOptionsFromParamsMap(t *testing.T) {
 			_, ok = test.params["caCert"]
 			if ok {
 				assert.NotNil(t, sessionOptions.CustomCABundle)
+			}
+		})
+	}
+}
+
+func TestGetVersionFromImage(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		containers []corev1.Container
+		expected   string
+	}{
+		{
+			name: "Valid image string should return non-empty version",
+			key:  "cloud-provider-vsphere/csi/release/driver",
+			containers: []corev1.Container{
+				{
+					Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:corev1.0.1",
+				},
+			},
+			expected: "corev1.0.1",
+		},
+		{
+			name: "Valid image string should return non-empty version",
+			key:  "cloud-provider-vsphere/csi/release/driver",
+			containers: []corev1.Container{
+				{
+					Image: "cloud-provider-vsphere/csi/release/driver:v2.0.0",
+				},
+			},
+			expected: "v2.0.0",
+		},
+		{
+			name: "Valid image string should return non-empty version",
+			key:  "cloud-provider-vsphere/csi/release/driver",
+			containers: []corev1.Container{
+				{
+					Image: "myregistry/cloud-provider-vsphere/csi/release/driver:v2.0.0",
+				},
+			},
+			expected: "v2.0.0",
+		},
+		{
+			name: "Valid image string should return non-empty version",
+			key:  "cloud-provider-vsphere/csi/release/driver",
+			containers: []corev1.Container{
+				{
+					Image: "myregistry/level1/level2/cloud-provider-vsphere/csi/release/driver:v2.0.0",
+				},
+			},
+			expected: "v2.0.0",
+		},
+		{
+			name: "Invalid image name should return empty string",
+			key:  "cloud-provider-vsphere/csi/release/driver",
+			containers: []corev1.Container{
+				{
+					Image: "gcr.io/csi/release/driver:corev1.0.1",
+				},
+			},
+			expected: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			version := GetVersionFromImage(test.containers, test.key)
+			assert.Equal(t, test.expected, version)
+		})
+	}
+}
+
+func TestGetCSIClusterType(t *testing.T) {
+	tests := []struct {
+		name                string
+		runtimeObjs         []runtime.Object
+		expectedError       error
+		expectedClusterType constants.ClusterFlavor
+	}{
+		{
+			name: "CSI v1.0.2 Vanilla Deployment",
+			runtimeObjs: []runtime.Object{
+				&appsv1.StatefulSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.StatefulSetSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/driver:v1.0.3",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "CSI v1.0.2 Vanilla Deployment with no vsphere-csi-controller container image",
+			runtimeObjs: []runtime.Object{
+				&appsv1.StatefulSet{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.StatefulSetSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "not-a-vsphere-csi-controller",
+										Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/driver:v1.0.3",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.Unknown,
+			expectedError:       errors.New("Expected CSI driver container images not found while inferring cluster type."),
+		},
+		{
+			name: "CSI v2.0.1 Vanilla Deployment",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "kube-system",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+										Env: []corev1.EnvVar{
+											{
+												Name:  "",
+												Value: "",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "CSI v2.3.0 Vanilla Deployment",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
+										Env: []corev1.EnvVar{
+											{
+												Name:  "",
+												Value: "",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "CSI 2.3.0 Deployment with no vsphere-csi-controller container image",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "not-a-vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.Unknown,
+			expectedError:       errors.New("Expected CSI driver container images not found while inferring cluster type."),
+		},
+		{
+			name:                "CSI Driver is not deployed",
+			runtimeObjs:         []runtime.Object{},
+			expectedClusterType: constants.Unknown,
+			expectedError:       errors.New("vSphere CSI controller, vsphere-csi-controller, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster"),
+		},
+		{
+			name: "CSI Supervisor Deployment",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "this/is/ignored:v0.0.0",
+										Env: []corev1.EnvVar{
+											{
+												Name:  "CLUSTER_FLAVOR",
+												Value: "WORKLOAD",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.Supervisor,
+			expectedError:       nil,
+		},
+		{
+			name: "CSI Guest Deployment",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "this/is/ignored:v0.0.0",
+										Env: []corev1.EnvVar{
+											{
+												Name:  "CLUSTER_FLAVOR",
+												Value: "GUEST_CLUSTER",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedClusterType: constants.TkgGuest,
+			expectedError:       nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			actualClusterType, actualError := GetCSIClusterType(kubeClient)
+			if test.expectedError == nil {
+				assert.Equal(t, test.expectedClusterType, actualClusterType)
+			} else {
+				// expected an error, but no error was thrown.
+				assert.NotNil(t, actualError, "No error thrown")
+				// Ensure errors match
+				assert.Equal(t, test.expectedError.Error(), actualError.Error())
 			}
 		})
 	}

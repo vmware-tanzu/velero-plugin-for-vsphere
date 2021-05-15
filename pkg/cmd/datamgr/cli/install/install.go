@@ -148,6 +148,8 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	// Check cluster flavor for data-manager
 	clusterFlavor := o.CheckClusterFlavorForDataManager()
 
+	fmt.Printf("Detected Cluster type %s during DataManager install\n", clusterFlavor)
+
 	// Check feature flags for data-manager
 	_ = o.CheckFeatureFlagsForDataManager(kubeClient)
 
@@ -158,7 +160,10 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	}
 
 	// Check vSphere CSI driver version
-	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
+	err = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
+	if err != nil {
+		return err
+	}
 
 	// Check velero version
 	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)

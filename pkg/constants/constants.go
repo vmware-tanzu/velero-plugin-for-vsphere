@@ -16,7 +16,9 @@ limitations under the License.
 
 package constants
 
-import "time"
+import (
+	"time"
+)
 
 const (
 	// supported volume type in plugin
@@ -81,9 +83,6 @@ const (
 const (
 	// Minimum velero version number to meet velero plugin requirement
 	VeleroMinVersion = "v1.5.1"
-
-	// Minimum csi driver version number to meet velero plugin requirement
-	CsiMinVersion = "v1.0.2"
 )
 
 const (
@@ -99,13 +98,14 @@ const (
 )
 
 const (
-	DataManagerForPlugin   string = "data-manager-for-plugin"
-	BackupDriverForPlugin  string = "backup-driver"
-	BackupDriverNamespace  string = "velero-vsphere-plugin-backupdriver"
-	VeleroPluginForVsphere string = "velero-plugin-for-vsphere"
-	VeleroDeployment       string = "velero"
+	DataManagerForPlugin          = "data-manager-for-plugin"
+	BackupDriverForPlugin         = "backup-driver"
+	BackupDriverNamespace         = "velero-vsphere-plugin-backupdriver"
+	VeleroPluginForVsphere        = "velero-plugin-for-vsphere"
+	VeleroDeployment              = "velero"
 	VSphereCSIController          = "vsphere-csi-controller"
 	KubeSystemNamespace           = "kube-system"
+	VSphereCSIControllerNamespace = "vmware-system-csi"
 )
 
 const (
@@ -114,6 +114,7 @@ const (
 
 const (
 	VCSecretNs           = "kube-system"
+	VCSystemCSINs        = "vmware-system-csi"
 	VCSecretNsSupervisor = "vmware-system-csi"
 	VCSecret             = "vsphere-config-secret"
 	VCSecretTKG          = "csi-vsphere-config"
@@ -131,6 +132,13 @@ const (
 	Supervisor               = "Supervisor Cluster"
 	TkgGuest                 = "TKG Guest Cluster"
 	VSphere                  = "vSphere Kubernetes Cluster"
+)
+
+const (
+	CsiDevVersion    = "v0.0.0"
+	CsiMinVersion    = "v1.0.2"
+	Csi2_3_0_Version = "v2.3.0"
+	Csi2_0_0_Version = "v2.0.0"
 )
 
 // feature flog constants
@@ -179,54 +187,54 @@ const (
 // words get an "s" attached.
 var ResourcesToBlock = map[string]bool{
 	// Kubernetes with vSphere Supervisor Cluster resources
-	"agentinstalls.installers.tmc.cloud.vmware.com":           true,
-	"aviloadbalancerconfigs.netoperator.vmware.com":           true,
-	"blockaffinities.crd.projectcalico.org":                   true,
-	"certificaterequests.cert-manager.io":                     true,
-	"certificates.cert-manager.io":                            true,
-	"challenges.acme.cert-manager.io":                         true,
-	"clusterissuers.cert-manager.io":                          true,
-	"clusterresourcesetbindings.addons.cluster.x-k8s.io":      true,
-	"clusterresourcesets.addons.cluster.x-k8s.io":             true,
-	"clusters.cluster.x-k8s.io":                               true,
-	"cnsnodevmattachments.cns.vmware.com":                     true,
-	"cnsregistervolumes.cns.vmware.com":                       true,
-	"cnsvolumemetadatas.cns.vmware.com":                       true,
-	"compatibilities.run.tanzu.vmware.com":                    true,
-	"contentlibraryproviders.vmoperator.vmware.com":           true,
-	"contentsourcebindings.vmoperator.vmware.com":             true,
-	"contentsources.vmoperator.vmware.com":                    true,
-	"gatewayclasses.networking.x-k8s.io":                      true,
-	"gateways.networking.x-k8s.io":                            true,
-	"haproxyloadbalancerconfigs.netoperator.vmware.com":       true,
-	"httproutes.networking.x-k8s.io":                          true,
-	"imagedisks.imagecontroller.vmware.com":                   true,
+	"agentinstalls.installers.tmc.cloud.vmware.com":      true,
+	"aviloadbalancerconfigs.netoperator.vmware.com":      true,
+	"blockaffinities.crd.projectcalico.org":              true,
+	"certificaterequests.cert-manager.io":                true,
+	"certificates.cert-manager.io":                       true,
+	"challenges.acme.cert-manager.io":                    true,
+	"clusterissuers.cert-manager.io":                     true,
+	"clusterresourcesetbindings.addons.cluster.x-k8s.io": true,
+	"clusterresourcesets.addons.cluster.x-k8s.io":        true,
+	"clusters.cluster.x-k8s.io":                          true,
+	"cnsnodevmattachments.cns.vmware.com":                true,
+	"cnsregistervolumes.cns.vmware.com":                  true,
+	"cnsvolumemetadatas.cns.vmware.com":                  true,
+	"compatibilities.run.tanzu.vmware.com":               true,
+	"contentlibraryproviders.vmoperator.vmware.com":      true,
+	"contentsourcebindings.vmoperator.vmware.com":        true,
+	"contentsources.vmoperator.vmware.com":               true,
+	"gatewayclasses.networking.x-k8s.io":                 true,
+	"gateways.networking.x-k8s.io":                       true,
+	"haproxyloadbalancerconfigs.netoperator.vmware.com":  true,
+	"httproutes.networking.x-k8s.io":                     true,
+	"imagedisks.imagecontroller.vmware.com":              true,
 	//"images.imagecontroller.vmware.com":                     true, // DO NOT ADD IT BACK
-	"installoptions.appplatform.wcp.vmware.com":               true,
-	"installrequirements.appplatform.wcp.vmware.com":          true,
-	"ipamblocks.crd.projectcalico.org":                        true,
-	"ipamconfigs.crd.projectcalico.org":                       true,
-	"ipamhandles.crd.projectcalico.org":                       true,
-	"ippools.crd.projectcalico.org":                           true,
-	"ippools.netoperator.vmware.com":                          true,
-	"issuers.cert-manager.io":                                 true,
-	"kubeadmconfigs.bootstrap.cluster.x-k8s.io":               true,
-	"kubeadmconfigtemplates.bootstrap.cluster.x-k8s.io":       true,
-	"kubeadmcontrolplanes.controlplane.cluster.x-k8s.io":      true,
-	"kuberneteslicenses.licenseoperator.vmware.com":           true,
-	"loadbalancerconfigs.netoperator.vmware.com":              true,
-	"loadbalancers.vmware.com":                                true,
-	"machinedeployments.cluster.x-k8s.io":                     true,
-	"machinehealthchecks.cluster.x-k8s.io":                    true,
-	"machinepools.exp.cluster.x-k8s.io":                       true,
-	"machines.cluster.x-k8s.io":                               true,
-	"machinesets.cluster.x-k8s.io":                            true,
-	"members.registryagent.vmware.com":                        true,
-	"ncpconfigs.nsx.vmware.com":                               true,
-	"network-attachment-definitions.k8s.cni.cncf.io":          true,
-	"networkinterfaces.netoperator.vmware.com":                true,
-	"networks.netoperator.vmware.com":                         true,
-	"nsxerrors.nsx.vmware.com":                                true,
+	"installoptions.appplatform.wcp.vmware.com":          true,
+	"installrequirements.appplatform.wcp.vmware.com":     true,
+	"ipamblocks.crd.projectcalico.org":                   true,
+	"ipamconfigs.crd.projectcalico.org":                  true,
+	"ipamhandles.crd.projectcalico.org":                  true,
+	"ippools.crd.projectcalico.org":                      true,
+	"ippools.netoperator.vmware.com":                     true,
+	"issuers.cert-manager.io":                            true,
+	"kubeadmconfigs.bootstrap.cluster.x-k8s.io":          true,
+	"kubeadmconfigtemplates.bootstrap.cluster.x-k8s.io":  true,
+	"kubeadmcontrolplanes.controlplane.cluster.x-k8s.io": true,
+	"kuberneteslicenses.licenseoperator.vmware.com":      true,
+	"loadbalancerconfigs.netoperator.vmware.com":         true,
+	"loadbalancers.vmware.com":                           true,
+	"machinedeployments.cluster.x-k8s.io":                true,
+	"machinehealthchecks.cluster.x-k8s.io":               true,
+	"machinepools.exp.cluster.x-k8s.io":                  true,
+	"machines.cluster.x-k8s.io":                          true,
+	"machinesets.cluster.x-k8s.io":                       true,
+	"members.registryagent.vmware.com":                   true,
+	"ncpconfigs.nsx.vmware.com":                          true,
+	"network-attachment-definitions.k8s.cni.cncf.io":     true,
+	"networkinterfaces.netoperator.vmware.com":           true,
+	"networks.netoperator.vmware.com":                    true,
+	"nsxerrors.nsx.vmware.com":                           true,
 	//"nsxlbmonitors.vmware.com":                              true, // DO NOT ADD IT BACK
 	//"nsxloadbalancermonitors.vmware.com":                    true, // DO NOT ADD IT BACK
 	"nsxlocks.nsx.vmware.com":                                 true,
