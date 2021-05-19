@@ -192,7 +192,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		p.Log.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}
-	p.Log.Info("Restored, %v, from PVC %s/%s in the backup to PVC %s/%s", updatedCloneFromSnapshot.Status.ResourceHandle, pvc.Namespace, pvc.Name, targetNamespace, pvc.Name)
+	p.Log.Infof("Restored, %v, from PVC %s/%s in the backup to PVC %s/%s", updatedCloneFromSnapshot.Status.ResourceHandle, pvc.Namespace, pvc.Name, targetNamespace, pvc.Name)
 
 	return &velero.RestoreItemActionExecuteOutput{
 		SkipRestore: true,

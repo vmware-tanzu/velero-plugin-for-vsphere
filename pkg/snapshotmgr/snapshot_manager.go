@@ -281,6 +281,11 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 		return snapshotPEID, svcSnapshotName, nil
 	}
 	snapshotPE, err := this.Pem.GetProtectedEntity(ctx, snapshotPEID)
+	if err != nil {
+		this.Errorf("Failed to get the PE from the snapshotPEID %s", snapshotPEID)
+		return snapshotPEID, svcSnapshotName, err
+	}
+	// Create the Upload CR.
 	_, err = this.UploadSnapshot(snapshotPE, ctx, backupRepositoryName, snapshotRef)
 	if err != nil {
 		this.Errorf("Failed to create Upload CR for snapshot PEID %s, Supervisor Cluster snapshot name %s: %v", snapshotPEID.String(), svcSnapshotName, err)
@@ -502,7 +507,8 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 
 	log.Infof("Step 2: Deleting the durable snapshot from s3")
 	if backupRepositoryName != "" && backupRepositoryName != constants.WithoutBackupRepository {
-		backupRepositoryCR, err := pluginClient.BackupdriverV1alpha1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
+		var backupRepositoryCR *backupdriverv1.BackupRepository
+		backupRepositoryCR, err = pluginClient.BackupdriverV1alpha1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 		if err != nil {
 			log.WithError(err).Errorf("Error while retrieving the backup repository CR %v", backupRepositoryName)
 			return err
