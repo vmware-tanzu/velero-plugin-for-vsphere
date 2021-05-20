@@ -131,8 +131,13 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return err
 	}
 
+	fmt.Printf("Detected Cluster type %s during BackupDriver install\n", clusterFlavor)
+
 	// Check vSphere CSI driver version
-	_ = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
+	err = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
+	if err != nil {
+		return err
+	}
 
 	// Check feature flags for backup-driver
 	if err := o.CheckFeatureFlagsForBackupDriver(kubeClient); err != nil {

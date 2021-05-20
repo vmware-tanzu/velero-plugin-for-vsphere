@@ -19,7 +19,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
@@ -53,51 +52,17 @@ func Exit(msg string, args ...interface{}) {
 	os.Exit(1)
 }
 
-// Return version in the format: vX.Y.Z
-func GetVersionFromImage(containers []v1.Container, imageName string) string {
-	var tag = ""
-	for _, container := range containers {
-		if strings.Contains(container.Image, imageName) {
-			tag = utils.GetComponentFromImage(container.Image, constants.ImageVersionComponent)
-			break
-		}
-	}
-	if tag == "" {
-		fmt.Printf("Failed to get tag from image %s\n", imageName)
-		return ""
-	}
-	if strings.Contains(tag, "-") {
-		version := strings.Split(tag, "-")[0]
-		return version
-	} else {
-		return tag
-	}
-}
-
-// Return version in the format: vX.Y.Z
-func GetVersionFromImageByContainerName(containers []v1.Container, containerName string) string {
-	var tag string
-	for _, container := range containers {
-		if containerName == container.Name && containerName == utils.GetComponentFromImage(container.Image, constants.ImageContainerComponent) {
-			tag = utils.GetComponentFromImage(container.Image, constants.ImageVersionComponent)
-			break
-		}
-	}
-	if tag == "" {
-		fmt.Printf("Failed to get tag from image %s\n", containerName)
-	}
-
-	return tag
-}
-
 func GetVeleroVersion(kubeClient kubernetes.Interface, ns string) (string, error) {
 	veleroDeployment, err := kubeClient.AppsV1().Deployments(ns).Get(context.TODO(), constants.VeleroDeployment, metav1.GetOptions{})
 	if err != nil {
 		fmt.Println("Failed to get deployment for velero namespace.")
 		return "", err
 	}
-
-	return GetVersionFromImageByContainerName(veleroDeployment.Spec.Template.Spec.Containers, "velero"), nil
+	versionTag := utils.GetVersionFromImage(veleroDeployment.Spec.Template.Spec.Containers, "velero")
+	if versionTag == "" {
+		fmt.Printf("Failed to get tag from velero image\n")
+	}
+	return versionTag, nil
 }
 
 func GetVeleroFeatureFlags(kubeClient kubernetes.Interface, ns string) ([]string, error) {
@@ -187,66 +152,6 @@ func CreateFeatureStateConfigMap(kubeClient kubernetes.Interface, features []str
 	return nil
 }
 
-// If currentVersion < minVersion, return -1
-// If currentVersion == minVersion, return 0
-// If currentVersion > minVersion, return 1
-// Assume input versions are both valid
-func CompareVersion(currentVersion string, minVersion string) int {
-	current, _ := version.NewVersion(currentVersion)
-	minimum, _ := version.NewVersion(minVersion)
-
-	if current == nil || minimum == nil {
-		return -1
-	}
-	return current.Compare(minimum)
-}
-
-func CheckCSIVersion(containers []v1.Container) error {
-	csi_driver_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/driver")
-	if csi_driver_version == "" {
-		csi_driver_version = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/ci/driver")
-		if csi_driver_version != "" {
-			fmt.Printf("Got a prerelease version %s from container cloud-provider-vsphere/csi/ci/driver. Ignored it\n",
-				csi_driver_version)
-			csi_driver_version = constants.CsiMinVersion
-		}
-	}
-
-	csi_syncer_version := GetVersionFromImage(containers, "cloud-provider-vsphere/csi/release/syncer")
-	if csi_syncer_version == "" {
-		csi_syncer_version = GetVersionFromImage(containers, "cloud-provider-vsphere/csi/ci/syncer")
-		if csi_syncer_version != "" {
-			fmt.Printf("Got a prerelease version %s from container cloud-provider-vsphere/csi/ci/syncer. Ignored it\n",
-				csi_syncer_version)
-			csi_syncer_version = constants.CsiMinVersion
-		}
-	}
-
-	if csi_driver_version == "" || csi_syncer_version == "" {
-		return errors.New("Expected CSI driver/syncer images not found")
-	}
-
-	if CompareVersion(csi_driver_version, constants.CsiMinVersion) < 0 || CompareVersion(csi_syncer_version, constants.CsiMinVersion) < 0 {
-		return errors.Errorf("The version of vSphere CSI controller is below the minimum requirement (%s)", constants.CsiMinVersion)
-	}
-
-	return nil
-}
-
-func CheckCSIInstalled(kubeClient kubernetes.Interface) error {
-	csiStatefulset, err := kubeClient.AppsV1().StatefulSets(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
-	if err == nil {
-		return CheckCSIVersion(csiStatefulset.Spec.Template.Spec.Containers)
-	}
-
-	csiDeployment, err := kubeClient.AppsV1().Deployments(constants.KubeSystemNamespace).Get(context.TODO(), constants.VSphereCSIController, metav1.GetOptions{})
-	if err == nil {
-		return CheckCSIVersion(csiDeployment.Spec.Template.Spec.Containers)
-	}
-
-	return errors.Errorf("vSphere CSI controller, %s, is required by velero-plugin-for-vsphere. Please make sure the vSphere CSI controller is installed in the cluster", constants.VSphereCSIController)
-}
-
 func BuildConfig(master, kubeConfig string, f client.Factory) (*rest.Config, error) {
 	var config *rest.Config
 	var err error
@@ -298,12 +203,17 @@ func CheckVSphereCSIDriverVersion(kubeClient kubernetes.Interface, clusterFlavor
 		return nil
 	}
 
-	err := CheckCSIInstalled(kubeClient)
+	csiInstalledVersion, err := utils.GetCSIInstalledVersion(kubeClient)
 	if err != nil {
 		fmt.Printf("Failed the version check of CSI driver. Error: %v\n", err)
+		return err
+	}
+	// Current minimum version support v1.0.2
+	if utils.CompareVersion(csiInstalledVersion, constants.CsiMinVersion) < 0 {
+		return errors.Errorf("The version of vSphere CSI controller %s is below the minimum requirement v1.0.2", csiInstalledVersion)
 	}
 
-	return err
+	return nil
 }
 
 func CheckVeleroVersion(kubeClient kubernetes.Interface, ns string) error {
@@ -311,7 +221,7 @@ func CheckVeleroVersion(kubeClient kubernetes.Interface, ns string) error {
 	if err != nil || veleroVersion == "" {
 		fmt.Println("Failed to get velero version.")
 	} else {
-		if CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
+		if utils.CompareVersion(veleroVersion, constants.VeleroMinVersion) == -1 {
 			fmt.Printf("WARNING: Velero version %s is prior to %s. Velero Plug-in for vSphere requires velero version to be %s or above.\n", veleroVersion, constants.VeleroMinVersion, constants.VeleroMinVersion)
 		}
 	}

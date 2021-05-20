@@ -31,72 +31,6 @@ import (
 	"testing"
 )
 
-func TestGetVersionFromImage(t *testing.T) {
-	tests := []struct {
-		name       string
-		key        string
-		containers []corev1.Container
-		expected   string
-	}{
-		{
-			name: "Valid image string should return non-empty version",
-			key:  "cloud-provider-vsphere/csi/release/driver",
-			containers: []corev1.Container{
-				{
-					Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:corev1.0.1",
-				},
-			},
-			expected: "corev1.0.1",
-		},
-		{
-			name: "Valid image string should return non-empty version",
-			key:  "cloud-provider-vsphere/csi/release/driver",
-			containers: []corev1.Container{
-				{
-					Image: "cloud-provider-vsphere/csi/release/driver:v2.0.0",
-				},
-			},
-			expected: "v2.0.0",
-		},
-		{
-			name: "Valid image string should return non-empty version",
-			key:  "cloud-provider-vsphere/csi/release/driver",
-			containers: []corev1.Container{
-				{
-					Image: "myregistry/cloud-provider-vsphere/csi/release/driver:v2.0.0",
-				},
-			},
-			expected: "v2.0.0",
-		},
-		{
-			name: "Valid image string should return non-empty version",
-			key:  "cloud-provider-vsphere/csi/release/driver",
-			containers: []corev1.Container{
-				{
-					Image: "myregistry/level1/level2/cloud-provider-vsphere/csi/release/driver:v2.0.0",
-				},
-			},
-			expected: "v2.0.0",
-		},
-		{
-			name: "Invalid image name should return empty string",
-			key:  "cloud-provider-vsphere/csi/release/driver",
-			containers: []corev1.Container{
-				{
-					Image: "gcr.io/csi/release/driver:corev1.0.1",
-				},
-			},
-			expected: "",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			version := GetVersionFromImage(test.containers, test.key)
-			assert.Equal(t, test.expected, version)
-		})
-	}
-}
-
 func TestGetCompatibleRepoAndTagFromPluginImage(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -705,7 +639,7 @@ func TestCheckVSphereCSIDriverVersion(t *testing.T) {
 				},
 			},
 			clusterFlavor: constants.VSphere,
-			expectedError: errors.New("Expected CSI driver/syncer images not found"),
+			expectedError: errors.New("Expected CSI driver images not found"),
 		},
 		{
 			name: "Negative Case in CSI v2.0.1 Vanilla with Unexpected Deployment Name",
@@ -763,7 +697,7 @@ func TestCheckVSphereCSIDriverVersion(t *testing.T) {
 				},
 			},
 			clusterFlavor: constants.VSphere,
-			expectedError: errors.Errorf("The version of vSphere CSI controller is below the minimum requirement (%s)", constants.CsiMinVersion),
+			expectedError: errors.Errorf("The version of vSphere CSI controller v1.0.1 is below the minimum requirement %s", constants.CsiMinVersion),
 		},
 		{
 			name: "Positive case in CSI driver Guest",
@@ -792,6 +726,31 @@ func TestCheckVSphereCSIDriverVersion(t *testing.T) {
 				},
 			},
 			clusterFlavor: constants.TkgGuest,
+			expectedError: nil,
+		},
+		{
+			name: "Positive case for Vanilla CSI 2.3.0  ",
+			runtimeObjs: []runtime.Object{
+				&appsv1.Deployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "vmware-system-csi",
+						Name:      "vsphere-csi-controller",
+					},
+					Spec: appsv1.DeploymentSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Name:  "vsphere-csi-controller",
+										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			clusterFlavor: constants.VSphere,
 			expectedError: nil,
 		},
 	}

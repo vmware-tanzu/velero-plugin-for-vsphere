@@ -238,7 +238,10 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 	snapshotMgrConfig[constants.VolumeSnapshotterLocalMode] = strconv.FormatBool(utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, logger))
 
 	// If CLUSTER_FLAVOR is GUEST_CLUSTER, set up svcKubeConfig to communicate with the Supervisor Cluster
-	clusterFlavor, _ := utils.GetClusterFlavor(clientConfig)
+	clusterFlavor, err := utils.GetClusterFlavor(clientConfig)
+	if err != nil {
+		return nil, err
+	}
 	var svcConfig *rest.Config
 	var svcBackupdriverClient *backupdriver_clientset.BackupdriverV1alpha1Client
 	var svcKubeInformerFactory kubeinformers.SharedInformerFactory
