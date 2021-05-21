@@ -46,7 +46,8 @@ func (this ParaVirtProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Prot
 		}
 	}
 
-	return astrolabe.NewProtectedEntityInfo(this.id, name, this.data, this.metadata, this.combined, []astrolabe.ProtectedEntityID{}), nil
+	// Temporarily pass -1 to indicate the size is unknown/uncomputed.
+	return astrolabe.NewProtectedEntityInfo(this.id, name, -1, this.data, this.metadata, this.combined, []astrolabe.ProtectedEntityID{}), nil
 }
 
 func (this ParaVirtProtectedEntity) GetCombinedInfo(ctx context.Context) ([]astrolabe.ProtectedEntityInfo, error) {
