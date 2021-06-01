@@ -264,7 +264,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 		return nil, err
 	}
 
-	err = this.updateCloneFromSnapshotStatus(cloneFromSnapshotNamespace, cloneFromSnapshotName, svcClone)
+	err = this.updateGuestCloneFromSnapshotStatusWithSupervisor(cloneFromSnapshotNamespace, cloneFromSnapshotName, svcClone)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +342,7 @@ func (this *ParaVirtProtectedEntityTypeManager) getSuperPVCandGuestPVCName(metad
 		gcPVCLabel[k] = v
 		delete(svcPVC.Labels, k)
 	}
-	
+
 	// Construct a name for the PVC in Supervisor cluster
 	svcPVC.Name = svcPVC.Name[0:4] + "-" + pvcUUID.String()
 	svcPVC.Namespace = this.svcNamespace
@@ -466,26 +466,26 @@ func (this *ParaVirtProtectedEntityTypeManager) createGuestPVC(ctx context.Conte
 	return gcPVC, nil
 }
 
-func (this *ParaVirtProtectedEntityTypeManager) updateCloneFromSnapshotStatus(cloneFromSnapshotNamespace string, cloneFromSnapshotName string, svcClone *backupdriverv1.CloneFromSnapshot) error {
+func (this *ParaVirtProtectedEntityTypeManager) updateGuestCloneFromSnapshotStatusWithSupervisor(cloneFromSnapshotNamespace string, cloneFromSnapshotName string, svcClone *backupdriverv1.CloneFromSnapshot) error {
 	// Get CloneFromSnapshot from Guest Cluster
-	gcClone, err := this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
+	gcCloneFromSnapshot, err := this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).Get(context.TODO(), cloneFromSnapshotName, metav1.GetOptions{})
 	if err != nil {
 		this.logger.Errorf("Failed to get the cloneFromSnapshot CR %s/%s in Guest Cluster: %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, err)
 		return errors.Wrapf(err, "failed to get cloneFromSnapshot record in Guest Cluster")
 	}
 
 	// Update CloneFromSnapshot status in Guest based on CloneFromSnapshot from Supervisor
-	clone := gcClone.DeepCopy()
+	clone := gcCloneFromSnapshot.DeepCopy()
 	clone.Status.Phase = svcClone.Status.Phase
 	clone.Status.Message = svcClone.Status.Message
 	clone.Status.ResourceHandle = svcClone.Status.ResourceHandle.DeepCopy()
 	_, err = this.gcBackupDriverClient.CloneFromSnapshots(cloneFromSnapshotNamespace).UpdateStatus(context.TODO(), clone, metav1.UpdateOptions{})
 	if err != nil {
-		this.logger.Errorf("updateCloneFromSnapshotStatus: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+		this.logger.Errorf("updateGuestCloneFromSnapshotStatusWithSupervisor: Failed to update status of CloneFromSnapshot %s/%s to %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
 		return err
 	}
 
-	this.logger.Infof("updateCloneFromSnapshotStatus: CloneFromSnapshot %s/%s updated successfully to Phase %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
+	this.logger.Infof("updateGuestCloneFromSnapshotStatusWithSupervisor: CloneFromSnapshot %s/%s updated successfully to Phase %v", cloneFromSnapshotNamespace, cloneFromSnapshotName, clone.Status.Phase)
 
 	return nil
 }
