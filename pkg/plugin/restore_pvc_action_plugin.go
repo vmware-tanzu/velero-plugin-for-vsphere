@@ -140,6 +140,17 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
+	bSkipPVC, err := pluginItem.SkipPVCCreation(ctx, restConfig, &pvc, p.Log)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	} else if bSkipPVC {
+		// Skip PVCRestoreItemAction for PVC creation
+		// as it already exists
+		return &velero.RestoreItemActionExecuteOutput{
+			UpdatedItem: input.Item,
+		}, nil
+	} // else, go ahead to create a new PVC
+
 	// Retrieve storage class mapping information and update pvc StorageClassName with new name
 	p.Log.Info("Retrieving storage class mapping information from configMap")
 	storageClassMapping, err := pluginItem.RetrieveStorageClassMapping(restConfig, veleroNs, p.Log)
