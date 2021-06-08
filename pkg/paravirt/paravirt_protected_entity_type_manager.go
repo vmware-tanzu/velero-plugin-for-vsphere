@@ -49,10 +49,6 @@ type ParaVirtProtectedEntityTypeManager struct {
 	logger                logrus.FieldLogger
 }
 
-const (
-	CSIDriverName = "csi.vsphere.vmware.com"
-)
-
 var _ astrolabe.ProtectedEntityTypeManager = (*ParaVirtProtectedEntityTypeManager)(nil)
 
 func NewParaVirtProtectedEntityTypeManagerFromConfig(params map[string]interface{}, s3Config astrolabe.S3Config, logger logrus.FieldLogger) (*ParaVirtProtectedEntityTypeManager, error) {
@@ -254,7 +250,7 @@ func (this *ParaVirtProtectedEntityTypeManager) CreateFromMetadata(ctx context.C
 	}
 	svcPVC = svcPvcUpdated
 
-	gcPV, err := this.createGuestPV(gcPVCNamespace, gcPVCName, svcPVC, CSIDriverName)
+	gcPV, err := this.createGuestPV(gcPVCNamespace, gcPVCName, svcPVC, pvc.VSphereCSIProvisioner)
 	if err != nil {
 		return nil, err
 	}

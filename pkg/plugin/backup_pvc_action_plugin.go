@@ -15,9 +15,11 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"os"
 )
 
@@ -38,9 +40,8 @@ func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 // Execute recognizes PVCs backed by volumes provisioned by vSphere CNS block volumes
 func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *velerov1.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	// Do nothing if volume snapshots have not been requested in this backup
-	//if utils.IsSetToFalse(backup.Spec.SnapshotVolumes) {
 	ctx := context.Background()
-	if backup.Spec.SnapshotVolumes != nil && *backup.Spec.SnapshotVolumes == false {
+	if boolptr.IsSetToFalse(backup.Spec.SnapshotVolumes) {
 		p.Log.Infof("Volume snapshotting not requested for backup %s/%s", backup.Namespace, backup.Name)
 		return item, nil, nil
 	}
@@ -83,6 +84,37 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	if err != nil {
 		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, nil, errors.WithStack(err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+
+	p.Log.Infof("Fetching underlying PV for PVC %s", fmt.Sprintf("%s/%s", pvc.Namespace, pvc.Name))
+	// Do nothing if this is not a vSphere CSI provisioned volume
+	pv, err := pluginUtil.GetPVForPVC(&pvc, kubeClient.CoreV1())
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	if pv.Spec.PersistentVolumeSource.CSI == nil {
+		p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+		return item, nil, nil
+	}
+
+	if pv.Spec.PersistentVolumeSource.CSI.Driver != constants.VSphereCSIDriverName {
+		p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a vSphere CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+		return item, nil, nil
+	}
+
+	// Do nothing if restic is used to backup this PV
+	isResticUsed, err := pluginUtil.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, kubeClient.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	if isResticUsed {
+		p.Log.Infof("Skipping PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
+		return item, nil, nil
 	}
 
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(restConfig)
@@ -149,7 +181,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 	vals := map[string]string{
-		constants.ItemSnapshotLabel: snapshotAnnotation,
+		constants.ItemSnapshotLabel:  snapshotAnnotation,
 		constants.PluginVersionLabel: buildinfo.Version,
 	}
 	pluginUtil.AddAnnotations(&pvc.ObjectMeta, vals)

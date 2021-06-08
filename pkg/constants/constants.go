@@ -366,3 +366,7 @@ const (
 )
 
 const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
+
+const (
+	VSphereCSIDriverName = "csi.vsphere.vmware.com"
+)

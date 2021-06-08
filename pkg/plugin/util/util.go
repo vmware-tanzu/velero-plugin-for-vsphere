@@ -10,12 +10,14 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"github.com/vmware-tanzu/velero/pkg/restic"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"strings"
 )
@@ -153,7 +155,7 @@ func UnstructuredToCRDName(item runtime.Unstructured) (string, error) {
 	// but the rules are weird.  Currently works for the resources defined, this is the place to add additional plural rules
 	// if necessary
 	if strings.HasSuffix(kind, "y") {
-		pluralName = strings.ToLower(kind)[0:len(kind) - 1] + "ies"
+		pluralName = strings.ToLower(kind)[0:len(kind)-1] + "ies"
 	} else {
 		pluralName = strings.ToLower(kind) + "s"
 	}
@@ -189,7 +191,7 @@ func RetrieveStorageClassMapping(config *rest.Config, veleroNs string, logger lo
 	opts := metav1.ListOptions{
 		// velero.io/plugin-config: ""
 		// velero.io/change-storage-class: RestoreItemAction
-		LabelSelector: fmt.Sprintf("%s,%s=%s", constants.PluginConfigLabelKey,constants.ChangeStorageClassLabelKey,constants.PluginKindRestoreItemAction),
+		LabelSelector: fmt.Sprintf("%s,%s=%s", constants.PluginConfigLabelKey, constants.ChangeStorageClassLabelKey, constants.PluginKindRestoreItemAction),
 	}
 	configMaps, err := clientset.CoreV1().ConfigMaps(veleroNs).List(context.TODO(), opts)
 	if err != nil {
@@ -297,3 +299,76 @@ func IsResourceBlockedOnRestore(resourceName string) bool {
 	return constants.ResourcesToBlockOnRestore[resourceName]
 }
 
+func GetPVForPVC(pvc *corev1.PersistentVolumeClaim, pvGetter corev1client.PersistentVolumesGetter) (*corev1.PersistentVolume, error) {
+	if pvc.Spec.VolumeName == "" {
+		return nil, errors.Errorf("PVC %s/%s has no volume backing this claim", pvc.Namespace, pvc.Name)
+	}
+	if pvc.Status.Phase != corev1.ClaimBound {
+		// TODO: confirm if this PVC should be snapshotted if it has no PV bound
+		return nil, errors.Errorf("PVC %s/%s is in phase %v and is not bound to a volume", pvc.Namespace, pvc.Name, pvc.Status.Phase)
+	}
+	pvName := pvc.Spec.VolumeName
+	pv, err := pvGetter.PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get PV %s for PVC %s/%s", pvName, pvc.Namespace, pvc.Name)
+	}
+	return pv, nil
+}
+
+func Contains(slice []string, key string) bool {
+	for _, i := range slice {
+		if i == key {
+			return true
+		}
+	}
+	return false
+}
+
+func GetPodsUsingPVC(pvcNamespace, pvcName string, podsGetter corev1client.PodsGetter) ([]corev1.Pod, error) {
+	podsUsingPVC := []corev1.Pod{}
+	podList, err := podsGetter.Pods(pvcNamespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range podList.Items {
+		for _, v := range p.Spec.Volumes {
+			if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == pvcName {
+				podsUsingPVC = append(podsUsingPVC, p)
+			}
+		}
+	}
+
+	return podsUsingPVC, nil
+}
+
+func GetPodVolumeNameForPVC(pod corev1.Pod, pvcName string) (string, error) {
+	for _, v := range pod.Spec.Volumes {
+		if v.PersistentVolumeClaim != nil && v.PersistentVolumeClaim.ClaimName == pvcName {
+			return v.Name, nil
+		}
+	}
+	return "", errors.Errorf("Pod %s/%s does not use PVC %s/%s", pod.Namespace, pod.Name, pod.Namespace, pvcName)
+}
+
+func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToRestic bool) (bool, error) {
+	pods, err := GetPodsUsingPVC(pvcNamespace, pvcName, podClient)
+	if err != nil {
+		return false, errors.WithStack(err)
+	}
+
+	for _, p := range pods {
+		resticVols := restic.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
+		if len(resticVols) > 0 {
+			volName, err := GetPodVolumeNameForPVC(p, pvcName)
+			if err != nil {
+				return false, err
+			}
+			if Contains(resticVols, volName) {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
