@@ -16,8 +16,8 @@ jobs:
       - name: Download essential GVDDK libraries
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere && mkdir .libs && cd .libs
-          wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
-          tar xzf VMware-vix-disklib-7.0.0-15832853.x86_64.tar.gz
+          wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-7.0.2-17696664.x86_64.tar.gz
+          tar xzf VMware-vix-disklib-7.0.2-17696664.x86_64.tar.gz
           chmod 644 $(find vmware-vix-disklib-distrib/lib64/ -type f)
       - name: Make CI
         env:
