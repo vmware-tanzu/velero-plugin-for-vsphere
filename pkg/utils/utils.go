@@ -1195,3 +1195,45 @@ func CompareVersion(currentVersion string, minVersion string) int {
 	}
 	return current.Compare(minimum)
 }
+
+func RetrieveVddkLogLevel(params map[string]interface{}, logger logrus.FieldLogger) error {
+	var err error // Declare here to avoid shadowing on using in cluster config only
+	kubeClient, err := CreateKubeClientSet()
+	if err != nil {
+		logger.WithError(err).Error("Failed to create kube clientset")
+		return err
+	}
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		errMsg := "Failed to lookup the ENV variable for velero namespace"
+		logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+	opts := metav1.ListOptions{
+		// velero.io/vddk-config: vix-disk-lib
+		LabelSelector: fmt.Sprintf("%s=%s", constants.VddkConfigLabelKey, constants.VixDiskLib),
+	}
+	vddkConfigMaps, err := kubeClient.CoreV1().ConfigMaps(veleroNs).List(context.TODO(), opts)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve config map lists for vddk config")
+		return err
+	}
+	if len(vddkConfigMaps.Items) == 0 {
+		logger.Info("No customized config map for vddk exists")
+		return nil
+	}
+	if len(vddkConfigMaps.Items) > 1 {
+		var items []string
+		for _, item := range vddkConfigMaps.Items {
+			items = append(items, item.Name)
+		}
+		return errors.Errorf("found more than one ConfigMap matching label selector %q: %v", opts.LabelSelector, items)
+	}
+	if _, ok := params[constants.VddkConfig]; !ok {
+		params[constants.VddkConfig] = make(map[string]string)
+	}
+	for k, v := range vddkConfigMaps.Items[0].Data {
+		params[constants.VddkConfig].(map[string]string)[k] = v
+	}
+	return nil
+}

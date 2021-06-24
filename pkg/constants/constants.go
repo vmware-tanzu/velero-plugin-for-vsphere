@@ -370,3 +370,9 @@ const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
 const (
 	VSphereCSIDriverName = "csi.vsphere.vmware.com"
 )
+
+const (
+	VddkConfig = "vddk-config"
+	VddkConfigLabelKey = "velero.io/vddk-config"
+	VixDiskLib = "vix-disk-lib"
+)
