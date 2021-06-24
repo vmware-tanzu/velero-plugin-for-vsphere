@@ -243,6 +243,12 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 		logger.Infof("VC configuration provided by user for :%s", ivdParams[vsphere.HostVcParamKey])
 	}
+	err = utils.RetrieveVddkLogLevel(ivdParams, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve vddk log level")
+		return nil, err
+	}
+	logger.Info("Successfully retrieved vddk log level")
 
 	snapshotMgrConfig := make(map[string]string)
 	snapshotMgrConfig[constants.VolumeSnapshotterManagerLocation] = constants.VolumeSnapshotterDataServer
