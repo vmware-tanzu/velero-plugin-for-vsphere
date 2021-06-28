@@ -210,7 +210,7 @@ file volumes should be backed up with the [Velero Restic Integration](https://ve
 
 To use Restic backup for file volumes, please use the `--use-restic` flag to `velero install` command when
 installing Velero.  Annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
-commands by using the following command for each pod that contains one or more file folumes to
+commands by using the following command for each pod that contains one or more file volumes to
 back up:
 
 ```bash
