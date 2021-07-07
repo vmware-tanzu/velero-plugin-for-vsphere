@@ -48,3 +48,38 @@ Apart from logs in the general case, extra logs might also be optionally expecte
 - `kubectl -n vmware-system-appplatform-operator-system logs sts/vmware-system-appplatform-operator-mgr` - App Platform Operator log
 - `VC UI Menu -> Workload Management -> Clusters -> Export Logs with expected cluster selected` - Workload Management/WCP log bundle
 
+### VDDK
+
+Follow the steps below to configure vddk log level.
+
+* Create a ConfigMap to set VDDK log level
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # any name can be used; Velero uses the labels (below)
+  # to identify it rather than the name
+  name: vddk-config
+  # must be in the velero namespace
+  namespace: velero
+  labels:
+    # this label identifies the ConfigMap as
+    # config for vddk
+    # only one vddk ConfigMap should exist at one time
+    velero.io/vddk-config: vix-disk-lib
+data:
+  # NFC LogLevel, default is 1 (0 = Quiet, 1 = Error, 2 = Warning, 3 = Info, 4 = Debug)
+  vixDiskLib.nfc.LogLevel: "4"
+  # Advanced transport functions log level
+  # Default is 3 (0 = Panic(failure only), 1 = Error, 2 = Warning, 3 = Audit, 4 = Info, 5 = Verbose, 6 = Trivia)
+  vixDiskLib.transport.LogLevel: "5"
+```
+* Manually restart data manager pod \
+ `kubectl -n velero delete daemonset.apps/datamgr-for-vsphere-plugin` \
+ `kubectl delete crds uploads.datamover.cnsdp.vmware.com downloads.datamover.cnsdp.vmware.com` \
+ `kubectl -n velero scale deploy/velero --replicas=0` \
+ `kubectl -n velero scale deploy/velero --replicas=1`
+* Log into data manager pod to check vddk log file. The default path should be /tmp/vmware-XXX/vixDiskLib-XXX \
+ `kubectl exec -n velero -it datamgr-for-vsphere-plugin-XXXXX -- /bin/bash` \
+ `cd tmp/vmware-root/` \
+ `cat vixDiskLib-XXX.log`
