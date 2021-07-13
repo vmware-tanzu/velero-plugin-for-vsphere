@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	"io/ioutil"
 	"k8s.io/client-go/tools/clientcmd"
 	"net"
@@ -41,7 +42,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	datamover_api "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/datamover/v1alpha1"
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
@@ -333,7 +333,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 	return nil
 }
 
-func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (*ivd.IVDProtectedEntityTypeManager, error) {
+func GetIVDPETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLogger) (astrolabe.ProtectedEntityTypeManager, error) {
 	// Largely a dummy s3Config - s3Config is to enable access to astrolabe objects via S3 which we don't support from
 	// here
 	s3Config := astrolabe.S3Config{

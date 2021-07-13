@@ -23,6 +23,7 @@ import (
 	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	v1 "k8s.io/api/core/v1"
 	"os"
 	"strings"
@@ -127,8 +128,11 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	isLocalMode := utils.GetBool(config[constants.VolumeSnapshotterLocalMode], false)
 	initRemoteStorage := clusterFlavor == constants.VSphere
 
+	addOnInits := map[string]server.InitFunc {
+		"ivd": ivd.NewIVDProtectedEntityTypeManager,
+	}
 	// Initialize the DirectProtectedEntityManager
-	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
+	dpem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, addOnInits, logger)
 
 	snapMgr := SnapshotManager{
 		FieldLogger:   logger,
