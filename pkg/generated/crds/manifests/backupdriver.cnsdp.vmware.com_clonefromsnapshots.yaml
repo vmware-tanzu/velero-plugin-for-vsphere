@@ -1,6 +1,6 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -15,85 +15,84 @@ spec:
     plural: clonefromsnapshots
     singular: clonefromsnapshot
   scope: Namespaced
-  subresources:
-    status: {}
-  validation:
-    openAPIV3Schema:
-      description: ' CloneFromSnapshot is used to create a new resource (typically a PVC) from a snapshot.  Once the Snapshot''s Phase has  moved to Snapshotted it is valid to create a new resource from the snapshot ID'
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: CloneFromSnapshotSpec specifies an object to be cloned from a snapshot ID.  The Metadata may be overridden, the format of the metadata is object specific.  APIGroup and Kind specify the type of object to create.
-          properties:
-            apiGroup:
-              description: APIGroup of the resource being created
-              type: string
-            backupRepository:
-              description: The backup repository to retrieve the snapshot from.  The namespace the Snapshot/PVC lives in must have access to the repository
-              type: string
-            cloneCancel:
-              description: SnapshotCancel indicates request to cancel ongoing snapshot.  SnapshotCancel can be set at anytime before the snapshot reaches a terminal phase.  If the snapshot has reached a terminal phase
-              type: boolean
-            kind:
-              description: Kind is the type of resource being created
-              type: string
-            metadata:
-              format: byte
-              type: string
-            snapshotID:
-              type: string
-          required:
-          - apiGroup
-          - backupRepository
-          - cloneCancel
-          - kind
-          - snapshotID
-          type: object
-        status:
-          properties:
-            completionTimestamp:
-              description: CompletionTimestamp records the time an snapshot was completed. The server's time is used for CompletionTimestamps
-              format: date-time
-              nullable: true
-              type: string
-            message:
-              description: Message is a message about the clone's status.
-              type: string
-            phase:
-              description: Phase is the current state of the CloneFromSnapshot.
-              type: string
-            resourceHandle:
-              description: The handle of the resource that was cloned from the snapshot
-              properties:
-                apiGroup:
-                  description: APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.
-                  type: string
-                kind:
-                  description: Kind is the type of resource being referenced
-                  type: string
-                name:
-                  description: Name is the name of resource being referenced
-                  type: string
-              required:
-              - kind
-              - name
-              type: object
-          type: object
-      required:
-      - spec
-      type: object
-  version: v1alpha1
   versions:
   - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ' CloneFromSnapshot is used to create a new resource (typically a PVC) from a snapshot.  Once the Snapshot''s Phase has  moved to Snapshotted it is valid to create a new resource from the snapshot ID'
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloneFromSnapshotSpec specifies an object to be cloned from a snapshot ID.  The Metadata may be overridden, the format of the metadata is object specific.  APIGroup and Kind specify the type of object to create.
+            properties:
+              apiGroup:
+                description: APIGroup of the resource being created
+                type: string
+              backupRepository:
+                description: The backup repository to retrieve the snapshot from.  The namespace the Snapshot/PVC lives in must have access to the repository
+                type: string
+              cloneCancel:
+                description: SnapshotCancel indicates request to cancel ongoing snapshot.  SnapshotCancel can be set at anytime before the snapshot reaches a terminal phase.  If the snapshot has reached a terminal phase
+                type: boolean
+              kind:
+                description: Kind is the type of resource being created
+                type: string
+              metadata:
+                format: byte
+                type: string
+              snapshotID:
+                type: string
+            required:
+            - apiGroup
+            - backupRepository
+            - cloneCancel
+            - kind
+            - snapshotID
+            type: object
+          status:
+            properties:
+              completionTimestamp:
+                description: CompletionTimestamp records the time an snapshot was completed. The server's time is used for CompletionTimestamps
+                format: date-time
+                nullable: true
+                type: string
+              message:
+                description: Message is a message about the clone's status.
+                type: string
+              phase:
+                description: Phase is the current state of the CloneFromSnapshot.
+                type: string
+              resourceHandle:
+                description: The handle of the resource that was cloned from the snapshot
+                properties:
+                  apiGroup:
+                    description: APIGroup is the group for the resource being referenced. If APIGroup is not specified, the specified Kind must be in the core API group. For any other third-party types, APIGroup is required.
+                    type: string
+                  kind:
+                    description: Kind is the type of resource being referenced
+                    type: string
+                  name:
+                    description: Name is the name of resource being referenced
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

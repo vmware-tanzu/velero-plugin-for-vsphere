@@ -1,6 +1,6 @@
 
 ---
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -15,54 +15,53 @@ spec:
     plural: deletesnapshots
     singular: deletesnapshot
   scope: Namespaced
-  subresources:
-    status: {}
-  validation:
-    openAPIV3Schema:
-      properties:
-        apiVersion:
-          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-          type: string
-        kind:
-          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-          type: string
-        metadata:
-          type: object
-        spec:
-          description: Spec is the custom resource spec
-          properties:
-            backupRepository:
-              description: The backup repository to retrieve the snapshot from. The namespace the Snapshot/PVC lives in must have access to the repository
-              type: string
-            snapshotID:
-              type: string
-          required:
-          - backupRepository
-          - snapshotID
-          type: object
-        status:
-          description: Current status of the delete snapshot operation
-          properties:
-            completionTimestamp:
-              description: CompletionTimestamp records the time an deletesnapshot was completed. The server's time is used for CompletionTimestamps
-              format: date-time
-              nullable: true
-              type: string
-            message:
-              description: Message is a message about the delete snapshot's status.
-              type: string
-            phase:
-              description: Phase is the current state of the Delete Snapshot.
-              type: string
-          type: object
-      required:
-      - spec
-      type: object
-  version: v1alpha1
   versions:
   - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec is the custom resource spec
+            properties:
+              backupRepository:
+                description: The backup repository to retrieve the snapshot from. The namespace the Snapshot/PVC lives in must have access to the repository
+                type: string
+              snapshotID:
+                type: string
+            required:
+            - backupRepository
+            - snapshotID
+            type: object
+          status:
+            description: Current status of the delete snapshot operation
+            properties:
+              completionTimestamp:
+                description: CompletionTimestamp records the time an deletesnapshot was completed. The server's time is used for CompletionTimestamps
+                format: date-time
+                nullable: true
+                type: string
+              message:
+                description: Message is a message about the delete snapshot's status.
+                type: string
+              phase:
+                description: Phase is the current state of the Delete Snapshot.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

@@ -44,7 +44,7 @@ ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh \
 
 controller-gen \
   crd \
-  crd:crdVersions=v1beta1 \
+  crd:crdVersions=v1 \
   output:dir=pkg/generated/crds/manifests \
   paths=./pkg/apis/...
 
