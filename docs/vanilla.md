@@ -47,11 +47,12 @@ Currently, only AWS plugin is supported and compatible with vSphere plugin. Plea
 velero plugin add <plugin-image>
 ```
 
-For Version 1.1.0 the command is
+For Version 1.1.1 the command is
 
 ```bash
-velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:1.1.0
+velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.1.1
 ```
+Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.1.1 and higher.
 
 ## Uninstall
 
