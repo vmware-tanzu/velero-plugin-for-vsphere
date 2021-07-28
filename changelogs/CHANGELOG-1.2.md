@@ -2,7 +2,7 @@
 
 ## v1.2.0
 
-Date: TBD
+Date: 2021-07-28
 
 ### Changes
 
@@ -11,6 +11,7 @@ Date: TBD
 - Get rid of the dependency on the retrieval of the in cluster k8s config and support running backup-driver and data-manager both in-cluster and out-of-cluster. ([#346](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/346), [@lintongj](https://github.com/lintongj))
 - Make vddk log level configurable. ([#354](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/354), [@xinyanw409](https://github.com/xinyanw409))
 - Skips PVC restore if it already exists. ([#341](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/341), [@xing-yang](https://github.com/xing-yang))
+- Upgraded CRD API version from v1beta1 to v1 ([#368](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/368), [@lintongj](https://github.com/lintongj))
 - Upgraded VDDK library in dependency from vSphere 7.0 to 7.0U2. ([#352](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/352), [@xinyanw409](https://github.com/xinyanw409))
 
 ### Dependencies
