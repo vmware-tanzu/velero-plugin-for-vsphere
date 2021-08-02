@@ -203,7 +203,10 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	}
 
 	brName := deleteSnapshot.Spec.BackupRepository
-	if ctrl.svcKubeConfig != nil {
+	// Backups created in Guest Cluster when local-mode is set do not exercise the Backup Repository claims workflow, as
+	// a result, the Backup Repository is unset. If the Backup Repository is observed unset when deleting the backup
+	// then there is no need to retrieve the corresponding supervisor Backup Repository as it is implied local-mode.
+	if ctrl.svcKubeConfig != nil && brName!= "" {
 		// For guest cluster, get the supervisor backup repository name
 		br, err := ctrl.backupdriverClient.BackupRepositories().Get(ctx, brName, metav1.GetOptions{})
 		if err != nil {
