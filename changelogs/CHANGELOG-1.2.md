@@ -1,3 +1,24 @@
+# Change log since v1.2.0
+
+## v1.2.1
+
+Date: 2021-08-03
+
+### Changes
+
+- Cherry-pick of ([#373](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/373). Do not retrieve supervisor BackupRepository when it is unspecified. ([#375](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/375), [@deepakkinni](https://github.com/deepakkinni))
+
+### Dependencies
+
+#### Added
+_Nothing has changed._
+
+#### Changed
+_Nothing has changed._
+
+#### Removed
+_Nothing has changed._
+
 # Changelog since v1.1.0
 
 ## v1.2.0
