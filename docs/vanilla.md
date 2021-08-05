@@ -18,6 +18,8 @@
 | vSphere 7.0 / ESXi 7.0 and higher  | CSI 1.0.2 driver features continue to work on vSphere 7.0 | v1.14 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
 | vSphere 7.0 / ESXi 7.0 and higher  | v2.0.1 and higher                                         | v1.17 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
 
+**Note**: Velero Plugin for vSphere does not support vSphere CSI Driver deployed as a process with multiple replicas in a Kubernetes multi-node control plane setup.
+
 ## Prerequisites
 
 * Meet the prerequisites of vSphere CSI driver on vSphere roles and privileges - please refer to
