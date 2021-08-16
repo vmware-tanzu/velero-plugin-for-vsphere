@@ -106,6 +106,10 @@ const (
 	VSphereCSIController          = "vsphere-csi-controller"
 	KubeSystemNamespace           = "kube-system"
 	VSphereCSIControllerNamespace = "vmware-system-csi"
+	// Default image registry for the fall-back mechanism in the image-parsing workflow
+	// when installing backup-driver and data-manager-for-plug while installing velero-plugin-for-vsphere.
+	// Make sure to update it accordingly if the official image registry gets migrated.
+	DefaultImageRegistry          = "vsphereveleroplugin"
 )
 
 const (
