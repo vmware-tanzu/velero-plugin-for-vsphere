@@ -105,7 +105,7 @@ func imageVersion() string {
 
 func imageRegistry() string {
 	if buildinfo.Registry == "" {
-		return "dpcpinternal"
+		return constants.DefaultImageRegistry
 	}
 	return buildinfo.Registry
 }
