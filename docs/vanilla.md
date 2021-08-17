@@ -54,7 +54,12 @@ For Version 1.1.1 the command is
 ```bash
 velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.1.1
 ```
+
 Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.1.1 and higher.
+
+#### Install in Air-gapped environment
+
+If it is an air-gapped environment, please refer to [Install Notes with Customized Images](install-notes.md) for extra required steps.
 
 ## Uninstall
 
