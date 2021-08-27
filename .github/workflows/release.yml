@@ -1,0 +1,33 @@
+name: Velero Plugin For vSphere Release Pipeline
+on:
+  release:
+    types: [published]
+jobs:
+  cicd:
+    name: Run CICD
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code of velero-plugin-for-vsphere
+        uses: actions/checkout@v2
+        with:
+          path: src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+      - name: Download essential GVDDK libraries
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere && mkdir .libs && cd .libs
+          wget --quiet https://gvddk-libs.s3-us-west-1.amazonaws.com/VMware-vix-disklib-7.0.2-17696664.x86_64.tar.gz
+          tar xzf VMware-vix-disklib-7.0.2-17696664.x86_64.tar.gz
+          chmod 644 $(find vmware-vix-disklib-distrib/lib64/ -type f)
+      - name: Make CI
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          make ci
+      - name: Make Pre-Release
+        if: github.event_name == 'release' && github.event.release.prerelease == true
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          make push VERSION=${{ github.event.release.tag_name }}
