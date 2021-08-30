@@ -46,6 +46,10 @@ Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu
 * The installation of Velero vSphere Plugin in Guest Cluster may take over ten minutes to complete, this is primarily because the plugin waits for the Velero app operator to write the Secret into a predefined namespace.
 * The installation may hang forever if Velero is not installed in the Supervisor Cluster.
 
+#### Install in Air-gapped environment
+
+If it is an air-gapped environment, please refer to [Install Notes with Customized Images](install-notes.md) for extra required steps.
+
 ## Uninstall
 
 To uninstall the plugin, run the following command to remove the **InitContainer** of velero-plugin-for-vsphere from the Velero deployment first.
