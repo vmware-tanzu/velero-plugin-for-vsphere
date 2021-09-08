@@ -66,4 +66,4 @@ replace k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.18.4
 
 replace k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.18.4
 
-go 1.13
+go 1.16
