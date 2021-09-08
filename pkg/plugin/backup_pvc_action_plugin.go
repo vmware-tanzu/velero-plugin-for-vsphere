@@ -47,10 +47,10 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	blocked, crdName, err := pluginUtil.IsObjectBlocked(item)
-
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Failed during IsObjectBlocked check")
 	}
+	p.Log.Infof("Backing up resource %v: blocked = %v", crdName, blocked)
 
 	if blocked {
 		return nil, nil, errors.Errorf("Resource CRD %s is blocked in backup, skipping", crdName)
