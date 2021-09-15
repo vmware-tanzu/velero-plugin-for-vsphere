@@ -25,6 +25,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"os"
 	"strings"
 	"time"
@@ -231,7 +232,11 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	guestSnapshotParams[constants.SnapshotParamBackupName] = backupName
 
 	snapshotParams[peID.GetPeType()] = guestSnapshotParams
-
+	kubeClient, err := utils.CreateKubeClientSet()
+	if err != nil {
+		this.WithError(err).Errorf("failed to get the kubeclient: %v", err)
+		return astrolabe.ProtectedEntityID{}, "", err
+	}
 	var peSnapID astrolabe.ProtectedEntitySnapshotID
 	this.Infof("Ready to call astrolabe Snapshot API. Will retry on InvalidState error once per second for an hour at maximum")
 	err = wait.PollImmediate(time.Second, time.Hour, func() (bool, error) {
@@ -275,7 +280,7 @@ func (this *SnapshotManager) createSnapshot(peID astrolabe.ProtectedEntityID, ta
 	if backupRepositoryName == constants.WithoutBackupRepository {
 		// This occurs only if the volume snapshotter plugin is registered
 		// In this scenario we explicitly read the feature flags to determine local mode.
-		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
+		isLocalMode = utils.IsFeatureEnabled(kubeClient, constants.VSphereLocalModeFlag, false, this.FieldLogger)
 	} else if backupRepositoryName == "" {
 		// If the br name is not set its implied that its in local mode.
 		isLocalMode = true
@@ -389,6 +394,11 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 		this.WithError(err).Errorf("Failed to get k8s inClusterConfig")
 		return err
 	}
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		this.WithError(err).Errorf("Failed to get kubeclient")
+		return err
+	}
 	pluginClient, err := plugin_clientset.NewForConfig(config)
 	if err != nil {
 		this.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v ", config)
@@ -499,7 +509,7 @@ func (this *SnapshotManager) deleteSnapshot(peID astrolabe.ProtectedEntityID, ba
 	if backupRepositoryName == constants.WithoutBackupRepository {
 		// This occurs only if the volume snapshotter plugin is registered
 		// In this scenario we explicitly read the feature flags to determine local mode.
-		isLocalMode = utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, this.FieldLogger)
+		isLocalMode = utils.IsFeatureEnabled(kubeClient, constants.VSphereLocalModeFlag, false, this.FieldLogger)
 	} else if backupRepositoryName == "" {
 		// If the br name is not set its implied that its in local mode.
 		isLocalMode = true

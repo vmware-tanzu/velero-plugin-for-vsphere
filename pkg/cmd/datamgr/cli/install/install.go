@@ -159,12 +159,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 		return nil
 	}
 
-	// Check vSphere CSI driver version
-	err = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
-	if err != nil {
-		return err
-	}
-
 	// Check velero version
 	_ = cmd.CheckVeleroVersion(kubeClient, o.Namespace)
 
@@ -275,14 +269,14 @@ func (o *InstallOptions) getNumberOfNodes(kubeClient kubernetes.Interface) (int,
 }
 
 func (o *InstallOptions) CheckClusterFlavorForDataManager() constants.ClusterFlavor {
-	clusterFlavor, _ := utils.GetClusterFlavor(nil)
+	clusterFlavor, _ := utils.RetrieveClusterFlavor(nil, o.Namespace)
 
 	// In case of Guest or Supervisor cluster, skip installing data manager
 	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Supervisor {
 		fmt.Printf("The Cluster Flavor: %s. Skipping data manager installation.\n", clusterFlavor)
 		o.SkipInstall = true
 	}
-
+	fmt.Printf("DataManager: Determined the cluster flavor as: %s\n", clusterFlavor)
 	return clusterFlavor
 }
 
