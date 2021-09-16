@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 )
 
 import "github.com/vmware-tanzu/astrolabe/pkg/astrolabe"

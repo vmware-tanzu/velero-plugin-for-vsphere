@@ -306,7 +306,7 @@ func TestPVCSnapshotOps(t *testing.T) {
 		URLBase: "VOID_URL",
 	})
 
-	pem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, logger)
+	pem := server.NewDirectProtectedEntityManagerFromParamMap(configInfo, nil, logger)
 
 	// Initialize the External Astrolabe ProtectedEntity Type Manager for paravirtualized entities
 	paravirtParams := make(map[string]interface{})

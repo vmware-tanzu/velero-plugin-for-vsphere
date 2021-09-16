@@ -22,17 +22,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
-	"github.com/vmware-tanzu/astrolabe/pkg/ivd"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"sync"
 )
 
 type DataMover struct {
 	logger              logrus.FieldLogger
-	ivdPETM             *ivd.IVDProtectedEntityTypeManager
+	ivdPETM             astrolabe.ProtectedEntityTypeManager
 	inProgressCancelMap *sync.Map
 	reloadConfigLock    *sync.Mutex
 }
@@ -241,7 +241,12 @@ func (this *DataMover) ReloadDataMoverIvdPetmConfig(params map[string]interface{
 	this.reloadConfigLock.Lock()
 	defer this.reloadConfigLock.Unlock()
 	this.logger.Debug("DataMover Config Reload initiated.")
-	err := this.ivdPETM.ReloadConfig(context.TODO(), params)
+	ivdPETM, ok := this.ivdPETM.(*ivd.IVDProtectedEntityTypeManager)
+	if ! ok {
+		this.logger.Errorf("Called with non IVDProtectedEntityTypeManager protected entity type manager")
+		return errors.Errorf("Called with non IVDProtectedEntityTypeManager protected entity type manager")
+	}
+	err := ivdPETM.ReloadConfig(context.TODO(), params)
 	if err != nil {
 		this.logger.Infof("Failed to reload IVD PE Type Manager config associated with DataMover")
 		return err

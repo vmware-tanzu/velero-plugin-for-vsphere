@@ -30,6 +30,7 @@ VDDK_LIBS:= $(LIB_DIR)/vmware-vix-disklib-distrib/lib64
 PLUGIN_BIN ?= velero-plugin-for-vsphere
 DATAMGR_BIN ?= data-manager-for-plugin
 BACKUPDRIVER_BIN ?= backup-driver
+VSPHERE_ASTROLABE ?= vsphere-astrolabe
 
 RELEASE_REGISTRY = vsphereveleroplugin
 REGISTRY ?= dpcpinternal
@@ -62,7 +63,7 @@ PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
 
-all: dep plugin
+all: dep plugin vsphere-astrolabe
 
 dep:
 ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
@@ -80,6 +81,10 @@ datamgr:
 backup-driver:
 	@echo "making: $@"
 	$(MAKE) build BIN=$(BACKUPDRIVER_BIN) VERSION=$(VERSION)
+
+vsphere-astrolabe:
+	@echo "making: $@"
+	$(MAKE) build BIN=$(VSPHERE_ASTROLABE) VERSION=$(VERSION)
 
 local: build-dirs
 	GOOS=$(GOOS) \
