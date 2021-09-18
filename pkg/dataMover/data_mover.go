@@ -21,12 +21,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"sync"
 )
 

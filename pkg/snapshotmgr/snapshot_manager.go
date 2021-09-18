@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/vmware-tanzu/astrolabe/pkg/common/vsphere"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
