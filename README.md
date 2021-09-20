@@ -58,6 +58,10 @@ Known issues are documented [here](docs/known_issues.md).
 
 If you encounter issues, review the [troubleshooting](docs/troubleshooting.md) docs or [file an issue](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/issues).
 
+## Developer Guide
+
+Developer Guide is available at [here](BUILDING.md).
+
 ## Previous release
 
 For 1.0.2 release, see documenation [here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tree/v1.0.2).
