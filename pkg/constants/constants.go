@@ -235,7 +235,8 @@ var ResourcesToBlock = map[string]bool{
 	"machinesets.cluster.x-k8s.io":                       true,
 	"members.registryagent.vmware.com":                   true,
 	"ncpconfigs.nsx.vmware.com":                          true,
-	"network-attachment-definitions.k8s.cni.cncf.io":     true,
+	"network-attachment-definitions.k8s.cni.cncf.io":     true,  // real name of NetworkAttachmentDefinition
+	"networkattachmentdefinitions.k8s.cni.cncf.io":       true,  // parsed name of NetworkAttachmentDefinition
 	"networkinterfaces.netoperator.vmware.com":           true,
 	"networks.netoperator.vmware.com":                    true,
 	"nsxerrors.nsx.vmware.com":                           true,
