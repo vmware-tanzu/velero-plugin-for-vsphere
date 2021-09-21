@@ -15,6 +15,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"os"
 )
 
@@ -69,13 +70,18 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 
 	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
 	if !exist {
-		errMsg := "Failed to lookup the ENV variable for velero namespace"
+		errMsg := "failed to lookup the ENV variable for velero namespace"
 		p.Log.Error(errMsg)
 		return errors.New(errMsg)
 	}
 	restConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
-		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
+		p.Log.Errorf("failed to get the rest config in k8s cluster: %v", err)
+		return errors.WithStack(err)
+	}
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		p.Log.Errorf("failed to get the kubeclient: %v", err)
 		return errors.WithStack(err)
 	}
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(restConfig)
@@ -87,7 +93,7 @@ func (p *NewPVCDeleteItemAction) Execute(input *velero.DeleteItemActionExecuteIn
 	bslName := input.Backup.Spec.StorageLocation
 
 	var backupRepositoryName string
-	isLocalMode := utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, p.Log)
+	isLocalMode := utils.IsFeatureEnabled(kubeClient, constants.VSphereLocalModeFlag, false, p.Log)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during delete")
 		backupRepositoryName, err = backuprepository.RetrieveBackupRepositoryFromBSL(ctx, bslName, pvc.Namespace, veleroNs, backupdriverClient, restConfig, p.Log)

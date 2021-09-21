@@ -127,6 +127,7 @@ func CreateFeatureStateConfigMap(kubeClient kubernetes.Interface, features []str
 				Name:      constants.VSpherePluginFeatureStates,
 				Namespace: veleroNs,
 			},
+			Data: make(map[string]string),
 		}
 		create = true
 	}
@@ -138,6 +139,12 @@ func CreateFeatureStateConfigMap(kubeClient kubernetes.Interface, features []str
 	featuresString := strings.Join(features[:], ",")
 	if strings.Contains(featuresString, constants.VSphereLocalModeFeature) {
 		featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(true)
+	}
+	// Update the data to the default if the flag is not found
+	if decoupleVSphereCSIDriverFlag, ok := featureConfigMap.Data[constants.DecoupleVSphereCSIDriverFlag]; !ok {
+		featureData[constants.DecoupleVSphereCSIDriverFlag] = strconv.FormatBool(false)
+	} else {
+		featureData[constants.DecoupleVSphereCSIDriverFlag] = decoupleVSphereCSIDriverFlag
 	}
 	featureConfigMap.Data = featureData
 	if create {

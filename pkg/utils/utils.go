@@ -56,10 +56,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-/*
- * In the CSI setup, VC credential is stored as a secret
- * under the kube-system namespace.
- */
+
 func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
 	var err error // Declare here to avoid shadowing on using in cluster config only
 	if config == nil {
@@ -69,56 +66,73 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 			return errors.Wrap(err, "Could not retrieve in-cluster config")
 		}
 	}
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := GetKubeClientSet(config)
 	if err != nil {
 		logger.WithError(err).Errorf("Failed to get k8s clientset from the given config: %v", config)
 		return err
 	}
-
+	veleroNs, exist := GetVeleroNamespace()
+	if !exist {
+		logger.Errorf("RetrieveVcConfigSecret: Failed to lookup the env variable for velero namespace, using " +
+			"default velero")
+		veleroNs = constants.DefaultVeleroNamespace
+	}
+	var ns, name string
+	var vSphereSecrets []string
 	// Get the cluster flavor
-	var ns string
-	clusterFlavor, err := GetClusterFlavor(config)
-	if clusterFlavor == constants.TkgGuest || clusterFlavor == constants.Unknown {
+	clusterFlavor, err := retrieveClusterFlavor(clientset, veleroNs)
+	if clusterFlavor == constants.Unknown {
 		logger.Errorf("RetrieveVcConfigSecret: Cannot retrieve VC secret in cluster flavor %s", clusterFlavor)
-		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret")
+		return errors.New("RetrieveVcConfigSecret: Cannot retrieve VC secret as the cluster flavor is UNKNOWN")
+	} else if clusterFlavor == constants.TkgGuest {
+		logger.Errorf("RetrieveVcConfigSecret: Retrieving VC secret in cluster flavor %s is not supported", clusterFlavor)
+		return errors.New("RetrieveVcConfigSecret: Retrieving VC Credentials Secret is not supported in Guest Cluster.")
 	} else if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
-	} else {
-		// check the current CSI version for vanilla setups.
-		// If >=2.3, then the secret is in vmware-system-csi
-		// If <2.3, then the secret is in kube-system
-		csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
-		if err != nil {
-			logger.WithError(err).Errorf("Unable to find installed CSI drivers while retrieving VC configuration Secret")
-			return err
-		}
-		if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
-			ns = constants.VCSystemCSINs
+		vSphereSecrets = append(vSphereSecrets, constants.VCSecret, constants.VCSecretTKG)
+	} else { // constants.VSphere
+		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, false, logger) {
+			// Retrieve the vc credentials secret name and namespace from velero-vsphere-plugin-config
+			ns, name = GetSecretNamespaceAndName(clientset, veleroNs, constants.VeleroVSpherePluginConfig)
+			vSphereSecrets = append(vSphereSecrets, name)
+			logger.Debugf("RetrieveVcConfigSecret: Namespace: %s Name: %s", ns, name)
 		} else {
-			ns = constants.VCSecretNs
+			// check the current CSI version for vanilla setups.
+			// If >=2.3, then the secret is in vmware-system-csi
+			// If <2.3, then the secret is in kube-system
+			csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
+			if err != nil {
+				logger.WithError(err).Errorf("Unable to find installed CSI drivers while retrieving VC configuration Secret")
+				return err
+			}
+			if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
+				ns = constants.VCSystemCSINs
+			} else {
+				ns = constants.VCSecretNs
+			}
+			vSphereSecrets = append(vSphereSecrets, constants.VCSecret, constants.VCSecretTKG)
 		}
 	}
 
 	secretApis := clientset.CoreV1().Secrets(ns)
-	vsphere_secrets := []string{constants.VCSecret, constants.VCSecretTKG}
 	var secret *k8sv1.Secret
-	for _, vsphere_secret := range vsphere_secrets {
-		secret, err = secretApis.Get(context.TODO(), vsphere_secret, metav1.GetOptions{})
+	for _, vSphereSecret := range vSphereSecrets {
+		secret, err = secretApis.Get(context.TODO(), vSphereSecret, metav1.GetOptions{})
 		if err == nil {
-			logger.Debugf("Retrieved k8s secret, %s", vsphere_secret)
+			logger.Debugf("Retrieved k8s secret, %s", vSphereSecret)
 			break
 		}
-		logger.WithError(err).Infof("Skipping k8s secret %s as it does not exist", vsphere_secret)
+		logger.WithError(err).Infof("Skipping k8s secret %s as it does not exist", vSphereSecret)
 	}
 
 	// No valid secret found.
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to get k8s secret, %s", vsphere_secrets)
+		logger.WithError(err).Errorf("failed to retrieve vSphere credentials Secret, %s", vSphereSecrets)
 		return err
 	}
 	// No kv pairs in the secret.
 	if len(secret.Data) == 0 {
-		errMsg := fmt.Sprintf("Failed to get any data in k8s secret, %s", vsphere_secrets)
+		errMsg := fmt.Sprintf("failed to get any data in k8s secret, %s", vSphereSecrets)
 		logger.Errorf(errMsg)
 		return errors.New(errMsg)
 	}
@@ -138,7 +152,6 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 	if _, ok := params["port"]; !ok {
 		params["port"] = constants.DefaultVCenterPort
 	}
-
 	return nil
 }
 
@@ -184,7 +197,7 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 		return errors.Wrap(err, "Failed to retrieve the k8s clientset")
 	}
 
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
 		logger.Errorf("RetrieveParamsFromBSL: Failed to lookup the env variable for velero namespace")
 		return err
@@ -245,7 +258,7 @@ func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.
 		return bslName, err
 	}
 
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
 		logger.Errorf("RetrieveBSLFromBackup: Failed to lookup the env variable for velero namespace")
 		return bslName, err
@@ -281,7 +294,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 		return err
 	}
 
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
 		logger.Errorf("RetrieveVSLFromVeleroBSLs: Failed to lookup the env variable for velero namespace")
 		return err
@@ -480,26 +493,16 @@ func GetBool(str string, defValue bool) bool {
 	return res
 }
 
-func IsFeatureEnabled(feature string, defValue bool, logger logrus.FieldLogger) bool {
+func IsFeatureEnabled(clientset kubernetes.Interface, feature string, defValue bool, logger logrus.FieldLogger) bool {
 	ctx := context.Background()
+	var err error
 	if feature == "" {
 		return defValue
 	}
-	config, err := GetKubeClientConfig()
-	if err != nil {
-		logger.Errorf("Failed to retrieve cluster config: %v", err)
-		return defValue
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		logger.Errorf("Failed to retrieve client set: %v", err)
-		return defValue
-	}
-
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
-		logger.Errorf("VELERO_NAMESPACE environment variable not found: %v", err)
-		return defValue
+		logger.Errorf("VELERO_NAMESPACE environment variable not found, using default: %s, err: %v", constants.DefaultVeleroNamespace, err)
+		veleroNs = constants.DefaultVeleroNamespace
 	}
 	featureConfigMap, err := clientset.CoreV1().ConfigMaps(veleroNs).Get(ctx, constants.VSpherePluginFeatureStates, metav1.GetOptions{})
 	if err != nil {
@@ -618,6 +621,23 @@ func PatchUpload(req *datamover_api.Upload, mutate func(*datamover_api.Upload), 
 	return req, nil
 }
 
+func RetrieveClusterFlavor(config *rest.Config, veleroNs string) (constants.ClusterFlavor, error) {
+	var err error
+	if config == nil {
+		config, err = GetKubeClientConfig()
+		if err != nil {
+			return constants.Unknown, err
+		}
+	}
+
+	clientset, err := GetKubeClientSet(config)
+	if err != nil {
+		return constants.Unknown, err
+	}
+
+	return retrieveClusterFlavor(clientset, veleroNs)
+}
+
 func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 	var err error
 	if config == nil {
@@ -627,12 +647,90 @@ func GetClusterFlavor(config *rest.Config) (constants.ClusterFlavor, error) {
 		}
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := GetKubeClientSet(config)
 	if err != nil {
 		return constants.Unknown, err
 	}
 
-	return GetCSIClusterType(clientset)
+	veleroNs, exist := GetVeleroNamespace()
+	if !exist {
+		fmt.Printf("The VELERO_NAMESPACE environment variable is empty, assuming velero as namespace\n")
+		veleroNs = constants.DefaultVeleroNamespace
+	}
+
+	return retrieveClusterFlavor(clientset, veleroNs)
+}
+
+func retrieveClusterFlavor(clientset kubernetes.Interface, veleroNs string) (constants.ClusterFlavor, error) {
+	var err error
+	// Check for velero-vsphere-plugin-config in the velero installation namespace
+	clusterFlavor, err := GetClusterTypeFromConfig(clientset, veleroNs, constants.VeleroVSpherePluginConfig)
+	if err != nil {
+		fmt.Printf("Error received while retrieving cluster flavor from config, err: %+v\n", err)
+		clusterFlavor = constants.Unknown
+	}
+	if clusterFlavor == constants.Unknown {
+		fmt.Printf("Falling back to retrieving cluster flavor from vSphere CSI Driver Deployment\n")
+		clusterFlavor, err = GetCSIClusterType(clientset)
+		if err != nil {
+			fmt.Printf("Received error while retrieving cluster flavor from vSphere CSI Driver, err: %+v\n", err)
+			clusterFlavor = constants.Unknown
+		}
+	}
+	if clusterFlavor == constants.Unknown {
+		fmt.Printf("Failed to retrieve cluster flavor from Velero Vsphere Plugin Config or vSphere CSI Driver\n")
+		fmt.Printf("Defaulting the cluster flavor to VANILLA\n")
+		clusterFlavor = constants.VSphere
+	}
+	return clusterFlavor, nil
+}
+
+func GetClusterTypeFromConfig(kubeClient kubernetes.Interface, veleroNs string, configName string) (constants.ClusterFlavor, error) {
+	veleroPuginConfigMap, err := kubeClient.CoreV1().ConfigMaps(veleroNs).Get(context.TODO(), configName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("failed to retrieve %s configuration, err: %+v.\n", configName, err)
+		return constants.Unknown, err
+	}
+	configMap := veleroPuginConfigMap.Data
+	if flavor, ok := configMap[constants.ConfigClusterFlavorKey]; ok {
+		clusterFlavor := ConvertConfigClusterFlavor(flavor)
+		return clusterFlavor, nil
+	}
+	return constants.Unknown, nil
+}
+
+func ConvertConfigClusterFlavor(flavor string) constants.ClusterFlavor {
+	switch flavor {
+	case "VANILLA":
+		return constants.VSphere
+	case "GUEST":
+		return constants.TkgGuest
+	case "SUPERVISOR":
+		return constants.Supervisor
+	default:
+		return constants.Unknown
+	}
+}
+
+func GetSecretNamespaceAndName(kubeClient kubernetes.Interface, veleroNs string, configName string) (string, string) {
+	var namespace, name string
+	veleroPuginConfigMap, err := kubeClient.CoreV1().ConfigMaps(veleroNs).Get(context.TODO(), configName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Failed to retrieve %s configuration, using defaults, err: %+v.\n", configName, err)
+		return constants.DefaultSecretNamespace, constants.DefaultSecretName
+	}
+	configMap := veleroPuginConfigMap.Data
+	if _, ok := configMap[constants.VSphereSecretNamespaceKey]; !ok {
+		namespace = constants.DefaultSecretNamespace
+	} else {
+		namespace = configMap[constants.VSphereSecretNamespaceKey]
+	}
+	if _, ok := configMap[constants.VSphereSecretNameKey]; !ok {
+		name = constants.DefaultSecretName
+	} else {
+		name = configMap[constants.VSphereSecretNameKey]
+	}
+	return namespace, name
 }
 
 /*
@@ -946,24 +1044,39 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 		return nil
 	}
 
-	var ns string
+	veleroNs, exist := GetVeleroNamespace()
+	if !exist {
+		logger.Errorf("RetrieveVcConfigSecret: Failed to lookup the env variable for velero namespace, using " +
+			"default %s", constants.DefaultVeleroNamespace)
+		veleroNs = constants.DefaultVeleroNamespace
+	}
+
+	var ns, name string
+
 	// Get the cluster flavor
-	clusterFlavor, err := GetClusterFlavor(config)
+	clusterFlavor, err := retrieveClusterFlavor(clientset, veleroNs)
 	if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
 	} else if clusterFlavor == constants.VSphere {
-		// check the current CSI version for vanilla setups.
-		// If >=2.3, then the secret is in vmware-system-csi
-		// If <2.3, then the secret is in kube-system
-		csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
-		if err != nil {
-			logger.WithError(err).Errorf("Unable to find installed CSI drivers during VC configuration Secret watch filtering.")
-		}
-		logger.Infof("CSI version : %s for VC configuration Secret watch.", csiInstalledVersion)
-		if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
-			ns = constants.VCSystemCSINs
+		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, false, logger) {
+			// Retrieve the vc credentials secret name and namespace from velero-vsphere-plugin-config
+			ns, name = GetSecretNamespaceAndName(clientset, veleroNs, constants.VeleroVSpherePluginConfig)
+			logger.Infof("RetrieveVcConfigSecret: Namespace: %s Name: %s", ns, name)
 		} else {
-			ns = constants.VCSecretNs
+			// check the current CSI version for vanilla setups.
+			// If >=2.3, then the secret is in vmware-system-csi namespace
+			// If <2.3, then the secret is in kube-system namespace
+			csiInstalledVersion, err := GetCSIInstalledVersion(clientset)
+			if err != nil {
+				logger.WithError(err).Errorf("unable to find installed CSI drivers during VC configuration Secret watch filtering.")
+			}
+			logger.Infof("CSI version : %s for VC configuration Secret watch.", csiInstalledVersion)
+			if CompareVersion(csiInstalledVersion, constants.Csi2_3_0_Version) >= 0 {
+				ns = constants.VCSystemCSINs
+			} else {
+				ns = constants.VCSecretNs
+			}
+			name = constants.VCSecret
 		}
 	}
 	logger.Infof("VC Configuration Secret: Namespace: %s Name: %s", ns, constants.VCSecret)
@@ -972,7 +1085,7 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 		case *k8sv1.Secret:
 			incomingSecret := obj.(*k8sv1.Secret)
 			return incomingSecret.Namespace == ns &&
-				incomingSecret.Name == constants.VCSecret
+				incomingSecret.Name == name
 		default:
 			logger.Debugf("Unrecognized object type found during filtering, ignoring")
 		}
@@ -1203,7 +1316,7 @@ func RetrieveVddkLogLevel(params map[string]interface{}, logger logrus.FieldLogg
 		logger.WithError(err).Error("Failed to create kube clientset")
 		return err
 	}
-	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
 		errMsg := "Failed to lookup the ENV variable for velero namespace"
 		logger.Error(errMsg)
@@ -1236,4 +1349,12 @@ func RetrieveVddkLogLevel(params map[string]interface{}, logger logrus.FieldLogg
 		params[constants.VddkConfig].(map[string]string)[k] = v
 	}
 	return nil
+}
+
+func GetKubeClientSet(config *rest.Config) (kubernetes.Interface, error) {
+	return kubernetes.NewForConfig(config)
+}
+
+func GetVeleroNamespace() (string, bool) {
+	return os.LookupEnv("VELERO_NAMESPACE")
 }

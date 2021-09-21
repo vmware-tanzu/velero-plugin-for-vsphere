@@ -133,12 +133,6 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 
 	fmt.Printf("Detected Cluster type %s during BackupDriver install\n", clusterFlavor)
 
-	// Check vSphere CSI driver version
-	err = cmd.CheckVSphereCSIDriverVersion(kubeClient, clusterFlavor)
-	if err != nil {
-		return err
-	}
-
 	// Check feature flags for backup-driver
 	if err := o.CheckFeatureFlagsForBackupDriver(kubeClient); err != nil {
 		return err
@@ -231,7 +225,7 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 }
 
 func (o *InstallOptions) CheckClusterFlavorForBackupDriver() (constants.ClusterFlavor, error) {
-	clusterFlavor, err := utils.GetClusterFlavor(nil)
+	clusterFlavor, err := utils.RetrieveClusterFlavor(nil, o.Namespace)
 	if err != nil {
 		return constants.Unknown, errors.Wrap(err, "Failed to get cluster flavor for backup-driver")
 	}
@@ -242,7 +236,7 @@ func (o *InstallOptions) CheckClusterFlavorForBackupDriver() (constants.ClusterF
 		o.MasterAffinity = true
 		o.HostNetwork = true
 	}
-
+	fmt.Printf("BackupDriver: Determined the cluster flavor as: %s\n", clusterFlavor)
 	return clusterFlavor, nil
 }
 

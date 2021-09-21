@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	kubeclientfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"strings"
@@ -41,6 +42,227 @@ import (
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	decoupleVSphereCSIDriverFeatureEnabled = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VSpherePluginFeatureStates,
+			Namespace: constants.DefaultVeleroNamespace,
+		},
+		Data: map[string]string{
+			"decouple-vsphere-csi-driver": "true",
+			"local-mode":                  "false",
+		},
+	}
+	decoupleVSphereCSIDriverFeatureDisabled = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VSpherePluginFeatureStates,
+			Namespace: constants.DefaultVeleroNamespace,
+		},
+		Data: map[string]string{
+			"decouple-vsphere-csi-driver": "false",
+			"local-mode":                  "false",
+		},
+	}
+	csi230VSphereCredentialSecret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vsphere-config-secret",
+			Namespace: "vmware-system-csi",
+		},
+		Data: map[string][]byte{
+			"csi-vsphere.conf": []byte(vcCredentials),
+		},
+		StringData: nil,
+		Type:       "Opaque",
+	}
+	csi201VSphereCredentialSecret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vsphere-config-secret",
+			Namespace: "kube-system",
+		},
+		Data: map[string][]byte{
+			"csi-vsphere.conf": []byte(vcCredentials),
+		},
+		StringData: nil,
+		Type:       "Opaque",
+	}
+	pluginVSphereCredentialSecret = &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "velero-vsphere-config-secret",
+			Namespace: "velero",
+		},
+		Data: map[string][]byte{
+			"csi-vsphere.conf": []byte(vcCredentials),
+		},
+		StringData: nil,
+		Type:       "Opaque",
+	}
+	pluginConfigVanilla = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VeleroVSpherePluginConfig,
+			Namespace: "velero",
+		},
+		Data: map[string]string{
+			"cluster_flavor":           "VANILLA",
+			"vsphere_secret_name":      "velero-vsphere-config-secret",
+			"vsphere_secret_namespace": "velero",
+		},
+	}
+	pluginConfigVanillaSecretUnspecified = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VeleroVSpherePluginConfig,
+			Namespace: "velero",
+		},
+		Data: map[string]string{
+			"cluster_flavor": "VANILLA",
+		},
+	}
+	pluginConfigGuest = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VeleroVSpherePluginConfig,
+			Namespace: "velero",
+		},
+		Data: map[string]string{
+			"cluster_flavor":           "GUEST",
+			"vsphere_secret_name":      "velero-vsphere-config-secret",
+			"vsphere_secret_namespace": "velero",
+		},
+	}
+	pluginConfigInvalid = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VeleroVSpherePluginConfig,
+			Namespace: "velero",
+		},
+		Data: map[string]string{
+			"cluster_flavor": "INVALID",
+		},
+	}
+	csi230GuestDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "vmware-system-csi",
+			Name:      "vsphere-csi-controller",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "vsphere-csi-controller",
+							Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "CLUSTER_FLAVOR",
+									Value: "GUEST_CLUSTER",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	csi230SupervisorDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "vmware-system-csi",
+			Name:      "vsphere-csi-controller",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "vsphere-csi-controller",
+							Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "CLUSTER_FLAVOR",
+									Value: "WORKLOAD",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	csi201VanillaDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      "vsphere-csi-controller",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "vsphere-csi-controller",
+							Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "",
+									Value: "",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	csi230VanillaDeployment = &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "vmware-system-csi",
+			Name:      "vsphere-csi-controller",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "vsphere-csi-controller",
+							Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "",
+									Value: "",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	csi102StatefultSet = &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      "vsphere-csi-controller",
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "vsphere-csi-controller",
+							Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/driver:v1.0.3",
+						},
+					},
+				},
+			},
+		},
+	}
+	vcCredentials = `[Global]
+insecure-flag = "true"
+cluster-id = "cluster1"
+cluster-distribution = "CSI-Vanilla"
+
+[VirtualCenter "10.182.1.133"]
+user = "Administrator@vsphere.local"
+password = "Pass"
+datacenters = "VSAN-DC"
+port = "443"
+	`
 )
 
 func TestGetStringFromParamsMap(t *testing.T) {
@@ -124,7 +346,7 @@ func TestGetBool(t *testing.T) {
 	}
 }
 
-func TestRerieveVcConfigSecret(t *testing.T) {
+func TestParseLines(t *testing.T) {
 	// Setup Logger
 	logger := logrus.New()
 	formatter := new(logrus.TextFormatter)
@@ -492,24 +714,7 @@ func TestGetCSIClusterType(t *testing.T) {
 		{
 			name: "CSI v1.0.2 Vanilla Deployment",
 			runtimeObjs: []runtime.Object{
-				&appsv1.StatefulSet{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "kube-system",
-						Name:      "vsphere-csi-controller",
-					},
-					Spec: appsv1.StatefulSetSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Name:  "vsphere-csi-controller",
-										Image: "xyz.io:9999/cloud-provider-vsphere/csi/release/driver:v1.0.3",
-									},
-								},
-							},
-						},
-					},
-				},
+				csi102StatefultSet,
 			},
 			expectedClusterType: constants.VSphere,
 			expectedError:       nil,
@@ -542,30 +747,7 @@ func TestGetCSIClusterType(t *testing.T) {
 		{
 			name: "CSI v2.0.1 Vanilla Deployment",
 			runtimeObjs: []runtime.Object{
-				&appsv1.Deployment{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "kube-system",
-						Name:      "vsphere-csi-controller",
-					},
-					Spec: appsv1.DeploymentSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Name:  "vsphere-csi-controller",
-										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.0.1",
-										Env: []corev1.EnvVar{
-											{
-												Name:  "",
-												Value: "",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				csi201VanillaDeployment,
 			},
 			expectedClusterType: constants.VSphere,
 			expectedError:       nil,
@@ -573,30 +755,7 @@ func TestGetCSIClusterType(t *testing.T) {
 		{
 			name: "CSI v2.3.0 Vanilla Deployment",
 			runtimeObjs: []runtime.Object{
-				&appsv1.Deployment{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "vmware-system-csi",
-						Name:      "vsphere-csi-controller",
-					},
-					Spec: appsv1.DeploymentSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Name:  "vsphere-csi-controller",
-										Image: "gcr.io/cloud-provider-vsphere/csi/release/driver:v2.3.0",
-										Env: []corev1.EnvVar{
-											{
-												Name:  "",
-												Value: "",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				csi230VanillaDeployment,
 			},
 			expectedClusterType: constants.VSphere,
 			expectedError:       nil,
@@ -635,30 +794,7 @@ func TestGetCSIClusterType(t *testing.T) {
 		{
 			name: "CSI Supervisor Deployment",
 			runtimeObjs: []runtime.Object{
-				&appsv1.Deployment{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "vmware-system-csi",
-						Name:      "vsphere-csi-controller",
-					},
-					Spec: appsv1.DeploymentSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Name:  "vsphere-csi-controller",
-										Image: "this/is/ignored:v0.0.0",
-										Env: []corev1.EnvVar{
-											{
-												Name:  "CLUSTER_FLAVOR",
-												Value: "WORKLOAD",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				csi230SupervisorDeployment,
 			},
 			expectedClusterType: constants.Supervisor,
 			expectedError:       nil,
@@ -666,30 +802,7 @@ func TestGetCSIClusterType(t *testing.T) {
 		{
 			name: "CSI Guest Deployment",
 			runtimeObjs: []runtime.Object{
-				&appsv1.Deployment{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "vmware-system-csi",
-						Name:      "vsphere-csi-controller",
-					},
-					Spec: appsv1.DeploymentSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Name:  "vsphere-csi-controller",
-										Image: "this/is/ignored:v0.0.0",
-										Env: []corev1.EnvVar{
-											{
-												Name:  "CLUSTER_FLAVOR",
-												Value: "GUEST_CLUSTER",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				csi230GuestDeployment,
 			},
 			expectedClusterType: constants.TkgGuest,
 			expectedError:       nil,
@@ -706,6 +819,286 @@ func TestGetCSIClusterType(t *testing.T) {
 				assert.NotNil(t, actualError, "No error thrown")
 				// Ensure errors match
 				assert.Equal(t, test.expectedError.Error(), actualError.Error())
+			}
+		})
+	}
+}
+
+func TestGetClusterTypeFromConfig(t *testing.T) {
+	tests := []struct {
+		name                string
+		runtimeObjs         []runtime.Object
+		expectedError       error
+		expectedClusterType constants.ClusterFlavor
+	}{
+		{
+			name: "VANILLA specified in velero-vsphere-plugin-config",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanilla,
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "GUEST specified in velero-vsphere-plugin-config",
+			runtimeObjs: []runtime.Object{
+				pluginConfigGuest,
+			},
+			expectedClusterType: constants.TkgGuest,
+			expectedError:       nil,
+		},
+		{
+			name: "INVALID specified in velero-vsphere-plugin-config",
+			runtimeObjs: []runtime.Object{
+				pluginConfigInvalid,
+			},
+			expectedClusterType: constants.Unknown,
+			expectedError:       nil,
+		},
+		{
+			name:                "No velero-vsphere-plugin-config ConfigMap in the cluster",
+			expectedClusterType: constants.Unknown,
+			expectedError:       errors.New("Not Found error"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			actualClusterType, actualError := GetClusterTypeFromConfig(kubeClient, constants.DefaultVeleroNamespace,
+				constants.VeleroVSpherePluginConfig)
+			if test.expectedError == nil {
+				assert.Equal(t, test.expectedClusterType, actualClusterType)
+			} else {
+				// expected an error, but no error was thrown.
+				assert.NotNil(t, actualError, "No error thrown")
+				// ensure the cluster type is unknown.
+				assert.Equal(t, constants.Unknown, actualClusterType)
+			}
+		})
+	}
+}
+
+func TestRetrieveClusterFlavor(t *testing.T) {
+	tests := []struct {
+		name                string
+		runtimeObjs         []runtime.Object
+		expectedError       error
+		expectedClusterType constants.ClusterFlavor
+	}{
+		{
+			name: "Config velero-vsphere-plugin-config present with VANILLA cluster flavor specified",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanilla,
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "Test fallback when Config velero-vsphere-plugin-config present with cluster_flavor INVALID and csi 2.3 Deployment on Vanilla",
+			runtimeObjs: []runtime.Object{
+				pluginConfigInvalid,
+				csi230VanillaDeployment,
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "Test fallback when Config velero-vsphere-plugin-config is absent and csi 2.3 Deployment",
+			runtimeObjs: []runtime.Object{
+				csi230VanillaDeployment,
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "Test fallback when Config velero-vsphere-plugin-config is absent and csi 2.0.1 Deployment",
+			runtimeObjs: []runtime.Object{
+				csi201VanillaDeployment,
+			},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name:                "Test fallback when Config velero-vsphere-plugin-config is absent and csi driver is absent",
+			runtimeObjs:         []runtime.Object{},
+			expectedClusterType: constants.VSphere,
+			expectedError:       nil,
+		},
+		{
+			name: "Test fallback when Config velero-vsphere-plugin-config is absent and csi 2.3 Deployment on Supervisor",
+			runtimeObjs: []runtime.Object{
+				csi230SupervisorDeployment,
+			},
+			expectedClusterType: constants.Supervisor,
+			expectedError:       nil,
+		},
+		{
+			name: "Test fallback when Config velero-vsphere-plugin-config is absent and csi 2.3 Deployment on Guest",
+			runtimeObjs: []runtime.Object{
+				csi230GuestDeployment,
+			},
+			expectedClusterType: constants.TkgGuest,
+			expectedError:       nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			actualClusterType, actualError := retrieveClusterFlavor(kubeClient, constants.DefaultVeleroNamespace)
+			if test.expectedError == nil {
+				assert.Equal(t, test.expectedClusterType, actualClusterType)
+			} else {
+				// expected an error, but no error was thrown.
+				assert.NotNil(t, actualError, "No error thrown")
+				// ensure the cluster type is unknown.
+				assert.Equal(t, constants.Unknown, actualClusterType)
+			}
+		})
+	}
+}
+
+func TestRetrieveVcConfigSecret(t *testing.T) {
+	// Setup Logger
+	logger := logrus.New()
+	formatter := new(logrus.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339Nano
+	formatter.FullTimestamp = true
+	logger.SetFormatter(formatter)
+	logger.SetLevel(logrus.DebugLevel)
+	tests := []struct {
+		name        string
+		runtimeObjs []runtime.Object
+		config      *rest.Config
+		expectError bool
+	}{
+		{
+			name: "Decouple CSI driver feature enabled, plugin config absent, supervisor csi 2.3, csi secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureEnabled,
+				csi230SupervisorDeployment,
+				csi230VSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config disabled, supervisor csi 2.3, csi secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi230SupervisorDeployment,
+				csi230VSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config present but no secret specified, plugin secret present",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanillaSecretUnspecified,
+				decoupleVSphereCSIDriverFeatureEnabled,
+				pluginVSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config present, plugin secret present",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanilla,
+				decoupleVSphereCSIDriverFeatureEnabled,
+				pluginVSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config absent, default plugin secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureEnabled,
+				pluginVSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config absent, default plugin secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureEnabled,
+				pluginVSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature enabled, plugin config absent, default plugin secret absent",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureEnabled,
+			},
+			config:      &rest.Config{},
+			expectError: true,
+		},
+		{
+			name: "Decouple CSI driver feature disabled, vanilla csi 2.3, csi secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi230VanillaDeployment,
+				csi230VSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature disabled, vanilla csi 2.3, csi secret absent",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi230VanillaDeployment,
+			},
+			config:      &rest.Config{},
+			expectError: true,
+		},
+		{
+			name: "Decouple CSI driver feature disabled, vanilla csi 2.0.1, csi secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi201VanillaDeployment,
+				csi201VSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+		{
+			name: "Decouple CSI driver feature disabled, vanilla csi 2.0.1, csi secret present",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi201VanillaDeployment,
+				csi201VSphereCredentialSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			params := make(map[string]interface{})
+			patches := gomonkey.ApplyFunc(GetKubeClientSet, func(_ *rest.Config) (kubernetes.Interface, error) {
+				return kubeClient, nil
+			})
+			defer patches.Reset()
+			patches.ApplyFunc(GetVeleroNamespace, func() (string, bool) {
+				return constants.DefaultVeleroNamespace, true
+			})
+			retErr := RetrieveVcConfigSecret(params, test.config, logger)
+			if retErr != nil {
+				// Check if the test expected error if not fail.
+				if !test.expectError == true {
+					t.Fatalf("Unexpected error received.\n test: %s\n err: %+v", test.name, retErr)
+				}
+			} else {
+				// Check if the test expected error if not fail.
+				if test.expectError == true {
+					t.Fatalf("Expected error in scenario, but did not recieve it.\n test: %s", test.name)
+				}
 			}
 		})
 	}

@@ -82,12 +82,13 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	restConfig, err := utils.GetKubeClientConfig()
 	if err != nil {
-		p.Log.Error("Failed to get the rest config in k8s cluster: %v", err)
+		p.Log.Errorf("Failed to get the rest config in k8s cluster: %v", err)
 		return nil, nil, errors.WithStack(err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
+		p.Log.Errorf("failed to get the kubeclient: %v", err)
 		return nil, nil, errors.WithStack(err)
 	}
 
@@ -124,7 +125,7 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 
 	// Do not claim a backup repository in local mode
 	var backupRepositoryName string
-	isLocalMode := utils.IsFeatureEnabled(constants.VSphereLocalModeFlag, false, p.Log)
+	isLocalMode := utils.IsFeatureEnabled(kubeClient, constants.VSphereLocalModeFlag, false, p.Log)
 	if !isLocalMode {
 		p.Log.Info("Claiming backup repository during backup")
 		bslName := backup.Spec.StorageLocation

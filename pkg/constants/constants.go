@@ -109,7 +109,7 @@ const (
 	// Default image registry for the fall-back mechanism in the image-parsing workflow
 	// when installing backup-driver and data-manager-for-plug while installing velero-plugin-for-vsphere.
 	// Make sure to update it accordingly if the official image registry gets migrated.
-	DefaultImageRegistry          = "vsphereveleroplugin"
+	DefaultImageRegistry = "vsphereveleroplugin"
 )
 
 const (
@@ -147,8 +147,9 @@ const (
 
 // feature flog constants
 const (
-	VSphereLocalModeFlag    = "local-mode"
-	VSphereLocalModeFeature = "EnableLocalMode"
+	VSphereLocalModeFlag         = "local-mode"
+	DecoupleVSphereCSIDriverFlag = "decouple-vsphere-csi-driver"
+	VSphereLocalModeFeature      = "EnableLocalMode"
 )
 
 const (
@@ -377,7 +378,18 @@ const (
 )
 
 const (
-	VddkConfig = "vddk-config"
+	VddkConfig         = "vddk-config"
 	VddkConfigLabelKey = "velero.io/vddk-config"
-	VixDiskLib = "vix-disk-lib"
+	VixDiskLib         = "vix-disk-lib"
+)
+
+const DefaultVeleroNamespace = "velero"
+
+const (
+	ConfigClusterFlavorKey    = "cluster_flavor"
+	VeleroVSpherePluginConfig = "velero-vsphere-plugin-config"
+	VSphereSecretNamespaceKey = "vsphere_secret_namespace"
+	VSphereSecretNameKey      = "vsphere_secret_name"
+	DefaultSecretName         = "velero-vsphere-config-secret"
+	DefaultSecretNamespace    = "velero"
 )

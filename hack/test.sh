@@ -53,5 +53,5 @@ if [[ -n "${GOFLAGS:-}" ]]; then
 fi
 
 echo go test "${TARGETS}" ${TIMEOUT} ${RUN_SINGLE_CASE} ${VERBOSE} ${DISABLE_CACHE}
-go test "${TARGETS}" ${TIMEOUT} ${RUN_SINGLE_CASE} ${VERBOSE} ${DISABLE_CACHE}
+go test -gcflags="-l" "${TARGETS}" ${TIMEOUT} ${RUN_SINGLE_CASE} ${VERBOSE} ${DISABLE_CACHE}
 echo "Success!"

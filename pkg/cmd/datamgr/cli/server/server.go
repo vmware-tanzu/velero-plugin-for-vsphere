@@ -232,6 +232,13 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
+	clusterFlavor, err := utils.GetClusterFlavor(clientConfig)
+	if err != nil {
+		logger.WithError(err).Error("failed to identify cluster flavor")
+		return nil, err
+	}
+	logger.Infof("data-manager detected cluster flavor: %s", clusterFlavor)
+
 	ivdParams := make(map[string]interface{})
 	if config.vcConfigFromSecret == true {
 		logger.Infof("VC Configuration will be retrieved from cluster secret")
@@ -269,11 +276,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, err
 	}
 
-	clusterFlavor, err := utils.GetClusterFlavor(clientConfig)
-	if err != nil {
-		logger.WithError(err).Error("Failed tp identify cluster flavor")
-		return nil, err
-	}
 	// In supervisor/guest cluster, data manager is remote
 	externalDataMgr := false
 	if clusterFlavor != constants.VSphere {
