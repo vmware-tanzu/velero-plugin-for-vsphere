@@ -21,8 +21,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/astrolabe/pkg/util"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 	"github.com/vmware/govmomi/vslm"
@@ -346,8 +346,8 @@ func (this *IVDProtectedEntityTypeManager) ReloadConfig(ctx context.Context, par
 			// Disconnecting older vc instance.
 			err = this.vcenter.Disconnect(ctx)
 			if err != nil {
-				this.logger.Errorf("Failed to disconnect older vcenter instance.")
-				return err
+				this.logger.Warnf("Failed to disconnect older vcenter instance, " +
+					"ignoring and proceeding, err: %+v", err)
 			}
 		}
 	}
