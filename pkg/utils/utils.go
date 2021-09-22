@@ -1057,6 +1057,7 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 	clusterFlavor, err := retrieveClusterFlavor(clientset, veleroNs)
 	if clusterFlavor == constants.Supervisor {
 		ns = constants.VCSecretNsSupervisor
+		name = constants.VCSecret
 	} else if clusterFlavor == constants.VSphere {
 		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, false, logger) {
 			// Retrieve the vc credentials secret name and namespace from velero-vsphere-plugin-config
@@ -1079,7 +1080,7 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 			name = constants.VCSecret
 		}
 	}
-	logger.Infof("VC Configuration Secret: Namespace: %s Name: %s", ns, constants.VCSecret)
+	logger.Infof("VC Configuration Secret: Namespace: %s Name: %s", ns, name)
 	return func(obj interface{}) bool {
 		switch obj.(type) {
 		case *k8sv1.Secret:

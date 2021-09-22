@@ -20,8 +20,8 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	v1 "k8s.io/api/core/v1"
@@ -80,8 +80,6 @@ func NewSnapshotManagerFromCluster(params map[string]interface{}, config map[str
 		ivdParams[vsphere.UserVcParamKey] = params[vsphere.UserVcParamKey]
 		ivdParams[vsphere.PasswordVcParamKey] = params[vsphere.PasswordVcParamKey]
 		ivdParams[vsphere.PortVcParamKey] = params[vsphere.PortVcParamKey]
-		ivdParams[vsphere.DatacenterVcParamKey] = params[vsphere.DatacenterVcParamKey]
-		ivdParams[vsphere.InsecureFlagVcParamKey] = params[vsphere.InsecureFlagVcParamKey]
 		ivdParams[vsphere.ClusterVcParamKey] = params[vsphere.ClusterVcParamKey]
 	}
 
