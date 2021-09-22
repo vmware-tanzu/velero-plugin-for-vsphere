@@ -22,8 +22,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/astrolabe/pkg/util"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware/govmomi/cns"
 	cnstypes "github.com/vmware/govmomi/cns/types"
 	vim25types "github.com/vmware/govmomi/vim25/types"
@@ -54,7 +54,6 @@ func TestProtectedEntityTypeManager(t *testing.T) {
 	params[vsphere.UserVcParamKey] = vcUrl.User.Username()
 	password, _ := vcUrl.User.Password()
 	params[vsphere.PasswordVcParamKey] = password
-	params[vsphere.InsecureFlagVcParamKey] = "true"
 	params[vsphere.ClusterVcParamKey] = ""
 
 	ivdPETM, err := NewIVDProtectedEntityTypeManager(params, astrolabe.S3Config{URLBase: "/ivd"}, logrus.New())
@@ -70,50 +69,48 @@ func TestProtectedEntityTypeManager(t *testing.T) {
 	t.Logf("# of PEs returned = %d\n", len(pes))
 }
 
-func getVcConfigFromParams(params map[string]interface{}) (*url.URL, bool, error) {
+func getVcConfigFromParams(params map[string]interface{}) (*url.URL, error) {
 	var vcUrl url.URL
 	vcUrl.Scheme = "https"
 	vcHostStr, err := vsphere.GetVirtualCenterFromParamsMap(params)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	vcHostPortStr, err := vsphere.GetPortFromParamsMap(params)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	vcUrl.Host = fmt.Sprintf("%s:%s", vcHostStr, vcHostPortStr)
 
 	vcUser, err := vsphere.GetUserFromParamsMap(params)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	vcPassword, err := vsphere.GetPasswordFromParamsMap(params)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	vcUrl.User = url.UserPassword(vcUser, vcPassword)
 	vcUrl.Path = "/sdk"
 
-	insecure, err := vsphere.GetInsecureFlagFromParamsMap(params)
-
-	return &vcUrl, insecure, nil
+	return &vcUrl, nil
 }
 
-func GetVcUrlFromConfig(config *rest.Config) (*url.URL, bool, error) {
+func GetVcUrlFromConfig(config *rest.Config) (*url.URL, error) {
 	params := make(map[string]interface{})
 
 	err := util.RetrievePlatformInfoFromConfig(config, params)
 	if err != nil {
-		return nil, false, errors.Errorf("Failed to retrieve VC config secret: %+v", err)
+		return nil, errors.Errorf("Failed to retrieve VC config secret: %+v", err)
 	}
 
-	vcUrl, insecure, err := getVcConfigFromParams(params)
+	vcUrl, err := getVcConfigFromParams(params)
 	if err != nil {
-		return nil, false, errors.Errorf("Failed to get VC config from params: %+v", err)
+		return nil, errors.Errorf("Failed to get VC config from params: %+v", err)
 	}
 
-	return vcUrl, insecure, nil
+	return vcUrl, nil
 }
 
 func GetParamsFromConfig(config *rest.Config) (map[string]interface{}, error) {
@@ -320,7 +317,7 @@ func TestRestoreCnsVolumeFromSnapshot(t *testing.T) {
 	ctx := context.Background()
 
 	// Step 1: To create the IVD PETM, get all PEs and select one as the reference.
-	vcUrl, insecure, err := GetVcUrlFromConfig(config)
+	vcUrl, err := GetVcUrlFromConfig(config)
 	if err != nil {
 		t.Fatalf("Failed to get VC config from params: %+v", err)
 	}
@@ -333,7 +330,6 @@ func TestRestoreCnsVolumeFromSnapshot(t *testing.T) {
 	params[vsphere.UserVcParamKey] = vcUrl.User.Username()
 	password, _ := vcUrl.User.Password()
 	params[vsphere.PasswordVcParamKey] = password
-	params[vsphere.InsecureFlagVcParamKey] = insecure
 	params[vsphere.ClusterVcParamKey] = ""
 
 	ivdPETM := getIVDProtectedEntityTypeManager(t, err, params, astrolabe.S3Config{URLBase: "/ivd"}, logger)

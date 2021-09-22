@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -207,7 +206,6 @@ func getVCConfigParams(config serverConfig, params map[string]interface{}, logge
 
 	// Below vc configuration params are optional
 	params[vsphere.PortVcParamKey] = config.port
-	params[vsphere.InsecureFlagVcParamKey] = strconv.FormatBool(config.insecureFlag)
 
 	return nil
 }

@@ -25,6 +25,8 @@ const (
 	DefaultVCClientTimeoutInMinutes = 30
 	// DefaultAuthErrorRetryCount is the number of retries
 	DefaultAuthErrorRetryCount = 1
+	// DefaultInsecure is the current default value for insecure flag
+	DefaultInsecure bool = true
 )
 
 // Keys for VCenter parameters
@@ -33,8 +35,6 @@ const (
 	UserVcParamKey         = "user"
 	PasswordVcParamKey     = "password"
 	PortVcParamKey         = "port"
-	DatacenterVcParamKey   = "datacenters"
-	InsecureFlagVcParamKey = "insecure-flag"
 	ClusterVcParamKey      = "cluster-id"
 )
 
@@ -68,9 +68,6 @@ type VirtualCenterConfig struct {
 	Password string
 	// Cluster-id
 	ClusterId string
-	// Specifies whether to verify the server's certificate chain. Set to true to
-	// skip verification.
-	Insecure bool
 	// RoundTripperCount is the SOAP round tripper count. (retries = RoundTripperCount - 1)
 	RoundTripperCount int
 	// VCClientTimeout is the time limit in minutes for requests made by vCenter client
@@ -119,12 +116,8 @@ func (this *VirtualCenter) newClient(ctx context.Context) (*govmomi.Client, erro
 		log.Errorf("failed to parse URL %s with err: %v", url, err)
 		return nil, err
 	}
-	if this.Config.Insecure == false {
-		log.Warnf("The vCenter Configuration states secure connection, overriding to use insecure connection..")
-		this.Config.Insecure = true
-		// TODO: support vCenter connection using certs.
-	}
-	soapClient := soap.NewClient(url, this.Config.Insecure)
+	// Always use insecure connection.
+	soapClient := soap.NewClient(url, DefaultInsecure)
 	soapClient.Timeout = time.Duration(this.Config.VCClientTimeout) * time.Minute
 	log.Debugf("Setting vCenter soap client timeout to %v", soapClient.Timeout)
 	vimClient, err := vim25.NewClient(ctx, soapClient)

@@ -37,20 +37,8 @@ func GetPortFromParamsMap(params map[string]interface{}) (string, error) {
 	return GetStringFromParamsMap(params, PortVcParamKey)
 }
 
-func GetDatacenterFromParamsMap(params map[string]interface{}) (string, error) {
-	return GetStringFromParamsMap(params, DatacenterVcParamKey)
-}
-
 func GetClusterFromParamsMap(params map[string]interface{}) (string, error) {
 	return GetStringFromParamsMap(params, ClusterVcParamKey)
-}
-
-func GetInsecureFlagFromParamsMap(params map[string]interface{}) (bool, error) {
-	insecureStr, err := GetStringFromParamsMap(params, InsecureFlagVcParamKey)
-	if err == nil {
-		return strconv.ParseBool(insecureStr)
-	}
-	return false, err
 }
 
 func GetVirtualCenterConfigFromParams(params map[string]interface{}, logger logrus.FieldLogger) (*VirtualCenterConfig, error) {
@@ -74,10 +62,6 @@ func GetVirtualCenterConfigFromParams(params map[string]interface{}, logger logr
 	if err != nil {
 		return nil, err
 	}
-	insecure, err := GetInsecureFlagFromParamsMap(params)
-	if err != nil {
-		return nil, err
-	}
 	clusterId, err := GetClusterFromParamsMap(params)
 	if err != nil {
 		return nil, err
@@ -91,7 +75,6 @@ func GetVirtualCenterConfigFromParams(params map[string]interface{}, logger logr
 		Username:        vcUser,
 		Password:        vcPassword,
 		ClusterId:       clusterId,
-		Insecure:        insecure,
 		VCClientTimeout: DefaultVCClientTimeoutInMinutes,
 	}
 	return vcConfig, nil

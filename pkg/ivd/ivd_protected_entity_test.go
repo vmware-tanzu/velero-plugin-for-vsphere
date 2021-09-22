@@ -23,8 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/astrolabe/pkg/s3repository"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/pbm"
@@ -92,7 +92,6 @@ func TestSnapshotOpsUnderRaceCondition(t *testing.T) {
 	params[vsphere.UserVcParamKey] = vcUrl.User.Username()
 	password, _ := vcUrl.User.Password()
 	params[vsphere.PasswordVcParamKey] = password
-	params[vsphere.InsecureFlagVcParamKey] = true
 	params[vsphere.ClusterVcParamKey] = ""
 
 	ivdPETM := getIVDProtectedEntityTypeManager(t, err, params, s3Config, logger)
@@ -561,7 +560,6 @@ func TestBackupEncryptedIVD(t *testing.T) {
 	params[vsphere.UserVcParamKey] = vcUrl.User.Username()
 	password, _ := vcUrl.User.Password()
 	params[vsphere.PasswordVcParamKey] = password
-	params[vsphere.InsecureFlagVcParamKey] = true
 	params[vsphere.ClusterVcParamKey] = ""
 
 	ivdPETM := getIVDProtectedEntityTypeManager(t, err, params, s3Config, logger)
