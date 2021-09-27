@@ -24,10 +24,18 @@ jobs:
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           make ci
       - name: Make Pre-Release
-        if: github.event_name == 'release' && github.event.release.prerelease == true
+        if: github.event_name == 'release'
         env:
           GOPATH: ${GITHUB_WORKSPACE}
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
           make push VERSION=${{ github.event.release.tag_name }}
+      - name: Make Release
+        if: github.event_name == 'release' && github.event.release.prerelease == false
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+          make release QUALIFIED_TAG=${{ github.event.release.tag_name }} RELEASE_TAG=${{ github.event.release.tag_name }}
