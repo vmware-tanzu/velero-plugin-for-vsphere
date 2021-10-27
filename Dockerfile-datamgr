@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM busybox:1.33.1 AS busybox
+
 FROM gcr.io/distroless/base-debian10:nonroot
 ADD /bin/linux/amd64/data-* /datamgr
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
+COPY --from=busybox /bin/sh /bin/sh
+COPY --from=busybox /bin/cp /bin/cp
+COPY --from=busybox /bin/tar /bin/tar
+COPY --from=busybox /bin/ls /bin/ls
 USER nonroot:nonroot
 ENTRYPOINT ["/datamgr"]
