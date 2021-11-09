@@ -140,9 +140,9 @@ func CreateFeatureStateConfigMap(kubeClient kubernetes.Interface, features []str
 	if strings.Contains(featuresString, constants.VSphereLocalModeFeature) {
 		featureData[constants.VSphereLocalModeFlag] = strconv.FormatBool(true)
 	}
-	// Update the data to the default if the flag is not found
+	// Update the data to the default if the flag is not found, the default is true.
 	if decoupleVSphereCSIDriverFlag, ok := featureConfigMap.Data[constants.DecoupleVSphereCSIDriverFlag]; !ok {
-		featureData[constants.DecoupleVSphereCSIDriverFlag] = strconv.FormatBool(false)
+		featureData[constants.DecoupleVSphereCSIDriverFlag] = strconv.FormatBool(true)
 	} else {
 		featureData[constants.DecoupleVSphereCSIDriverFlag] = decoupleVSphereCSIDriverFlag
 	}
