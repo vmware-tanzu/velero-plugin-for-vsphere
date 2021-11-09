@@ -91,7 +91,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 		ns = constants.VCSecretNsSupervisor
 		vSphereSecrets = append(vSphereSecrets, constants.VCSecret, constants.VCSecretTKG)
 	} else { // constants.VSphere
-		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, false, logger) {
+		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, true, logger) {
 			// Retrieve the vc credentials secret name and namespace from velero-vsphere-plugin-config
 			ns, name = GetSecretNamespaceAndName(clientset, veleroNs, constants.VeleroVSpherePluginConfig)
 			vSphereSecrets = append(vSphereSecrets, name)
@@ -1059,7 +1059,7 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 		ns = constants.VCSecretNsSupervisor
 		name = constants.VCSecret
 	} else if clusterFlavor == constants.VSphere {
-		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, false, logger) {
+		if IsFeatureEnabled(clientset, constants.DecoupleVSphereCSIDriverFlag, true, logger) {
 			// Retrieve the vc credentials secret name and namespace from velero-vsphere-plugin-config
 			ns, name = GetSecretNamespaceAndName(clientset, veleroNs, constants.VeleroVSpherePluginConfig)
 			logger.Infof("RetrieveVcConfigSecret: Namespace: %s Name: %s", ns, name)
