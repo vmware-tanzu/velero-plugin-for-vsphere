@@ -8,7 +8,11 @@ This repository contains the Velero Plugin for vSphere.  This plugin provides cr
 
 ## Latest release
 
-[v1.1.0](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/tag/v1.1.0)
+[v1.3.0](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/tag/v1.3.0)
+
+## Previous releases
+
+For previous releases, please refer to the [releases](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases) page.
 
 ## Kubernetes distributions
 
@@ -61,7 +65,3 @@ If you encounter issues, review the [troubleshooting](docs/troubleshooting.md) d
 ## Developer Guide
 
 Developer Guide is available at [here](BUILDING.md).
-
-## Previous release
-
-For 1.0.2 release, see documenation [here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tree/v1.0.2).
