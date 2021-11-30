@@ -314,6 +314,60 @@ func TestGetVeleroFeatureFlags(t *testing.T) {
 			expectedFeatureFlags: []string{},
 			expectedError:        nil,
 		},
+		{
+			name: "VeleroImageWithSha256",
+			veleroDeployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "velero",
+					Name:      constants.VeleroDeployment,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:  "velero",
+									Image: "velero/velero@sha256:934dae8b2e17b4298bca95f45ec3620a283647297fb8ba8c0f5977e8238a97ee",
+									Args: []string{
+										"server",
+										"--features=EnableLocalMode",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedFeatureFlags: []string{"EnableLocalMode"},
+			expectedError:        nil,
+		},
+		{
+			name: "VeleroImageWithSha256MultipleFlags",
+			veleroDeployment: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "velero",
+					Name:      constants.VeleroDeployment,
+				},
+				Spec: appsv1.DeploymentSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:  "velero",
+									Image: "velero/velero@sha256:934dae8b2e17b4298bca95f45ec3620a283647297fb8ba8c0f5977e8238a97ee",
+									Args: []string{
+										"server",
+										"--features=EnableVSphereItemActionPlugin,EnableLocalMode",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedFeatureFlags: []string{"EnableVSphereItemActionPlugin", "EnableLocalMode"},
+			expectedError:        nil,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
