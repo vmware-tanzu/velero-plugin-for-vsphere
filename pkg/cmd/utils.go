@@ -86,7 +86,7 @@ func GetVeleroFeatureFlags(kubeClient kubernetes.Interface, ns string) ([]string
 func GetFeatureFlagsFromImage(containers []v1.Container, containerName string) ([]string, error) {
 	var containerArgs = []string{}
 	for _, container := range containers {
-		if containerName == container.Name && containerName == utils.GetComponentFromImage(container.Image, constants.ImageContainerComponent) {
+		if containerName == container.Name {
 			containerArgs = container.Args[1:]
 			break
 		}
