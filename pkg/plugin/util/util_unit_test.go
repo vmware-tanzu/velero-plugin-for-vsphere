@@ -632,3 +632,73 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 		})
 	}
 }
+
+func TestIsMigratedCSIVolume(t *testing.T) {
+	migratedPV := corev1.PersistentVolume{
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				VsphereVolume: &corev1.VsphereVirtualDiskVolumeSource{
+					VolumePath: "fakePath",
+				},
+			},
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"pv.kubernetes.io/migrated-to": "csi.vsphere.vmware.com",
+			},
+		},
+	}
+
+	vcpPV := corev1.PersistentVolume{
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				VsphereVolume: &corev1.VsphereVirtualDiskVolumeSource{
+					VolumePath: "fakePath",
+				},
+			},
+		},
+	}
+
+	csiPV := corev1.PersistentVolume{
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeSource: corev1.PersistentVolumeSource{
+				CSI: &corev1.CSIPersistentVolumeSource{
+					Driver: "hostpath.csi.k8s.io",
+					FSType: "ext4",
+					VolumeAttributes: map[string]string{
+						"storage.kubernetes.io/csiProvisionerIdentity": "1582049697841-8081-hostpath.csi.k8s.io",
+					},
+					VolumeHandle: "e61f2b48-527a-11ea-b54f-cab6317018f1",
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name                        string
+		pv                          *corev1.PersistentVolume
+		expectedValidMigratedVolume bool
+	}{
+		{
+			name:                        "valid migrated csi volume",
+			pv:                          &migratedPV,
+			expectedValidMigratedVolume: true,
+		},
+		{
+			name:                        "legacy vcp volume",
+			pv:                          &vcpPV,
+			expectedValidMigratedVolume: false,
+		},
+		{
+			name:                        "standard csi volume",
+			pv:                          &csiPV,
+			expectedValidMigratedVolume: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualIsMigratedCSIVolume := IsMigratedCSIVolume(tc.pv)
+			assert.Equal(t, tc.expectedValidMigratedVolume, actualIsMigratedCSIVolume)
+		})
+	}
+}

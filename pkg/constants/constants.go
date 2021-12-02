@@ -376,6 +376,7 @@ const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
 
 const (
 	VSphereCSIDriverName = "csi.vsphere.vmware.com"
+	VSphereCSIDriverMigrationAnnotation = "pv.kubernetes.io/migrated-to"
 )
 
 const (
