@@ -50,6 +50,10 @@ Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu
 
 If it is an air-gapped environment, please refer to [Install Notes with Customized Images](install-notes.md) for extra required steps.
 
+#### Install with self-signed certificate
+
+To use velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate, please refer to [velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate](self-signed-certificate.md).
+
 ## Uninstall
 
 To uninstall the plugin, run the following command to remove the **InitContainer** of velero-plugin-for-vsphere from the Velero deployment first.
