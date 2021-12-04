@@ -2,6 +2,16 @@
 
 This document discusses the velero vSphere plugin installation process in a **Tanzu Kubernetes Grid Service** environment aka TKG Guest Clusters. For more information on the Tanzu Kubernetes Grid Service refer to the following [documentation](https://docs.vmware.com/en/VMware-Tanzu-Kubernetes-Grid/index.html).
 
+## Table of Contents
+
+1. [Compatibility](#compatibility)
+2. [Prerequisites](#prerequisites)
+3. [Installation Steps](#installation-steps)
+4. [Upgrade](#upgrade)
+5. [Uninstall](#uninstall)
+6. [Backup](#backup)
+7. [Restore](#restore)
+
 ## Compatibility
 
 | vSphere/ESXi Version                   | vSphere CSI Version          | Kubernetes Version | Velero Version    | Velero Plugin for vSphere Version |
@@ -22,7 +32,8 @@ The Data Manager Virtual Machine also needs to be installed to enable TKGS backu
 
 1. [Install Velero](https://velero.io/docs/v1.5/basic-install/)
 2. [Install Object Storage Plugin](#install-object-storage-plugin)
-3. [Install Velero Plugin for vSphere](#install-velero-plugin-for-vsphere)
+3. [Create Velero vSphere Plugin Config](#create-velero-vsphere-plugin-config)
+4. [Install Velero vSphere Plugin](#install-velero-vsphere-plugin)
 
 ### Install Object Storage Plugin
 
@@ -30,16 +41,31 @@ Volume backups are stored in an object store bucket. They are stored in the same
 
 Currently, only AWS plugin is supported and compatible with vSphere plugin. Please refer to [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md) for more details about using **AWS S3** as the object store for backups. S3-compatible object stores, e.g, **MinIO**, are also supported via AWS plugin. Please refer to [install with MinIO](https://velero.io/docs/v1.5/contributions/minio/).
 
-### Install Velero Plugin for vSphere
+### Create Velero vSphere Plugin Config
+
+The config map is used to specify that the plugin is being installed on `GUEST` cluster.
+
+```bash
+% cat <<EOF | kubectl -n <velero-namespace> apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-vsphere-plugin-config
+data:
+  cluster_flavor: GUEST
+EOF
+```
+
+### Install Velero vSphere Plugin
 
 ```bash
 velero plugin add <plugin-image>
 ```
 
-For Version 1.1.1 the command is
+For Version 1.3.0 the command is
 
 ```bash
-velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.1.1
+velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.3.0
 ```
 Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.1.1 and higher.
 
@@ -53,6 +79,51 @@ If it is an air-gapped environment, please refer to [Install Notes with Customiz
 #### Install with self-signed certificate
 
 To use velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate, please refer to [velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate](self-signed-certificate.md).
+
+## Upgrade
+
+1. [Scale down Velero and plugin components](#scale-down-velero-and-plugin-components)
+2. [Create Velero vSphere Plugin Configuration](#create-velero-vsphere-plugin-configmap)
+3. [Update the plugin image](#update-the-plugin-image)
+4. [Scale up velero deployment](#scale-up-velero-deployment)
+
+#### Scale down Velero and plugin components
+
+The following command scales down the `velero` deployment and deletes `backup-driver`.
+
+```bash
+kubectl -n <velero-namespace> delete deploy/backup-driver
+kubectl -n <velero-namespace> scale deploy/velero --replicas=0
+```
+
+### Create Velero vSphere Plugin ConfigMap
+
+The config map is used to specify that the plugin is being installed on `GUEST` cluster.
+
+```bash
+% cat <<EOF | kubectl -n <velero-namespace> apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-vsphere-plugin-config
+data:
+  cluster_flavor: GUEST
+EOF
+```
+
+### Update the plugin image
+
+```bash
+kubectl -n <velero-namespace> set image deployment/velero velero-plugin-for-vsphere=vsphereveleroplugin/velero-plugin-for-vsphere:v1.3.0
+```
+
+Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.3.0 and higher.
+
+### Scale up Velero deployment
+
+```bash
+kubectl -n <velero-namespace> scale deploy/velero --replicas=1
+```
 
 ## Uninstall
 
