@@ -5,9 +5,10 @@
 1. [Compatibility](#compatibility)
 2. [Prerequisites](#prerequisites)
 3. [Install](#install)
-4. [Uninstall](#uninstall)
-5. [Backup](#backup)
-6. [Restore](#restore)
+4. [Upgrade](#upgrade)
+5. [Uninstall](#uninstall)
+6. [Backup](#backup)
+7. [Restore](#restore)
 
 ## Compatibility
 
@@ -35,7 +36,9 @@ of VDDK Programming Guide. **Note: please apply privileges at the vCenter Server
 
 1. [Install Velero](https://velero.io/docs/v1.5/basic-install/)
 2. [Install Object Storage Plugin](#install-object-storage-plugin)
-3. [Install Velero Plugin for vSphere](#install-velero-plugin-for-vsphere)
+3. [Create VC Credential Secret](#create-vc-credential-secret)
+4. [Create Velero vSphere Plugin Config](#create-velero-vsphere-plugin-config)
+5. [Install Velero vSphere Plugin](#install-velero-vsphere-plugin)
 
 ### Install Object Storage Plugin
 
@@ -43,19 +46,58 @@ Volume backups are stored in an object store bucket. They are stored in the same
 
 Currently, only AWS plugin is supported and compatible with vSphere plugin. Please refer to [velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/master/README.md) for more details about using **AWS S3** as the object store for backups. S3-compatible object stores, e.g, **MinIO**, are also supported via AWS plugin. Please refer to [install with MinIO](https://velero.io/docs/v1.5/contributions/minio/).
 
-### Install Velero Plugin for vSphere
+### Create VC Credential Secret
+
+You can retrieve these values from Secret `vsphere-config-secret` in `vmware-system-csi` namespace for
+2.3 and later vSphere CSI driver OR Secret `vsphere-config-secret` in `kube-system` namespace for 2.2 or earlier vSphere
+CSI driver. In other cases these values can be obtained from vSphere Admin.
+
+
+
+```bash
+% cat csi-vsphere.conf
+[Global]
+cluster-id = "cluster1"
+
+[VirtualCenter "10.182.1.133"]
+user = "user@vsphere.local"
+password = "password"
+port = "443"
+
+% kubectl -n <velero-namespace> create secret generic velero-vsphere-config-secret --from-file=csi-vsphere.conf
+```
+
+### Create Velero vSphere Plugin Config
+
+The config map provides information about the cluster flavor and VC Credential Secret created in the previous step during
+install.
+
+```bash
+% cat <<EOF | kubectl -n <velero-namespace> apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-vsphere-plugin-config
+data:
+  cluster_flavor: VANILLA
+  vsphere_secret_name: velero-vsphere-config-secret
+  vsphere_secret_namespace: velero
+EOF
+```
+
+### Install Velero vSphere Plugin
 
 ```bash
 velero plugin add <plugin-image>
 ```
 
-For Version 1.1.1 the command is
+For Version 1.3.0 the command is
 
 ```bash
-velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.1.1
+velero plugin add vsphereveleroplugin/velero-plugin-for-vsphere:v1.3.0
 ```
 
-Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.1.1 and higher.
+Please refer to [velero-plugin-for-vsphere tags](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tags) for correct tags for versions 1.3.0 and higher.
 
 #### Install in Air-gapped environment
 
@@ -64,6 +106,75 @@ If it is an air-gapped environment, please refer to [Install Notes with Customiz
 #### Install with self-signed certificate
 
 To use velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate, please refer to [velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate](self-signed-certificate.md).
+
+## Upgrade
+
+An alternate to upgrading would be to [Uninstall](#uninstall) and do a fresh [Install](#install)
+
+1. [Scale down Velero and plugin components](#scale-down-velero-and-plugin-components)
+2. [Create vSphere Credentials Secret](#create-vsphere-credentials-secret)
+3. [Create Velero vSphere Plugin Configuration](#create-velero-vsphere-plugin-configuration)
+4. [Update the plugin image](#update-the-plugin-image)
+5. [Scale up velero deployment](#scale-up-velero-deployment)
+
+#### Scale down Velero and plugin components
+
+The following command scales down the `velero` deployment and deletes `backup-driver` and `datamgr-for-vsphere-plugin`
+
+```bash
+kubectl -n <velero-namespace> delete deploy/backup-driver
+kubectl -n <velero-namespace> delete daemonset datamgr-for-vsphere-plugin
+kubectl -n <velero-namespace> scale deploy/velero --replicas=0
+```
+
+### Create vSphere Credentials Secret
+
+You can retrieve these values from Secret `vsphere-config-secret` in `vmware-system-csi` namespace for
+2.3 and later vSphere CSI driver OR Secret `vsphere-config-secret` in `kube-system` namespace for 2.2 or earlier vSphere
+CSI driver
+
+```bash
+% cat csi-vsphere.conf
+[Global]
+cluster-id = "cluster1"
+
+[VirtualCenter "10.182.1.133"]
+user = "Administrator@vsphere.local"
+password = "password"
+port = "443"
+
+% kubectl -n <velero-namespace> create secret generic velero-vsphere-config-secret --from-file=csi-vsphere.conf
+```
+
+### Create Velero vSphere Plugin Configuration
+
+The config map provides information about the cluster flavor and VC Credential Secret created in the previous step during
+install.
+
+```bash
+% cat <<EOF | kubectl -n <velero-namespace> apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-vsphere-plugin-config
+data:
+  cluster_flavor: VANILLA
+  vsphere_secret_name: velero-vsphere-config-secret
+  vsphere_secret_namespace: <velero-namespace>
+EOF
+```
+
+### Update the plugin image
+
+```bash
+kubectl -n velero set image deployment/velero velero-plugin-for-vsphere=vsphereveleroplugin/velero-plugin-for-vsphere:v1.3.0
+```
+
+### Scale up Velero deployment
+
+```bash
+kubectl -n <velero-namespace> scale deploy/velero --replicas=1
+```
 
 ## Uninstall
 
