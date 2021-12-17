@@ -691,17 +691,17 @@ func (this *SnapshotManager) CreateVolumeFromSnapshot(sourcePEID astrolabe.Prote
 		}
 		download, err = pluginClient.DatamoverV1alpha1().Downloads(veleroNs).Get(context.TODO(), downloadRecordName, metav1.GetOptions{})
 		if err != nil {
-			this.Errorf("Retrieve download record %s failed with err %v", downloadRecordName, err)
-			return false, errors.Wrapf(err, "Failed to retrieve download record %s", downloadRecordName)
+			this.Errorf("Retrieve download record %s failed with err %v, retrying..", downloadRecordName, err)
+			return false, nil
 		}
 		if download.Status.Phase == v1api.DownloadPhaseCompleted {
 			this.Infof("Download record %s completed", downloadRecordName)
 			return true, nil
 		} else if download.Status.Phase == v1api.DownloadPhaseFailed {
-			return false, errors.Errorf("Create download cr failed.")
+			return false, errors.Errorf("Download Failed.")
 		} else {
 			if infoLog {
-				this.Infof("Retrieve phase %s for download record %s", download.Status.Phase, downloadRecordName)
+				this.Infof("Retrieved phase %s for download record %s, waiting..", download.Status.Phase, downloadRecordName)
 			}
 			return false, nil
 		}
