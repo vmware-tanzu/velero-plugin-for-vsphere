@@ -1,4 +1,26 @@
-# Changelog since v1.1.0
+# Changelog since v1.3.0
+
+## v1.3.1
+
+Date: 2021-12-21
+
+### Changes
+
+- Cherry-pick [#422](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/422): Add support for velero image with sha tag. ([#431](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/431), [@deepakkinni](https://github.com/deepakkinni))
+- Cherry-pick [#434](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/434): Retry if there are errors retrieving Download CR. ([#435](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/435), [@deepakkinni](https://github.com/deepakkinni))
+
+### Dependencies
+
+#### Added
+_Nothing has changed._
+
+#### Changed
+_Nothing has changed._
+
+#### Removed
+_Nothing has changed._
+
+# Changelog since v1.2.1
 
 ## v1.3.0
 
@@ -6,16 +28,16 @@ Date: 2021-11-10
 
 ### Changes
 
-- Enables behavior specified in PR 391 as default. (#411, @deepakkinni)
-- Fixed the issue with parsing NetworkAttachmentDefinition resource and ensure it is blocked in backup (#392, @lintongj)
-- Ignore older vcenter logout errors when reloading configuration with a new username password. (#396, @deepakkinni)
-- Insecure and data-center params need not be specified when creating velero-vsphere-config-secret that contain vc credentials. (#397, @deepakkinni)
+- Enable decouple-vsphere-csi-driver by default. ([#411](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/411), [@deepakkinni](https://github.com/deepakkinni))
+- Fixed the issue with parsing NetworkAttachmentDefinition resource and ensure it is blocked in backup ([#392](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/392), [@lintongj](https://github.com/lintongj))
+- Ignore older vcenter logout errors when reloading configuration with a new username password. ([#396](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/396), [@deepakkinni](https://github.com/deepakkinni))
+- Insecure and data-center params need not be specified when creating velero-vsphere-config-secret that contain vc credentials. ([#397](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/397), [@deepakkinni](https://github.com/deepakkinni))
 - Moved the vSphere specific ivd Protected Entity from Astrolabe into Velero Plugin for vSphere, no functionality
-  changes in the IVD PE otherwise. Added vsphere-astrolabe CLI tool that can interact with IVDs (#386, @dsu-igeek)
-- This change requires a `velero-vsphere-plugin-config` ConfigMap that contains the cluster type information to be created prior to plugin installation for all cluster favors. This change also requires a `velero-vsphere-config-secret` Secret to be created in the same namespace as velero which contains the VC credentials on Vanilla Cluster setups. (#391, @deepakkinni)
-- Update to use distroless base image. (#383, @xinyanw409)
-- Update to use golang 1.16. (#388, @xinyanw409)
-- Updated the default image registry to the official registry for the fall-back mechanism (#380, @lintongj)
+  changes in the IVD PE otherwise. Added vsphere-astrolabe CLI tool that can interact with IVDs ([#386](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/386), [@dsu-igeek](https://github.com/dsu-igeek))
+- This change requires a `velero-vsphere-plugin-config` ConfigMap that contains the cluster type information to be created prior to plugin installation for all cluster favors. This change also requires a `velero-vsphere-config-secret` Secret to be created in the same namespace as velero which contains the VC credentials on Vanilla Cluster setups. ([#391](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/391), [@deepakkinni](https://github.com/deepakkinni))
+- Update to use distroless base image. ([#383](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/383), [@xinyanw409](https://github.com/xinyanw409))
+- Update to use golang 1.16. ([#388](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/388), [@xinyanw409](https://github.com/xinyanw409))
+- Updated the default image registry to the official registry for the fall-back mechanism ([#380](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/380), [@lintongj](https://github.com/lintongj))
 
 ### Dependencies
 
