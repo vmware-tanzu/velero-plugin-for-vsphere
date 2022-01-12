@@ -171,7 +171,8 @@ func (this IVDProtectedEntity) getDiskConnectionParams(ctx context.Context, read
 		path,
 		flags,
 		readOnly,
-		transportMode)
+		transportMode,
+		"")
 
 	return params, nil
 }
