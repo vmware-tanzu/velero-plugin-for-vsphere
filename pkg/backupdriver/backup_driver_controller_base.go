@@ -798,6 +798,21 @@ func (ctrl *backupDriverController) syncDeleteSnapshotByKey(key string) error {
 		return err
 	}
 
+	// The Phase is unset when users create DeleteSnapshot CR, Phase is defined as a sub-resource
+	// and cannot be set when creating the CR. In such cases, the CR is treated as "New"
+	if delSnapshot.Status.Phase == "" {
+		ctrl.logger.Infof("No Phase set for the DeleteSnapshot CR: %s/%s, will update to New", namespace, name)
+		var statusUpdateErr error
+		deleteSnapshotStatusFields := make(map[string]interface{})
+		deleteSnapshotStatusFields["Message"] = "Explicit update to New Phase"
+		delSnapshot, statusUpdateErr = ctrl.updateDeleteSnapshotStatusPhase(context.TODO(), delSnapshot.Namespace, delSnapshot.Name,
+			backupdriverapi.DeleteSnapshotPhaseNew, deleteSnapshotStatusFields)
+		if statusUpdateErr != nil {
+			ctrl.logger.Errorf("Failed to update Phase of DeleteSnapshot %s/%s to New, err: %+v", namespace, name, err)
+			return statusUpdateErr
+		}
+	}
+
 	if delSnapshot.Status.Phase != backupdriverapi.DeleteSnapshotPhaseNew {
 		ctrl.logger.Debugf("Skipping DeleteSnapshot, %v, which is not in New phase. Current phase: %v",
 			key, delSnapshot.Status.Phase)
