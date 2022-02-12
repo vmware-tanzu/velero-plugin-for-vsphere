@@ -1,15 +1,7 @@
 # Contributing
 
-## CHANGELOG 
-
-Authors are expected to include a changelog file with their pull requests. The changelog file
-should be a new file created in the `changelogs/unreleased` folder. The file should follow the
-naming convention of `pr-username` and the contents of the file should be your text for the
-changelog.
-
-    velero-plugin-for-vsphere/changelogs/unreleased   <- folder
-        000-username            <- file
-
+## Opening PRs
+When opening a pull request, please fill out the checklist supplied the template, including the release-note section. If a PR does not need a release-note, please fill in `NONE`. This will help others properly categorize and review your pull request.
 
 ## DCO Sign off
 
@@ -68,3 +60,7 @@ By making a contribution to this project, I certify that:
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
 ```
+
+## Developer Guide
+
+Developer Guide is available [here](BUILDING.md).

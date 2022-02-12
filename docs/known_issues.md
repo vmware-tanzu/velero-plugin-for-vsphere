@@ -60,3 +60,7 @@ velero backup create my-backup --include-namespaces my-namespace --snapshot-volu
 Users might require ways to provide registry credentials when deploying velero and vSphere plugin with images in private registries. Below are solutions in different cases.
 * In Vanilla cluster or Tanzu Kubernetes Grid Service cluster, users can [add the image pull secrets to the corresponding service accounts](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#add-image-pull-secret-to-service-account).
 * In vSphere with Tanzu cluster, users can use the `--use-private-registry` option available in [velero vSphere operator CLI](velero-vsphere-operator-cli.md) to indicate pulling image from private registry. As a prerequisite, users are expected to provide the registry credential when enabling `Velero vSphere Operator` Supervisor Service.
+
+## Volume Expansion Not Supported when there are Snapshots
+
+If upload fails during a backup, the local snapshot will not be deleted. Velero vSphere Plugin will keep retrying the upload. If the user wants to expand volume, it will fail because volume expansion is not supported when there are snapshots on the volume.
