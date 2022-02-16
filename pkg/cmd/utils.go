@@ -146,6 +146,13 @@ func CreateFeatureStateConfigMap(kubeClient kubernetes.Interface, features []str
 	} else {
 		featureData[constants.DecoupleVSphereCSIDriverFlag] = decoupleVSphereCSIDriverFlag
 	}
+
+	if migratedVolumeSupportFlag, ok := featureConfigMap.Data[constants.CSIMigratedVolumeSupportFlag]; !ok {
+		featureData[constants.CSIMigratedVolumeSupportFlag] = strconv.FormatBool(false)
+	} else {
+		featureData[constants.CSIMigratedVolumeSupportFlag] = migratedVolumeSupportFlag
+	}
+
 	featureConfigMap.Data = featureData
 	if create {
 		_, err = kubeClient.CoreV1().ConfigMaps(veleroNs).Create(ctx, featureConfigMap, metav1.CreateOptions{})
