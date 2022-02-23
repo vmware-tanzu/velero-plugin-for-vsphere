@@ -934,8 +934,8 @@ github.com/valyala/tcplisten v0.0.0-20161114210144-ceec8f93295a/go.mod h1:v3UYOV
 github.com/vektah/gqlparser v1.1.2/go.mod h1:1ycwN7Ij5njmMkPPAOaRFY4rET2Enx7IkVv3vaXspKw=
 github.com/vishvananda/netlink v1.0.0/go.mod h1:+SR5DhBJrl6ZM7CoCKvpw5BKroDKQ+PJqOg65H/2ktk=
 github.com/vishvananda/netns v0.0.0-20171111001504-be1fbeda1936/go.mod h1:ZjcWmFBXmLKZu9Nxj3WKYEafiSqer2rnvPr0en9UNpI=
-github.com/vmware-tanzu/astrolabe v0.4.1-0.20220127021130-c9c991508886 h1:/OeAx4H1AYrL+e2y979TV8sORBd59Gnh/S4gdPD7hE8=
-github.com/vmware-tanzu/astrolabe v0.4.1-0.20220127021130-c9c991508886/go.mod h1:4JLt/1otZlfY5FvvMkWV1tbckIX53D+CAY83uzM9QYg=
+github.com/vmware-tanzu/astrolabe v0.4.1-0.20220223130355-9d46e32ff8b3 h1:3YQAJf3sSr3eqVNeH8r29hzttRkUf9jCAeLILjuPRNA=
+github.com/vmware-tanzu/astrolabe v0.4.1-0.20220223130355-9d46e32ff8b3/go.mod h1:DmNbTi+9kTDzmvpJyn91MrQUXzcgagY8mFPjLEOfUyI=
 github.com/vmware-tanzu/velero v1.5.1 h1:PMcPfrhv91AfO/NPIWJDVUEql+DUixPnTjg+LTV95yI=
 github.com/vmware-tanzu/velero v1.5.1/go.mod h1:SIyHunlEyLVeKjWR34rv0mLeNVsH5wiR/EmQuUEo1/k=
 github.com/vmware/govmomi v0.20.3/go.mod h1:URlwyTFZX72RmxtxuaFL2Uj3fD1JTvZdx59bHWk6aFU=
@@ -1484,6 +1484,7 @@ sigs.k8s.io/kustomize/cmd/config v0.9.13/go.mod h1:7547FLF8W/lTaDf0BDqFTbZxM9zqw
 sigs.k8s.io/kustomize/kustomize/v4 v4.2.0/go.mod h1:MOkR6fmhwG7hEDRXBYELTi5GSFcLwfqwzTRHW3kv5go=
 sigs.k8s.io/kustomize/kyaml v0.11.0/go.mod h1:GNMwjim4Ypgp/MueD3zXHLRJEjz7RvtPae0AwlvEMFM=
 sigs.k8s.io/structured-merge-diff/v3 v3.0.0-20200116222232-67a7b8c61874/go.mod h1:PlARxl6Hbt/+BC80dRLi1qAmnMqwqDg62YvvVkZjemw=
+sigs.k8s.io/structured-merge-diff/v3 v3.0.0/go.mod h1:PlARxl6Hbt/+BC80dRLi1qAmnMqwqDg62YvvVkZjemw=
 sigs.k8s.io/structured-merge-diff/v4 v4.0.2/go.mod h1:bJZC9H9iH24zzfZ/41RGcq60oK1F7G282QMXDPYydCw=
 sigs.k8s.io/structured-merge-diff/v4 v4.1.2 h1:Hr/htKFmJEbtMgS/UD0N+gtgctAqz81t3nu+sPzynno=
 sigs.k8s.io/structured-merge-diff/v4 v4.1.2/go.mod h1:j/nl6xW8vLS49O8YvXW1ocPhZawJtm+Yrr7PPRQ0Vg4=
