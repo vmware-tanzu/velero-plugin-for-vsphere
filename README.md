@@ -6,13 +6,9 @@
 
 This repository contains the Velero Plugin for vSphere.  This plugin provides crash-consistent snapshots of vSphere block volumes and backup of volume data into S3 compatible storage.
 
-## Latest release
+## Releases
 
-[v1.3.0](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases/tag/v1.3.0)
-
-## Previous releases
-
-For previous releases, please refer to the [releases](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases) page.
+For releases, please refer to the [releases](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases) page.
 
 ## Kubernetes distributions
 
