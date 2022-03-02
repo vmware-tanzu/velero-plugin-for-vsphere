@@ -32,7 +32,7 @@ DATAMGR_BIN ?= data-manager-for-plugin
 BACKUPDRIVER_BIN ?= backup-driver
 VSPHERE_ASTROLABE ?= vsphere-astrolabe
 
-RELEASE_REGISTRY = vsphereveleroplugin
+RELEASE_REGISTRY = ?vsphereveleroplugin
 REGISTRY ?= dpcpinternal
 PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
