@@ -39,3 +39,17 @@ jobs:
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
           make release QUALIFIED_TAG=${{ github.event.release.tag_name }} RELEASE_TAG=${{ github.event.release.tag_name }}
+      # Use the JSON key in secret to login gcr.io
+      - uses: 'docker/login-action@v1'
+        with:
+          registry: 'gcr.io' # or REGION.docker.pkg.dev
+          username: '_json_key'
+          password: '${{ secrets.GCR_SA_KEY }}'
+      # Push image to GCR to avoid docker hub rate limitation issue.
+      - name: Publish container image to GCR
+        if: github.event_name == 'release' && github.event.release.prerelease == false
+        env:
+          GOPATH: ${GITHUB_WORKSPACE}
+        run: |
+          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+          RELEASE_REGISTRY=gcr.io/velero-gcp make release QUALIFIED_TAG=${{ github.event.release.tag_name }} RELEASE_TAG=${{ github.event.release.tag_name }}
