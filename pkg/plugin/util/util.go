@@ -408,3 +408,9 @@ func SkipPVCCreation(ctx context.Context, config *rest.Config, pvc *corev1.Persi
 	// Create a new PVC
 	return false, nil
 }
+
+func IsMigratedCSIVolume(pv *corev1.PersistentVolume) bool {
+	isProvisionedByVCP := pv.Spec.VsphereVolume != nil
+	isAnnotatedByVsphereCSI := pv.Annotations[constants.VSphereCSIDriverMigrationAnnotation] == constants.VSphereCSIDriverName
+	return isProvisionedByVCP && isAnnotatedByVsphereCSI
+}
