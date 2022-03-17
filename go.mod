@@ -11,7 +11,7 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
-	github.com/vmware-tanzu/astrolabe v0.4.1-0.20220223130355-9d46e32ff8b3
+	github.com/vmware-tanzu/astrolabe v0.5.0
 	github.com/vmware-tanzu/velero v1.5.1
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
 	github.com/vmware/virtual-disks v0.0.4
