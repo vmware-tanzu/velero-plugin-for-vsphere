@@ -8,6 +8,7 @@ Date: 2022-03-16
 
 - Add actions that sync images to GCR on release ([#450](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/450), [@blackpiglet](https://github.com/blackpiglet))
 - Bump up astrolabe version to pick up csi migrated volume support ([#442](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/442), [@liuy1vmware](https://github.com/liuy1vmware))
+- Bump up astrolabe version to v0.5.0 ([#454](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/454), [@lintongj](https://github.com/lintongj))
 - Process DeleteSnapshot CRs without explicit Phase set ([#441](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/441), [@deepakkinni](https://github.com/deepakkinni))
 - Support creating snapshot for migrated CSI volume ([#443](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/443), [@liuy1vmware](https://github.com/liuy1vmware))
 - Upgrade golang version to 1.17 ([#448](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/448), [@xinyanw409](https://github.com/xinyanw409))
@@ -35,11 +36,10 @@ Date: 2022-03-16
 - github.com/mitchellh/mapstructure: [v1.1.2 → v1.4.1](https://github.com/mitchellh/mapstructure/compare/v1.1.2...v1.4.1)
 - github.com/opentracing/opentracing-go: [v1.1.0 → v1.2.0](https://github.com/opentracing/opentracing-go/compare/v1.1.0...v1.2.0)
 - github.com/pelletier/go-toml: [v1.6.0 → v1.7.0](https://github.com/pelletier/go-toml/compare/v1.6.0...v1.7.0)
-- github.com/vmware-tanzu/astrolabe: [12eb18c → 9d46e32](https://github.com/vmware-tanzu/astrolabe/compare/12eb18c...9d46e32)
+- github.com/vmware-tanzu/astrolabe: [12eb18c → v0.5.0](https://github.com/vmware-tanzu/astrolabe/compare/12eb18c...v0.5.0)
 - go.mongodb.org/mongo-driver: v1.3.1 → v1.7.5
 - golang.org/x/text: v0.3.6 → v0.3.7
 - sigs.k8s.io/structured-merge-diff/v3: 67a7b8c → v3.0.0
 
 ### Removed
 _Nothing has changed._
-
