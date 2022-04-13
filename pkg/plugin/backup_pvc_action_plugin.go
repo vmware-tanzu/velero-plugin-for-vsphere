@@ -100,15 +100,27 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
+	// Do nothing if restic is used to backup this PV
+	isResticUsed, err := pluginUtil.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, kubeClient.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
+	if err != nil {
+		return nil, nil, errors.WithStack(err)
+	}
+	if isResticUsed {
+		p.Log.Infof("Skipping PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
+		return item, nil, nil
+	}
+
 	if utils.IsFeatureEnabled(kubeClient, constants.CSIMigratedVolumeSupportFlag, false, p.Log) {
 		if pv.Spec.PersistentVolumeSource.CSI == nil && !pluginUtil.IsMigratedCSIVolume(pv) {
-			p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a CSI volume, nor a migrated volume", pvc.Namespace, pvc.Name, pv.Name)
-			return item, nil, nil
+			msg := fmt.Sprintf("skipping %s/%s, associated PV %s is not a CSI volume, nor a migrated volume", pvc.Namespace, pvc.Name, pv.Name)
+			p.Log.Infof(msg)
+			return nil, nil, errors.New(msg)
 		}
 
 		if pv.Spec.PersistentVolumeSource.CSI != nil && pv.Spec.PersistentVolumeSource.CSI.Driver != constants.VSphereCSIDriverName {
-			p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a vSphere CSI volume", pvc.Namespace, pvc.Name, pv.Name)
-			return item, nil, nil
+			msg := fmt.Sprintf("skipping %s/%s, associated PV %s is not a vSphere CSI volume", pvc.Namespace, pvc.Name, pv.Name)
+			p.Log.Infof(msg)
+			return nil, nil, errors.New(msg)
 		}
 	} else {
 		if pv.Spec.PersistentVolumeSource.CSI == nil {
@@ -120,16 +132,6 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 			p.Log.Infof("Skipping PVC %s/%s, associated PV %s is not a vSphere CSI volume", pvc.Namespace, pvc.Name, pv.Name)
 			return item, nil, nil
 		}
-	}
-
-	// Do nothing if restic is used to backup this PV
-	isResticUsed, err := pluginUtil.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, kubeClient.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
-	if err != nil {
-		return nil, nil, errors.WithStack(err)
-	}
-	if isResticUsed {
-		p.Log.Infof("Skipping PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
-		return item, nil, nil
 	}
 
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(restConfig)
