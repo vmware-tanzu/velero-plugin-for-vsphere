@@ -289,7 +289,7 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 		}
 		return err
 	}
-	if pvc.Spec.StorageClassName != nil {
+	if pvc.Spec.StorageClassName != nil && (*pvc.Spec.StorageClassName) != ""{
 		ctrl.logger.Infof("StorageClassName is %s for PVC %s/%s", *pvc.Spec.StorageClassName, pvc.Namespace, pvc.Name)
 	} else {
 		errMsg := fmt.Sprintf("cloneFromSnapshot PreCloneFromSnapshot: Failed for PVC %s/%s because StorageClassName is not set", pvc.Namespace, pvc.Name)
