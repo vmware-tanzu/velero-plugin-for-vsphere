@@ -71,8 +71,6 @@ To avoid these errors, exclude the resources from your backups. The current list
  	members.registryagent.vmware.com
  	namespacenetworkinfos.nsx.vmware.com
  	ncpconfigs.nsx.vmware.com
- 	network-attachment-definitions.k8s.cni.cncf.io
- 	networkattachmentdefinitions.k8s.cni.cncf.io
  	networkinterfaces.netoperator.vmware.com
  	networks.netoperator.vmware.com
  	nsxerrors.nsx.vmware.com
