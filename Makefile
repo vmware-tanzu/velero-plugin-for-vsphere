@@ -63,14 +63,14 @@ PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
 
-all: dep plugin vsphere-astrolabe
+all: dep plugin datamgr backup-driver vsphere-astrolabe
 
 dep:
 ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
 	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path. Please refer to: https://github.com/vmware/virtual-disks#dependency, download the VDDK tarball to the directory $(GOPATH)/src/$(LIB_DIR)/ and untar it")
 endif
 
-plugin: datamgr backup-driver
+plugin:
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN) VERSION=$(VERSION)
 
@@ -166,7 +166,7 @@ copy-vix-libs:
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
 
-build-container: copy-vix-libs container-name
+build-container: container-name
 	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
 	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
@@ -174,7 +174,7 @@ plugin-container: all copy-install-script
 	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE) VERSION=$(VERSION)
 
 datamgr-container: datamgr
-	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
+	$(MAKE) copy-vix-libs build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
 
 backup-driver-container: backup-driver
 	$(MAKE) build-container BIN=$(BACKUPDRIVER_BIN) IMAGE=$(BACKUPDRIVER_IMAGE) DOCKERFILE=$(BACKUPDRIVER_DOCKERFILE) VERSION=$(VERSION)
