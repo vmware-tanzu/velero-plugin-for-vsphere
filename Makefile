@@ -63,7 +63,7 @@ PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
 
-all: dep plugin datamgr backup-driver vsphere-astrolabe
+all: dep datamgr backup-driver plugin vsphere-astrolabe
 
 dep:
 ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
@@ -170,7 +170,7 @@ build-container: container-name
 	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
 	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
-plugin-container: all copy-install-script
+plugin-container: dep plugin vsphere-astrolabe copy-install-script
 	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE) VERSION=$(VERSION)
 
 datamgr-container: datamgr
