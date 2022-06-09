@@ -50,8 +50,6 @@ spec:
           value: velero
         - name: VELERO_SCRATCH_DIR
           value: /scratch
-        - name: LD_LIBRARY_PATH
-          value: /vddkLibs
         image: dpcpinternal/backup-driver:<backup-driver image tag>
         imagePullPolicy: IfNotPresent
         name: backup-driver

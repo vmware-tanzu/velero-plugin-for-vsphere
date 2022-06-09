@@ -131,10 +131,6 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 									Name:  "VELERO_SCRATCH_DIR",
 									Value: "/scratch",
 								},
-								{
-									Name:  "LD_LIBRARY_PATH",
-									Value: "/vddkLibs",
-								},
 							},
 							Resources: c.resources,
 						},
