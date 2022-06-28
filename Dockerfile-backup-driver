@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM gcr.io/distroless/base-debian10:nonroot
-COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
+FROM gcr.io/distroless/static-debian10:nonroot
 ADD /bin/linux/amd64/backup-driver* /backup-driver
 USER nonroot:nonroot
 ENTRYPOINT ["/backup-driver"]

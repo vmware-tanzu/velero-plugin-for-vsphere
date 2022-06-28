@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datamgr
+package datamgr_server
 
 import (
 	"flag"
 	"fmt"
 	"os"
 
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr/cli/install"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr/cli/server"
 
 	"github.com/spf13/cobra"
@@ -52,7 +51,6 @@ func NewCommand(name string) *cobra.Command {
 
 	c.AddCommand(
 		server.NewCommand(f),
-		install.NewCommand(f),
 	)
 
 	// init and add the klog flags
