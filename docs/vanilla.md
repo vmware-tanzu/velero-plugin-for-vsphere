@@ -12,13 +12,17 @@
 
 ## Compatibility
 
-| vSphere Version         | vSphere CSI Version                                       | Kubernetes Version | Velero Version    | Velero Plugin for vSphere Version |
-|-------------------------|-----------------------------------------------------------|--------------------|-------------------|-----------------------------------|
-| vSphere 6.7U3 / ESXi 6.7U3         | v1.0.2 (update to 1.0.3 when available)                   | v1.14 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
-| vSphere 6.7U3 / ESXi 6.7U3         | v2.0.1 and higher                                         | v1.17 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
-| vSphere 7.0 / ESXi 7.0 and higher  | CSI 1.0.2 driver features continue to work on vSphere 7.0 | v1.14 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
-| vSphere 7.0 / ESXi 7.0 and higher  | v2.0.1 and higher                                         | v1.17 and higher   | v1.5.1 and higher | v1.1.0 and higher                 |
+| Velero Plugin for vSphere Version | vSphere Version        | Kubernetes Version | vSphere CSI Driver Version | Velero Version | Deprecated | EOL Date      |
+|-----------------------------------|------------------------|--------------------|----------------------------|----------------|------------|---------------|
+| 1.3.1                             | 6.7U3 P06 - 7.0U3      | 1.19-1.22          | 2.2.2, 2.3.1, 2.4.1        | 1.7.0          | No         | N/A           |
+| 1.3.0                             | 6.7U3 P06 - 7.0U3      | 1.19-1.22          | 2.2.2, 2.3.1, 2.4.1        | 1.7.0          | Yes        | December 2022 |
+| 1.2.1                             | 6.7U3 P06 - 7.0U2      | 1.19-1.21          | 2.1.2, 2.2.2, 2.3.1        | 1.5.1          | Yes        | June 2023     |
+| 1.2.0                             | 6.7U3 P06 - 7.0U2      | 1.19-1.21          | 2.1.2, 2.2.2, 2.3.1        | 1.5.1          | Yes        | December 2022 |
+| 1.1.1                             | 6.7U3 P06 - 7.0U1c/P02 | 1.17-1.19          | 2.0.1, 2.1.0               | 1.5.1          | No         | N/A           |
+| 1.1.0                             | 6.7U3 P06 - 7.0U1c/P02 | 1.17-1.21          | 2.0.1, 2.1.0               | 1.5.1          | Yes        | December 2022 |
 
+**Note**: Velero Plugin for vSphere 1.0.2 and earlier: EOL.
+**Note**: Velero Plugin for vSphere 1.2.x does not work for TKGm which is fixed in 1.3.0+.
 **Note**: Velero Plugin for vSphere does not support vSphere CSI Driver deployed as a process with multiple replicas in a Kubernetes multi-node control plane setup.
 
 ## Prerequisites
