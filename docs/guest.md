@@ -14,9 +14,14 @@ This document discusses the velero vSphere plugin installation process in a **Ta
 
 ## Compatibility
 
-| vSphere/ESXi Version                   | vSphere CSI Version          | Kubernetes Version | Velero Version    | Velero Plugin for vSphere Version |
-|----------------------------------------|------------------------------|--------------------|-------------------|-----------------------------------|
-| vSphere 7.0(U1c/P02)/ESXi 7.0(U1c/P02) | CSI driver bundled with TKGS | v1.16-v1.19        | v1.5.1 and higher | v1.1.0 and higher                 |
+| Velero Plugin for vSphere Version | vSphere Version    | Kubernetes Version | vSphere CSI Driver Version | Velero Version | Deprecated | EOL Date      |
+|-----------------------------------|--------------------|--------------------|----------------------------|----------------|------------|---------------|
+| 1.3.1                             | 7.0U1c/P02 - 7.0U3 | 1.19-1.21          | Bundled with TKGS          | 1.7.0          | No         | N/A           |
+| 1.3.0                             | 7.0U1c/P02 - 7.0U3 | 1.19-1.21          | Bundled with TKGS          | 1.7.0          | Yes        | December 2022 |
+| 1.2.1                             | 7.0U1c/P02 - 7.0U2 | 1.18-1.20          | Bundled with TKGS          | 1.5.1          | Yes        | June 2023     |
+| 1.2.0                             | 7.0U1c/P02 - 7.0U2 | 1.18-1.20          | Bundled with TKGS          | 1.5.1          | Yes        | December 2022 |
+| 1.1.1                             | 7.0U1c/P02         | 1.16-1.19          | Bundled with TKGS          | 1.5.1          | No         | N/A           |
+| 1.1.0                             | 7.0U1c/P02         | 1.16-1.19          | Bundled with TKGS          | 1.5.1          | Yes        | December 2022 |
 
 ## Prerequisites
 

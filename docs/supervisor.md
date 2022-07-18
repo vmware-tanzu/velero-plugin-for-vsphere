@@ -11,9 +11,14 @@
 
 ## Compatibility
 
-| vSphere Version |                           vSphere CSI Version                          | Kubernetes Version | Velero Version | Velero Plugin for vSphere Version |
-|:---------------:|:----------------------------------------------------------------------:|:------------------:|:--------------:|:---------------------------------:|
-|  vSphere 7.0 U1c/P02 + ESXi 7.0 U1c/P02 | Bundled with vSphere |     Bundled with vSphere (v1.16-v1.19)    |     v1.5.1     |         v1.1.0 and higher         |
+| Velero Plugin for vSphere Version | vSphere Version    | Kubernetes Version                                     | vSphere CSI Driver Version | Velero Version | Deprecated | EOL Date      |
+|-----------------------------------|--------------------|--------------------------------------------------------|----------------------------|----------------|------------|---------------|
+| 1.3.1                             | 7.0U1c/P02 - 7.0U3 | Bundled with vSphere (1.16-1.19, 1.18-1.20, 1.19-1.21) | Bundled with vSphere       | 1.5.1          | No         | N/A           |
+| 1.3.0                             | 7.0U1c/P02 - 7.0U3 | Bundled with vSphere (1.16-1.19, 1.18-1.20, 1.19-1.21) | Bundled with vSphere       | 1.5.1          | Yes        | December 2022 |
+| 1.2.1                             | 7.0U1c/P02 - 7.0U2 | Bundled with vSphere (1.16-1.19, 1.18-1.20)            | Bundled with vSphere       | 1.5.1          | Yes        | June 2023     |
+| 1.2.0                             | 7.0U1c/P02 - 7.0U2 | Bundled with vSphere (1.16-1.19, 1.18-1.20)            | Bundled with vSphere       | 1.5.1          | Yes        | December 2022 |
+| 1.1.1                             | 7.0U1c/P02         | Bundled with vSphere (1.16-1.19)                       | Bundled with vSphere       | 1.5.1          | No         | N/A           |
+| 1.1.0                             | 7.0U1c/P02         | Bundled with vSphere (1.16-1.19)                       | Bundled with vSphere       | 1.5.1          | Yes        | December 2022 |
 
 ## Prerequisites
 
