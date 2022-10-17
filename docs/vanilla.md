@@ -330,6 +330,9 @@ Upload CRD has a number of phases for the `.status.phase` field:
 
 UploadError uploads will be periodically retried.  At that point their phase will return to InProgress.  After an upload has been
 successfully completed, its record will remain for a period of time and eventually be removed.
+#### Migrated CNS block volume
+
+If the CNS block volume is migrated, refer to [CSI migrated volume support](csi-migrated-volume-support.md).
 
 ### Backup vSphere CNS File Volumes
 
