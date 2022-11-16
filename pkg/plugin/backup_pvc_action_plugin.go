@@ -191,6 +191,13 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 	}
 
 	p.Log.Infof("Persisting snapshot with snapshotID :%s under label: %s Snapshot: %v", updatedSnapshot.Status.SnapshotID, constants.ItemSnapshotLabel, updatedSnapshot)
+
+	// Remove the volume health annotations before the backup
+	// because vSphere CSI driver has a webhook that prevents this annotation
+	// from being created/updated by a non-CSI driver system service account
+	healthAnnotations := []string{constants.AnnVolumeHealth, constants.AnnVolumeHealthTS}
+	pluginUtil.RemoveAnnotations(&pvc.ObjectMeta, healthAnnotations)
+
 	// Persist the snapshot blob as an annotation of PVC
 	snapshotAnnotation, err := pluginUtil.GetAnnotationFromSnapshot(updatedSnapshot)
 	if err != nil {
