@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr_install"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr_server"
 
 	"k8s.io/klog"
 )

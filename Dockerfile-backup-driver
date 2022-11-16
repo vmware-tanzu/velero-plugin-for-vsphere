@@ -13,6 +13,5 @@
 # limitations under the License.
 
 FROM photon:4.0
-COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
 ADD /bin/linux/amd64/backup-driver* /backup-driver
 ENTRYPOINT ["/backup-driver"]

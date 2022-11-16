@@ -16,4 +16,4 @@
 
 cp /plugins/* /target/.
 /backup-driver install
-/data-manager-for-plugin install
+/data-manager-for-plugin-install install

@@ -29,6 +29,8 @@ VDDK_LIBS:= $(LIB_DIR)/vmware-vix-disklib-distrib/lib64
 # The binary to build (just the basename).
 PLUGIN_BIN ?= velero-plugin-for-vsphere
 DATAMGR_BIN ?= data-manager-for-plugin
+DATAMGR_INSTALL_BIN ?= data-manager-for-plugin-install
+DATAMGR_SERVER_BIN ?= data-manager-for-plugin-server
 BACKUPDRIVER_BIN ?= backup-driver
 VSPHERE_ASTROLABE ?= vsphere-astrolabe
 
@@ -70,13 +72,21 @@ ifeq (,$(wildcard $(GOPATH)/src/$(VDDK_LIBS)))
 	$(error "$(GOPATH)/src/$(VDDK_LIBS) cannot find vddk libs in path. Please refer to: https://github.com/vmware/virtual-disks#dependency, download the VDDK tarball to the directory $(GOPATH)/src/$(LIB_DIR)/ and untar it")
 endif
 
-plugin: datamgr backup-driver
+plugin: datamgr-install backup-driver
 	@echo "making: $@"
 	$(MAKE) build BIN=$(PLUGIN_BIN) VERSION=$(VERSION)
 
 datamgr:
 	@echo "making: $@"
 	$(MAKE) build BIN=$(DATAMGR_BIN) VERSION=$(VERSION)
+
+datamgr-install:
+	@echo "making: $@"
+	$(MAKE) build BIN=$(DATAMGR_INSTALL_BIN) VERSION=$(VERSION)
+
+datamgr-server:
+	@echo "making: $@"
+	$(MAKE) build BIN=$(DATAMGR_SERVER_BIN) VERSION=$(VERSION)
 
 backup-driver:
 	@echo "making: $@"
@@ -125,6 +135,44 @@ shell: build-dirs
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
+		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
+		-v $$(pwd)/.go/src:/go/src:delegated \
+		-v $$(pwd)/.go/std:/go/std:delegated \
+		-v $$(pwd):/go/src/$(PKG):delegated \
+		-v "$$(pwd)/_output/bin:/output:delegated" \
+		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
+		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
+		-e CGO_ENABLED=1 \
+		-e GOPATH=/go \
+		-w /go/src/$(PKG) \
+		$(BUILDER_IMAGE) \
+		/bin/sh $(CMD)
+
+build-datamgr-server: _output/bin/$(GOOS)/$(GOARCH)/$(DATAMGR_SERVER_BIN)/
+
+_output/bin/$(GOOS)/$(GOARCH)/$(DATAMGR_SERVER_BIN): build-dirs copy-astrolabe
+	@echo "building: $@"
+	$(MAKE) shell-datamgr-server CMD="-c '\
+		GOOS=$(GOOS) \
+		GOARCH=$(GOARCH) \
+		REGISTRY=$(REGISTRY) \
+		VERSION=$(VERSION) \
+		PKG=$(PKG) \
+		BIN=$(BIN) \
+		GIT_SHA=$(GIT_SHA) \
+		GIT_DIRTY=\"$(GIT_DIRTY)\" \
+		OUTPUT_DIR=/output/$(GOOS)/$(GOARCH) \
+		GO111MODULE=on \
+		GOFLAGS=-mod=readonly \
+		./hack/build.sh'"
+
+shell-datamgr-server: build-dirs
+	@echo "running docker: $@"
+	docker run \
+		-e GOFLAGS \
+		-i $(TTY) \
+		--rm \
+		-u $$(id -u):$$(id -g) \
 		-v $$(pwd)/.libs/vmware-vix-disklib-distrib:/usr/local/vmware-vix-disklib-distrib:delegated \
 		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
 		-v $$(pwd)/.go/src:/go/src:delegated \
@@ -166,20 +214,27 @@ copy-vix-libs:
 copy-install-script:
 	cp $$(pwd)/scripts/install.sh _output/bin/$(GOOS)/$(GOARCH)
 
-build-container: copy-vix-libs container-name
+build-container: container-name
+	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
+	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+
+build-datamgr-server-container: copy-vix-libs container-name
 	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
 	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
 plugin-container: all copy-install-script
 	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE) VERSION=$(VERSION)
 
-datamgr-container: datamgr
-	$(MAKE) build-container BIN=$(DATAMGR_BIN) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
+datamgr-install-container: datamgr-install
+	$(MAKE) build-container BIN=$(DATAMGR_BIN_INSTALL) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
+
+datamgr-server-container: datamgr-server
+	$(MAKE) build-container BIN=$(DATAMGR_BIN_SERVER) IMAGE=$(DATAMGR_IMAGE) DOCKERFILE=$(DATAMGR_DOCKERFILE) VERSION=$(VERSION)
 
 backup-driver-container: backup-driver
 	$(MAKE) build-container BIN=$(BACKUPDRIVER_BIN) IMAGE=$(BACKUPDRIVER_IMAGE) DOCKERFILE=$(BACKUPDRIVER_DOCKERFILE) VERSION=$(VERSION)
 
-container: plugin-container datamgr-container backup-driver-container
+container: plugin-container datamgr-install-container datamgr-server-container backup-driver-container
 
 update:
 	@echo "updating CRDs"
@@ -188,7 +243,7 @@ update:
 push-plugin: plugin-container
 	docker push $(PLUGIN_IMAGE):$(VERSION)
 
-push-datamgr: datamgr-container
+push-datamgr: datamgr-install-container datamgr-server-container
 	docker push $(DATAMGR_IMAGE):$(VERSION)
 
 push-backup-driver: backup-driver-container

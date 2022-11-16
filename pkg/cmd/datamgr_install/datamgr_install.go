@@ -21,10 +21,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr/cli/install"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr/cli/server"
-
 	"github.com/spf13/cobra"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr_install/cli/install"
 	"k8s.io/klog"
 
 	"github.com/vmware-tanzu/velero/pkg/client"
@@ -51,7 +49,6 @@ func NewCommand(name string) *cobra.Command {
 	f.BindFlags(c.PersistentFlags())
 
 	c.AddCommand(
-		server.NewCommand(f),
 		install.NewCommand(f),
 	)
 
