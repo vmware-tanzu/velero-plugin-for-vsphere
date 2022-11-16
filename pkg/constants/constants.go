@@ -414,3 +414,11 @@ const (
 	DefaultSecretName         = "velero-vsphere-config-secret"
 	DefaultSecretNamespace    = "velero"
 )
+
+const (
+	// AnnVolumeHealth is the key for HealthStatus annotation on volume claim
+	// for vSphere CSI Driver.
+	AnnVolumeHealth = "volumehealth.storage.kubernetes.io/health"
+        // key for expressing timestamp for volume health annotation
+        AnnVolumeHealthTS = "volumehealth.storage.kubernetes.io/health-timestamp"
+)

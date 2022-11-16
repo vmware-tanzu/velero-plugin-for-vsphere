@@ -44,6 +44,15 @@ func GetAnnotationFromSnapshot(itemSnapshot interface{}) (string, error) {
 	return base64.StdEncoding.EncodeToString(itemSnapshotByteArray), nil
 }
 
+// RemoveAnnotations removes the supplied keys from the annotations on the object
+func RemoveAnnotations(o *metav1.ObjectMeta, keys []string) {
+	if o.Annotations != nil {
+		for _, k := range keys {
+			delete(o.Annotations, k)
+		}
+	}
+}
+
 // AddAnnotations adds the supplied key-values to the annotations on the object
 func AddAnnotations(o *metav1.ObjectMeta, vals map[string]string) {
 	if o.Annotations == nil {
