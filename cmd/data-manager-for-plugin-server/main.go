@@ -31,6 +31,6 @@ func main() {
 
 	baseName := filepath.Base(os.Args[0])
 
-	err := datamgr.NewCommand(baseName).Execute()
+	err := datamgr_server.NewCommand(baseName).Execute()
 	cmd.CheckError(err)
 }
