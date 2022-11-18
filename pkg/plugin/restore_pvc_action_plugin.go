@@ -77,12 +77,28 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
+	// Remove the volume health annotations before the restore
+	// because vSphere CSI driver has a webhook that prevents this annotation
+	// from being created/updated by a non-CSI driver system service account
+	healthAnnotations := []string{constants.AnnVolumeHealth, constants.AnnVolumeHealthTS}
+	pluginItem.RemoveAnnotations(&pvc.ObjectMeta, healthAnnotations)
+
+	// Update item with the PVC without the volume health annotations
+	// so that Velero can create a PVC without being rejected by the
+	// vSphere CSI driver webhook in the case of Skipping PVCRestoreItemAction
+	pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pvc)
+	if err != nil {
+		p.Log.Errorf("Error converting the pvc %s/%s to unstructured. Error: %v", pvc.Namespace, pvc.Name, err)
+		return nil, errors.WithStack(err)
+	}
+	item = &unstructured.Unstructured{Object: pvcMap}
+
 	// exit early if the RestorePVs option is disabled
 	p.Log.Info("Checking if the RestorePVs option is disabled in the Restore Spec")
 	if input.Restore.Spec.RestorePVs != nil && *input.Restore.Spec.RestorePVs == false {
 		p.Log.Infof("Skipping PVCRestoreItemAction for PVC %s/%s since the RestorePVs option is disabled in the Restore Spec.", pvc.Namespace, pvc.Name)
 		return &velero.RestoreItemActionExecuteOutput{
-			UpdatedItem: input.Item,
+			UpdatedItem: item,
 		}, nil
 	}
 
@@ -152,7 +168,7 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		// Skip PVCRestoreItemAction for PVC creation
 		// as it already exists
 		return &velero.RestoreItemActionExecuteOutput{
-			UpdatedItem: input.Item,
+			UpdatedItem: item,
 		}, nil
 	} // else, go ahead to create a new PVC
 
