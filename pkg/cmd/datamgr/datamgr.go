@@ -47,7 +47,7 @@ func NewCommand(name string) *cobra.Command {
 			in separate container from the velero server`,
 	}
 
-	f := client.NewFactory(name, config)
+	f := client.NewFactory(name, "", config)
 	f.BindFlags(c.PersistentFlags())
 
 	c.AddCommand(
