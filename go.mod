@@ -104,11 +104,11 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
 	go.mongodb.org/mongo-driver v1.7.5 // indirect
-	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
-	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
-	golang.org/x/sys v0.0.0-20211103235746-7861aae1554b // indirect
-	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -121,56 +121,17 @@ require (
 	k8s.io/cli-runtime v0.22.2 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/kube-aggregator v0.19.12 // indirect
-	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e // indirect
+	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	sigs.k8s.io/controller-runtime v0.10.2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-
-replace golang.org/x/crypto => golang.org/x/crypto v0.0.0-20201216223049-8b5274cf687f
-
-replace k8s.io/api => k8s.io/api v0.22.0
-
-replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.22.0
-
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.22.0
-
-replace k8s.io/apiserver => k8s.io/apiserver v0.22.0
-
-replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.22.0
-
-replace k8s.io/client-go => k8s.io/client-go v0.22.0
-
-replace k8s.io/cloud-provider => k8s.io/cloud-provider v0.22.0
-
-replace k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.22.0
-
-replace k8s.io/code-generator => k8s.io/code-generator v0.22.0
-
-replace k8s.io/component-base => k8s.io/component-base v0.22.0
-
-replace k8s.io/cri-api => k8s.io/cri-api v0.22.0
-
-replace k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.22.0
-
-replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.22.0
-
-replace k8s.io/kube-proxy => k8s.io/kube-proxy v0.22.0
-
-replace k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.22.0
-
-replace k8s.io/kubectl => k8s.io/kubectl v0.22.0
-
-replace k8s.io/kubelet => k8s.io/kubelet v0.22.0
-
-replace k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.22.0
-
-replace k8s.io/metrics => k8s.io/metrics v0.22.0
-
-replace k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.22.0
-
-replace k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.22.0
+replace (
+	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.11.1
+	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
+	golang.org/x/net => golang.org/x/net v0.0.0-20220906165146-f3363e06e74c
+	golang.org/x/text => golang.org/x/text v0.3.8
+)
 
 go 1.17
