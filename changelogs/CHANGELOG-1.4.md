@@ -1,5 +1,52 @@
 # Changelog since v1.3.0
 
+## v1.4.2
+
+Date: 2022-12-5
+
+### Changes
+
+- Remove volume health annotation from PVC before the backup. (#495, @xing-yang)
+- Removes health annotation from PVC before handing it over to Velero during the restore. (#498, @xing-yang)
+
+## Dependencies
+
+### Added
+- github.com/docker/spdystream: [449fdfc](https://github.com/docker/spdystream/tree/449fdfc)
+- github.com/urfave/cli: [v1.20.0](https://github.com/urfave/cli/tree/v1.20.0)
+- go.etcd.io/etcd: 17cef6e
+- gopkg.in/cheggaaa/pb.v1: v1.0.25
+
+### Changed
+- github.com/prometheus/client_golang: [v1.11.0 → v1.11.1](https://github.com/prometheus/client_golang/compare/v1.11.0...v1.11.1)
+- github.com/yuin/goldmark: [v1.3.5 → v1.4.13](https://github.com/yuin/goldmark/compare/v1.3.5...v1.4.13)
+- golang.org/x/crypto: 8b5274c → 1baeb1c
+- golang.org/x/mod: v0.4.2 → 86c51ed
+- golang.org/x/net: 4f30a5c → f3363e0
+- golang.org/x/sync: 036812b → 886fb93
+- golang.org/x/sys: 7861aae → 3c1f352
+- golang.org/x/term: 6a3ed07 → 03fcf44
+- golang.org/x/text: v0.3.7 → v0.3.8
+- golang.org/x/tools: v0.1.5 → v0.1.12
+- k8s.io/api: v0.22.0 → v0.22.4
+- k8s.io/apiextensions-apiserver: v0.22.0 → v0.22.4
+- k8s.io/apimachinery: v0.22.0 → v0.22.4
+- k8s.io/apiserver: v0.22.0 → v0.22.4
+- k8s.io/cli-runtime: v0.22.0 → v0.22.2
+- k8s.io/client-go: v0.22.0 → v0.22.4
+- k8s.io/cluster-bootstrap: v0.22.0 → v0.22.2
+- k8s.io/code-generator: v0.22.0 → v0.22.4
+- k8s.io/component-base: v0.22.0 → v0.22.4
+- k8s.io/component-helpers: v0.22.0 → v0.22.2
+- k8s.io/kube-aggregator: v0.22.0 → v0.19.12
+- k8s.io/kube-openapi: 9528897 → 2043435
+- k8s.io/kubectl: v0.22.0 → v0.22.2
+- k8s.io/metrics: v0.22.0 → v0.22.2
+
+### Removed
+- github.com/dgryski/go-sip13: [e10d5fe](https://github.com/dgryski/go-sip13/tree/e10d5fe)
+- github.com/prometheus/tsdb: [v0.7.1](https://github.com/prometheus/tsdb/tree/v0.7.1)
+
 ## v1.4.1
 
 Date: 2022-11-8
