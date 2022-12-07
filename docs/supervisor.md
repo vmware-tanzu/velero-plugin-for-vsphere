@@ -13,6 +13,7 @@
 
 | Velero Plugin for vSphere Version | vSphere Version     | Kubernetes Version                                                | vSphere CSI Driver Version | Velero Version | Velero vSphere Operator Version | Deprecated | EOL Date      |
 |-----------------------------------|---------------------|-------------------------------------------------------------------|----------------------------|----------------|---------------------------------|------------|---------------|
+| 1.4.2                             | 8.0                  | Bundled with vSphere (1.22-1.23)                                       | Bundled with vSphere       | 1.9.2          | 1.3.0                           | No         | N/A
 | 1.4.0                             | 7.0U3e/f/h          | Bundled with vSphere (1.22)                                       | Bundled with vSphere       | 1.8.1          | 1.2.0                           | No         | N/A           |
 | 1.3.1                             | 7.0U1c/P02 - 7.0U3d | Bundled with vSphere (1.16-1.19, 1.18-1.20, 1.19-1.21)            | Bundled with vSphere       | 1.5.1          | 1.1.0                           | No         | N/A           |
 | 1.3.0                             | 7.0U1c/P02 - 7.0U3d | Bundled with vSphere (1.16-1.19, 1.18-1.20, 1.19-1.21)            | Bundled with vSphere       | 1.5.1          | 1.1.0                           | Yes        | December 2022 |

@@ -50,7 +50,7 @@ Apart from logs in the general case, extra logs might also be optionally expecte
 
 ### VDDK
 
-Follow the steps below to configure vddk log level.
+Follow the steps below to configure VDDK log level.
 
 * Create a ConfigMap to set VDDK log level
 ```yaml
@@ -79,7 +79,8 @@ data:
  `kubectl delete crds uploads.datamover.cnsdp.vmware.com downloads.datamover.cnsdp.vmware.com` \
  `kubectl -n velero scale deploy/velero --replicas=0` \
  `kubectl -n velero scale deploy/velero --replicas=1`
-* Log into data manager pod to check vddk log file. The default path should be /tmp/vmware-XXX/vixDiskLib-XXX \
+* Log into data manager pod to check VDDK log file. The default path should be /tmp/vmware-XXX/vixDiskLib-XXX.log. \
  `kubectl exec -n velero -it datamgr-for-vsphere-plugin-XXXXX -- /bin/bash` \
- `cd tmp/vmware-root/` \
- `cat vixDiskLib-XXX.log`
+ If `/bin/bash` is not available, use `/bin/sh`:
+ `kubectl exec -n velero -it datamgr-for-vsphere-plugin-XXXXX -- /bin/sh` \
+ Note that `vixDiskLib-XXX.log` is the VDDK log file that needs to be collected for trouble shooting VDDK issues.
