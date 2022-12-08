@@ -135,6 +135,7 @@ shell: build-dirs
 		-i $(TTY) \
 		--rm \
 		-u $$(id -u):$$(id -g) \
+		-v $$(pwd)/.libs/vmware-vix-disklib-distrib:/usr/local/vmware-vix-disklib-distrib:delegated \
 		-v $$(pwd)/.go/pkg:/go/pkg:delegated \
 		-v $$(pwd)/.go/src:/go/src:delegated \
 		-v $$(pwd)/.go/std:/go/std:delegated \

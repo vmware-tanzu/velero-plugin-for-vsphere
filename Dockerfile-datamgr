@@ -15,10 +15,11 @@
 FROM busybox:1.33.1 AS busybox
 
 FROM photon:4.0
-ADD /bin/linux/amd64/data-* /datamgr
+ADD /bin/linux/amd64/data-manager-for-plugin-install /datamgr-install
+ADD /bin/linux/amd64/data-manager-for-plugin /datamgr-server
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
 COPY --from=busybox /bin/sh /bin/sh
 COPY --from=busybox /bin/cp /bin/cp
 COPY --from=busybox /bin/tar /bin/tar
 COPY --from=busybox /bin/ls /bin/ls
-ENTRYPOINT ["/datamgr"]
+ENTRYPOINT ["/datamgr-install & /datamgr-server"]
