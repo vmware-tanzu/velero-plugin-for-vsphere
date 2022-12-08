@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr_install"
 
 	"k8s.io/klog"
 )
@@ -31,6 +31,6 @@ func main() {
 
 	baseName := filepath.Base(os.Args[0])
 
-	err := datamgr.NewCommand(baseName).Execute()
+	err := datamgr_install.NewCommand(baseName).Execute()
 	cmd.CheckError(err)
 }
