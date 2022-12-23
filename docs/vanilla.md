@@ -218,7 +218,7 @@ Below is an example command of Velero backup.
 velero backup create <backup name> --include-namespaces=my-namespace
 ```
 
-For more backup options, please refer to [Velero Document](https://velero.io/docs/v1.5/).
+For more backup options, please refer to [Velero Document](https://velero.io/docs/v1.10/).
 
 Velero backup will be marked as `Completed` after all local snapshots have been taken and Kubernetes metadata,
 **except** volume snapshots, has been uploaded to the object store. At this point, async data movement tasks, i.e., the upload
@@ -340,9 +340,9 @@ If the CNS block volume is migrated, refer to [CSI migrated volume support](csi-
 ### Backup vSphere CNS File Volumes
 
 The Velero Plugin for vSphere is designed to backup vSphere CNS block volumes. vSphere CNS
-file volumes should be backed up with the [Velero Restic Integration](https://velero.io/docs/v1.5/restic/).  File volumes must be annotated for Restic backup.  Block and file volumes may be backed up together.
+file volumes should be backed up with the [File System Backup](https://velero.io/docs/v1.10/file-system-backup/).  File volumes must be annotated for File System backup.  Block and file volumes may be backed up together.
 
-To use Restic backup for file volumes, please use the `--use-restic` flag to `velero install` command when
+To use File System Backup for file volumes, please use the `--use-node-agent` flag to `velero install` command when
 installing Velero.  Annotate all PVs backed by vSphere CNS file volumes before running any `velero backup`
 commands by using the following command for each pod that contains one or more file volumes to
 back up:

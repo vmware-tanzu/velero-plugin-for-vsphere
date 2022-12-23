@@ -100,13 +100,13 @@ func (p *NewPVCBackupItemAction) Execute(item runtime.Unstructured, backup *vele
 		return nil, nil, errors.WithStack(err)
 	}
 
-	// Do nothing if restic is used to backup this PV
-	isResticUsed, err := pluginUtil.IsPVCBackedUpByRestic(pvc.Namespace, pvc.Name, kubeClient.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToRestic))
+	// Do nothing if fs backup is used to backup this PV
+	isFsBackupUsed, err := pluginUtil.IsPVCBackedUpByFsBackup(pvc.Namespace, pvc.Name, kubeClient.CoreV1(), boolptr.IsSetToTrue(backup.Spec.DefaultVolumesToFsBackup))
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
 	}
-	if isResticUsed {
-		p.Log.Infof("Skipping PVC %s/%s, PV %s will be backed up using restic", pvc.Namespace, pvc.Name, pv.Name)
+	if isFsBackupUsed {
+		p.Log.Infof("Skipping PVC %s/%s, PV %s will be backed up using fs backup", pvc.Namespace, pvc.Name, pv.Name)
 		return item, nil, nil
 	}
 

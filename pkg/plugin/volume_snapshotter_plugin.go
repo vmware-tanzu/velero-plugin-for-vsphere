@@ -23,7 +23,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+	vsv1 "github.com/vmware-tanzu/velero/pkg/plugin/velero/volumesnapshotter/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,7 +37,7 @@ type NewVolumeSnapshotter struct {
 	clusterFlavor constants.ClusterFlavor
 }
 
-var _ velero.VolumeSnapshotter = (*NewVolumeSnapshotter)(nil)
+var _ vsv1.VolumeSnapshotter = (*NewVolumeSnapshotter)(nil)
 
 // Init prepares the VolumeSnapshotter for usage using the provided map of
 // configuration key-value pairs. It returns an error if the VolumeSnapshotter

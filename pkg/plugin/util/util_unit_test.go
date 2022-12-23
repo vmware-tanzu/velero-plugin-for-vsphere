@@ -627,7 +627,7 @@ func TestIsPVCBackedUpByRestic(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actualIsResticUsed, _ := IsPVCBackedUpByRestic(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1(), tc.defaultVolumeBackupToRestic)
+			actualIsResticUsed, _ := IsPVCBackedUpByFsBackup(tc.inPVCNamespace, tc.inPVCName, fakeClient.CoreV1(), tc.defaultVolumeBackupToRestic)
 			assert.Equal(t, tc.expectedIsResticUsed, actualIsResticUsed)
 		})
 	}

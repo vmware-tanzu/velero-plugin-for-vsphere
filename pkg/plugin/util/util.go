@@ -10,7 +10,7 @@ import (
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/restic"
+	"github.com/vmware-tanzu/velero/pkg/podvolume"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -361,20 +361,20 @@ func GetPodVolumeNameForPVC(pod corev1.Pod, pvcName string) (string, error) {
 	return "", errors.Errorf("Pod %s/%s does not use PVC %s/%s", pod.Namespace, pod.Name, pod.Namespace, pvcName)
 }
 
-func IsPVCBackedUpByRestic(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToRestic bool) (bool, error) {
+func IsPVCBackedUpByFsBackup(pvcNamespace, pvcName string, podClient corev1client.PodsGetter, defaultVolumesToFsBackup bool) (bool, error) {
 	pods, err := GetPodsUsingPVC(pvcNamespace, pvcName, podClient)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
 
 	for _, p := range pods {
-		resticVols := restic.GetPodVolumesUsingRestic(&p, defaultVolumesToRestic)
-		if len(resticVols) > 0 {
+		fsBackedVols := podvolume.GetVolumesByPod(&p, defaultVolumesToFsBackup)
+		if len(fsBackedVols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {
 				return false, err
 			}
-			if Contains(resticVols, volName) {
+			if Contains(fsBackedVols, volName) {
 				return true, nil
 			}
 		}
