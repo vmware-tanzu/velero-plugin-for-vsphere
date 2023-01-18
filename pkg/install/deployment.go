@@ -154,6 +154,11 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 			},
 			corev1.Toleration{
 				Effect:   "NoSchedule",
+				Key:      "node-role.kubernetes.io/control-plane",
+				Operator: "Exists",
+			},
+			corev1.Toleration{
+				Effect:   "NoSchedule",
 				Key:      "kubeadmNode",
 				Operator: "Equal",
 				Value:    "master",
@@ -161,7 +166,7 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 		)
 
 		deployment.Spec.Template.Spec.NodeSelector = make(map[string]string)
-		deployment.Spec.Template.Spec.NodeSelector["node-role.kubernetes.io/master"] = ""
+		deployment.Spec.Template.Spec.NodeSelector["node-role.kubernetes.io/control-plane"] = ""
 	}
 
 	if c.hostNetwork {
