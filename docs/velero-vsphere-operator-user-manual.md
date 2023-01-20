@@ -19,7 +19,23 @@ Users here are expected to be vSphere users with access to:
     Below is an example.
     ![What to do when adding edit permission](grant-edit-permission.png)
 
-3. Run [Velero vSphere Operator CLI](velero-vsphere-operator-cli.md), **velero-vsphere**, to install Velero into the same namespace created in step 2 above.
+3. Create Velero vSphere Plugin Config
+
+    The config map is used to specify that the plugin is being installed on `SUPERVISOR` cluster.
+
+```bash
+% cat <<EOF | kubectl -n <velero-namespace> apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-vsphere-plugin-config
+data:
+  cluster_flavor: SUPERVISOR
+EOF
+```
+     
+
+4. Run [Velero vSphere Operator CLI](velero-vsphere-operator-cli.md), **velero-vsphere**, to install Velero into the same namespace created in step 2 above.
 Assume users have logged in `kubectl vSphere plugin` as vSphere users.
 Below are some examples about `velero-vsphere install` for different object stores as backup storage locations of Velero.
 
