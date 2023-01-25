@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"os"
 
 	"github.com/pkg/errors"
@@ -12,6 +13,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/buildinfo"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	pluginUtil "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
@@ -33,8 +35,18 @@ type NewPVCBackupItemAction struct {
 func (p *NewPVCBackupItemAction) AppliesTo() (velero.ResourceSelector, error) {
 	p.Log.Info("VSphere PVCBackupItemAction AppliesTo")
 
+	blockListConfigMap, err := cmd.RetrieveBlockListConfigMap()
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			p.Log.Info("Failed to retrieve resources to block list.")
+			return velero.ResourceSelector{}, errors.WithStack(err)
+		}
+		p.Log.Info("There is no blocklist configmap found. Assuming no resources to block.")
+		blockListConfigMap = make(map[string]string)
+	}
+
 	return velero.ResourceSelector{
-		IncludedResources: pluginUtil.GetResources(),
+		IncludedResources: pluginUtil.GetResources(blockListConfigMap),
 	}, nil
 }
 

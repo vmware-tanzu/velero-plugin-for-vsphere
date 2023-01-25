@@ -140,6 +140,11 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 
 	fmt.Println("The prerequisite checks for backup-driver completed")
 
+	// Create configmap for skip resources list
+	if err := cmd.CreateBlockListConfigMap(kubeClient, o.Namespace, constants.ResourcesToBlock); err != nil {
+		return err
+	}
+
 	vo, err := o.AsBackupDriverOptions()
 	if err != nil {
 		return err
@@ -254,3 +259,4 @@ func (o *InstallOptions) CheckFeatureFlagsForBackupDriver(kubeClient kubernetes.
 
 	return nil
 }
+

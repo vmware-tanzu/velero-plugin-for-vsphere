@@ -187,6 +187,11 @@ const (
 	SupervisorResourcePoolKey = "SupervisorResourcePool"
 )
 
+// Name for skip resources list configmap
+const (
+	ResourcesToBlockListName = "velero-vsphere-plugin-blocked-resources-list"
+)
+
 // We are currently translating Group + Kind -> the names below.  This involves
 // a singular to plural conversion.  When adding new resources, ensure that they
 // work with the singular to plural rule of words ending in "y" the "y" becomes "ies" and other

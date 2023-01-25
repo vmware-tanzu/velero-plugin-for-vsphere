@@ -15,7 +15,7 @@
 FROM busybox:1.33.1 AS busybox
 
 FROM photon:4.0
-ADD /bin/linux/amd64/data-* /datamgr
+ADD /bin/linux/amd64/data-* /datamgr/
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
 COPY --from=busybox /bin/sh /bin/sh
 COPY --from=busybox /bin/cp /bin/cp
