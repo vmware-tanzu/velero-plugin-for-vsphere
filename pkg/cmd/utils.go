@@ -254,3 +254,77 @@ func CheckPluginImageRepo(kubeClient kubernetes.Interface, ns string, defaultIma
 
 	return resultImage, err
 }
+
+
+// If there is no configmap velero-vsphere-plugin-block-list created before, create a new configmap from the default blocking list.
+// If there is already a configmap velero-vsphere-plugin-block-list created, leave the previous one unchanged.
+func CreateBlockListConfigMap(kubeClient kubernetes.Interface, veleroNs string, resourceToBlock map[string]bool) error {
+	ctx := context.Background()
+	var create bool
+	blockListConfigMap, err := kubeClient.CoreV1().ConfigMaps(veleroNs).Get(ctx, constants.ResourcesToBlockListName, metav1.GetOptions{})
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			fmt.Printf("Failed to retrieve %s configuration.\n", constants.ResourcesToBlockListName)
+			return err
+		}
+		blockListConfigMap = &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      constants.ResourcesToBlockListName,
+				Namespace: veleroNs,
+			},
+			Data: make(map[string]string),
+		}
+		create = true
+	}
+
+	// If there is blocking list configmap created already, leave the previous one unchanged.
+	if !create {
+		fmt.Print("Config map that blocks resources for backup/restore already exists. Using the existing one.")
+		return nil
+	}
+
+	blockListData := make(map[string]string)
+	for resourceToBlock, isBlock := range resourceToBlock {
+		blockListData[resourceToBlock] = strconv.FormatBool(isBlock)
+	}
+	blockListConfigMap.Data = blockListData
+	_, err = kubeClient.CoreV1().ConfigMaps(veleroNs).Create(ctx, blockListConfigMap, metav1.CreateOptions{})
+	if err != nil {
+		fmt.Printf("failed to create the config map %s that blocks resources for backup and restore.\n", constants.ResourcesToBlockListName)
+		return err
+	}
+
+	return nil
+}
+
+func RetrieveBlockListConfigMap() (map[string]string, error) {
+	ctx := context.Background()
+
+	veleroNs, exist := os.LookupEnv("VELERO_NAMESPACE")
+	if !exist {
+		errMsg := "Failed to lookup the ENV variable for velero namespace"
+		return nil, errors.New(errMsg)
+	}
+
+	restConfig, err := utils.GetKubeClientConfig()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	blockListConfigMap, err := kubeClient.CoreV1().ConfigMaps(veleroNs).Get(ctx, constants.ResourcesToBlockListName, metav1.GetOptions{})
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			fmt.Printf("Failed to retrieve configmap: %s. Error: %v\n", constants.ResourcesToBlockListName, err)
+		} else {
+			fmt.Printf("Failed to find configmap: %s. Error: %v\n", constants.ResourcesToBlockListName, err)
+		}
+		return nil, err
+	}
+
+	return blockListConfigMap.Data, nil
+}

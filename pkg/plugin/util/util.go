@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/podvolume"
@@ -20,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"strconv"
 	"strings"
 )
 
@@ -284,25 +287,34 @@ func IsObjectBlocked(item runtime.Unstructured) (bool, string, error) {
 	if err != nil {
 		return false, "", errors.Errorf("Could not translate item kind %s to CRD name", item.GetObjectKind())
 	}
-	if IsResourceBlocked(crdName) {
+
+	blockListConfigMap, err := cmd.RetrieveBlockListConfigMap()
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return false, crdName, errors.WithStack(err)
+		}
+		return false, crdName, nil
+	}
+	if IsResourceBlocked(crdName, blockListConfigMap) {
 		return true, crdName, nil
 	}
 	return false, crdName, nil
 }
 
-func GetResources() []string {
-	desiredResources := make([]string, len(constants.ResourcesToHandle)+len(constants.ResourcesToBlock))
+func GetResources(blockListConfigMap map[string]string) []string {
+	desiredResources := make([]string, len(constants.ResourcesToHandle)+len(blockListConfigMap))
 	for resourceToHandle, _ := range constants.ResourcesToHandle {
 		desiredResources = append(desiredResources, resourceToHandle)
 	}
-	for resourceToBlock, _ := range constants.ResourcesToBlock {
+	for resourceToBlock, _ := range blockListConfigMap {
 		desiredResources = append(desiredResources, resourceToBlock)
 	}
 	return desiredResources
 }
 
-func IsResourceBlocked(resourceName string) bool {
-	return constants.ResourcesToBlock[resourceName]
+func IsResourceBlocked(resourceName string, resourcesToBlock map[string]string) bool {
+	isBlocked, _ := strconv.ParseBool(resourcesToBlock[resourceName])
+	return isBlocked
 }
 
 func IsResourceBlockedOnRestore(resourceName string) bool {
