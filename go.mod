@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/agiledragon/gomonkey v2.0.1+incompatible
-	github.com/aws/aws-sdk-go v1.43.31
+	github.com/aws/aws-sdk-go v1.44.207
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-version v1.2.1
@@ -14,7 +14,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.1
 	github.com/vmware-tanzu/astrolabe v0.5.1-0.20221108171857-b206312e3ba5
-	github.com/vmware-tanzu/velero v1.10.0
+	github.com/vmware-tanzu/velero v1.10.1
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
 	github.com/vmware/virtual-disks v0.0.4
 	k8s.io/api v0.24.2
@@ -135,12 +135,12 @@ require (
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
 	golang.org/x/exp v0.0.0-20210916165020-5cb4fee858ee // indirect
-	golang.org/x/net v0.0.0-20220615171555-694bf12d69de // indirect
+	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220608161450-d0670ef3b1eb // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20220614162138-6c1b26c55098 // indirect
-	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
