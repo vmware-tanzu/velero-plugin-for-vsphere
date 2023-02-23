@@ -14,7 +14,7 @@
 
 FROM busybox:1.33.1 AS busybox
 
-FROM photon:4.0
+FROM photon:5.0
 ADD /bin/linux/amd64/velero-* /plugins/
 ADD /bin/linux/amd64/data-* /
 ADD /bin/linux/amd64/backup-driver* /
