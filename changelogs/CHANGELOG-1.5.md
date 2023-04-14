@@ -16,6 +16,7 @@ Date: 2022-2-22
   CVE-2022-4304, CVE-2022-4450, CVE-2023-0215, CVE-2023-0216, CVE-2023-0217, CVE-2023-0401,
   CVE-2022-46908 ([#514](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/514), [@deepakkinni](https://github.com/deepakkinni))
 - Update supervisor deployment doc to indicate that velero-vsphere-plugin-config needs to be created. ([#509](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/509), [@deepakkinni](https://github.com/deepakkinni))
+- Fix datamgr Dockerfile ([#518](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/518), [@deepakkinni](https://github.com/deepakkinni))
 
 ## Dependencies
 
