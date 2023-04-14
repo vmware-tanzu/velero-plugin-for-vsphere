@@ -17,6 +17,7 @@ Date: 2022-2-22
   CVE-2022-46908 ([#514](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/514), [@deepakkinni](https://github.com/deepakkinni))
 - Update supervisor deployment doc to indicate that velero-vsphere-plugin-config needs to be created. ([#509](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/509), [@deepakkinni](https://github.com/deepakkinni))
 - Fix datamgr Dockerfile ([#518](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/518), [@deepakkinni](https://github.com/deepakkinni))
+- Remove busybox reference from Dockerfiles ([#524](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/524), [@deepakkinni](https://github.com/deepakkinni))
 
 ## Dependencies
 
