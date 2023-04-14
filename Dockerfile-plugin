@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM busybox:1.33.1 AS busybox
 
-FROM photon:4.0
+FROM photon:5.0
 ADD /bin/linux/amd64/velero-* /plugins/
 ADD /bin/linux/amd64/data-* /
 ADD /bin/linux/amd64/backup-driver* /
 COPY /bin/linux/amd64/install.sh /scripts/
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
 ENV LD_LIBRARY_PATH=/plugins
-COPY --from=busybox /bin/sh /bin/sh
-COPY --from=busybox /bin/chmod /bin/chmod
-COPY --from=busybox /bin/cp /bin/cp
 RUN ["chmod", "+x", "/scripts/install.sh"]
 ENTRYPOINT ["/bin/sh","/scripts/install.sh"]
