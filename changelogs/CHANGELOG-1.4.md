@@ -1,5 +1,13 @@
 # Changelog since v1.3.0
 
+## v1.4.3
+
+Date: 2023-17-4
+
+### Changes
+
+- Remove busybox from Dockerfile ([#523](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/523), [@deepakkinni](https://github.com/deepakkinni))
+
 ## v1.4.2
 
 Date: 2022-12-5
