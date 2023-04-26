@@ -1,5 +1,13 @@
 # Changelog since v1.3.0
 
+## v1.4.3
+
+Date: 2023-17-4
+
+### Changes
+
+- Remove busybox from Dockerfile ([#523](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/523), [@deepakkinni](https://github.com/deepakkinni))
+
 ## v1.4.2
 
 Date: 2022-12-5
@@ -360,7 +368,6 @@ Date: 2022-03-16
 - Process DeleteSnapshot CRs without explicit Phase set ([#441](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/441), [@deepakkinni](https://github.com/deepakkinni))
 - Support creating snapshot for migrated CSI volume ([#443](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/443), [@liuy1vmware](https://github.com/liuy1vmware))
 - Upgrade golang version to 1.17 ([#448](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/448), [@xinyanw409](https://github.com/xinyanw409))
-- Remove busybox from Dockerfile ([#523](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/523), [@deepakkinni](https://github.com/deepakkinni))
 
 ## Dependencies
 
