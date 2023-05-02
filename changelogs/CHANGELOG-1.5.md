@@ -2,11 +2,12 @@
 
 ## v1.5.1
 
-Date: 2022-4-27
+Date: 2022-5-2
 
 ### Changes
 
 - Remove busybox reference from Dockerfiles ([#524](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/524), [@deepakkinni](https://github.com/deepakkinni))
+- Use Photon 4.0 base image in Dockerfiles ([#528](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/528), [@deepakkinni](https://github.com/deepakkinni))
 
 ## v1.5.0
 
