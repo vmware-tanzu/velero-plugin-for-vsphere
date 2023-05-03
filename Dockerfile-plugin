@@ -13,7 +13,8 @@
 # limitations under the License.
 
 
-FROM photon:5.0
+FROM photon:4.0
+RUN tdnf -y upgrade && tdnf clean all
 ADD /bin/linux/amd64/velero-* /plugins/
 ADD /bin/linux/amd64/data-* /
 ADD /bin/linux/amd64/backup-driver* /
