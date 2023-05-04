@@ -2,11 +2,32 @@
 
 ## v1.5.1
 
-Date: 2022-4-27
+Date: 2022-5-2
 
 ### Changes
 
 - Remove busybox reference from Dockerfiles ([#524](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/524), [@deepakkinni](https://github.com/deepakkinni))
+- Use Photon 4.0 base image in Dockerfiles ([#528](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/528), [@deepakkinni](https://github.com/deepakkinni))
+- Update consumed velero to 1.10.2 ([#529](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/529), [@deepakkinni](https://github.com/deepakkinni))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/vmware-tanzu/velero: [v1.10.1 → v1.10.2](https://github.com/vmware-tanzu/velero/compare/v1.10.1...v1.10.2)
+
+### Removed
+- github.com/armon/consul-api: [eb2c6b5](https://github.com/armon/consul-api/tree/eb2c6b5)
+- github.com/blang/semver: [v3.5.0+incompatible](https://github.com/blang/semver/tree/v3.5.0)
+- github.com/mattn/go-runewidth: [v0.0.2](https://github.com/mattn/go-runewidth/tree/v0.0.2)
+- github.com/olekukonko/tablewriter: [a0225b3](https://github.com/olekukonko/tablewriter/tree/a0225b3)
+- github.com/ugorji/go: [v1.1.4](https://github.com/ugorji/go/tree/v1.1.4)
+- github.com/urfave/cli: [v1.20.0](https://github.com/urfave/cli/tree/v1.20.0)
+- github.com/xordataexchange/crypt: [b2862e3](https://github.com/xordataexchange/crypt/tree/b2862e3)
+- go.etcd.io/etcd: 17cef6e
+- gopkg.in/cheggaaa/pb.v1: v1.0.25
 
 ## v1.5.0
 
