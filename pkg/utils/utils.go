@@ -20,17 +20,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-version"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	"io/ioutil"
-	"k8s.io/client-go/tools/clientcmd"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-version"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
@@ -55,7 +56,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
-
 
 func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
 	var err error // Declare here to avoid shadowing on using in cluster config only
@@ -733,6 +733,51 @@ func GetSecretNamespaceAndName(kubeClient kubernetes.Interface, veleroNs string,
 	return namespace, name
 }
 
+func GetUploadCRRetryMaximumFromConfig(kubeClient kubernetes.Interface, veleroNs string, configName string, logger logrus.FieldLogger) int {
+	veleroPuginConfigMap, err := kubeClient.CoreV1().ConfigMaps(veleroNs).Get(context.TODO(), configName, metav1.GetOptions{})
+	if err != nil {
+		logger.Errorf("failed to retrieve %s configuration, err: %+v.\n", configName, err)
+		return constants.DefaultUploadCRRetryMaximum
+	}
+	configMap := veleroPuginConfigMap.Data
+	if maxRetryCountStr, ok := configMap[constants.UploadCRRetryMaximumKey]; ok {
+		maxRetryCount, err := strconv.Atoi(maxRetryCountStr)
+		if err != nil {
+			logger.Errorf("UploadCRRretryMaximum %s is invalid, err: %+v.\n", maxRetryCountStr, err)
+			maxRetryCount = constants.DefaultUploadCRRetryMaximum
+		}
+		return maxRetryCount
+	}
+	return constants.DefaultUploadCRRetryMaximum
+}
+
+func GetUploadCRRetryMaximum(config *rest.Config, logger logrus.FieldLogger) int {
+	var err error
+	if config == nil {
+		config, err = GetKubeClientConfig()
+		if err != nil {
+			logger.Errorf("GetKubeClientConfig failed with err: %+v, UploadCRRetryMaximum is set to default: %d", err, constants.DefaultUploadCRRetryMaximum)
+			return constants.DefaultUploadCRRetryMaximum
+		}
+	}
+
+	clientset, err := GetKubeClientSet(config)
+	if err != nil {
+		logger.Errorf("GetKubeClienSet failed with err: %+v, UploadCRRetryMaximum is set to default: %d", err, constants.DefaultUploadCRRetryMaximum)
+		return constants.DefaultUploadCRRetryMaximum
+	}
+
+	veleroNs, exist := GetVeleroNamespace()
+	if !exist {
+		logger.Errorf("The VELERO_NAMESPACE environment variable is empty, assuming velero as namespace\n")
+		veleroNs = constants.DefaultVeleroNamespace
+	}
+
+	// Check for velero-vsphere-plugin-config in the velero installation namespace
+	maxRetryCnt := GetUploadCRRetryMaximumFromConfig(clientset, veleroNs, constants.VeleroVSpherePluginConfig, logger)
+	return maxRetryCnt
+}
+
 /*
  * Get the configuration to access the Supervisor namespace from the GuestCluster.
  * This routine will be called only for guest cluster.
@@ -1046,7 +1091,7 @@ func GetVcConfigSecretFilterFunc(logger logrus.FieldLogger) func(obj interface{}
 
 	veleroNs, exist := GetVeleroNamespace()
 	if !exist {
-		logger.Errorf("RetrieveVcConfigSecret: Failed to lookup the env variable for velero namespace, using " +
+		logger.Errorf("RetrieveVcConfigSecret: Failed to lookup the env variable for velero namespace, using "+
 			"default %s", constants.DefaultVeleroNamespace)
 		veleroNs = constants.DefaultVeleroNamespace
 	}
