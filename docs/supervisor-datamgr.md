@@ -6,9 +6,8 @@ In a vSphere with Tanzu environment, the Data Manager should be installed as a V
 
 This document discusses the installation procedure for backup data manager for **Velero plugin for vSphere** with kubernetes.
 
-## Changes with release 1.1.0
+## Best Practice
 
-Support of vSphere with Tanzu (Supervisor cluster and TKGS cluster) is being added with the release 1.1.0 release.
 
 - As a best practice, Data Manager VMs should be installed on the vSphere compute cluster where the workload cluster is installed.
 - Each Data Manager VM can serve upload/download tasks from a single workload cluster and the TKGS clusters in it.
@@ -48,7 +47,7 @@ It is recommended to power on the Data manager VM after enabling the velero-vsph
    - guestinfo.cnsdp.vcPassword
    - guestinfo.cnsdp.vcPort
    - guestinfo.cnsdp.veleroNamespace
-   - guestinfo.cnsdp.datamgrImage (if not configured, will use the image from dockerhub vsphereveleroplugin/data-manager-for-plugin:1.1.0)
+   - guestinfo.cnsdp.datamgrImage
    - guestinfo.cnsdp.updateKubectl (default false, to avoid kubectl from wcp master on every VM restart)
 3. Power On the Data Manager VM
 
