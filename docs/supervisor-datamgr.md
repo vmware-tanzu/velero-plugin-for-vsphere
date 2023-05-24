@@ -18,7 +18,7 @@ Support of vSphere with Tanzu (Supervisor cluster and TKGS cluster) is being add
 
 It is recommended that the Kubernetes backup/restore traffic be separated from the vSphere management network on a workload cluster. A backup network can be configured as an NSX-T network or traditional TDS network. We can add a VMkernel NIC on each ESXi host in the cluster and set the ```vSphereBackupNFC``` on that NIC. This enables backup network traffic to be sent through that NIC. If the ```vSphereBackupNFC``` is not enabled on the VMkernel NIC, the backup traffic will be sent on the management network.
 
-More details can be found in the [vSphere documentation](https://code.vmware.com/docs/12628/virtual-disk-development-kit-programming-guide/GUID-5D166ED1-7205-4110-8D72-0C51BB63CC3D.html).
+More details can be found in the [vSphere documentation](https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-networking/GUID-7BC73116-C4A6-411D-8A32-AD5B7A3D5493.html).
 
 Here are some ways to setup a Backup Network with ```vSphereBackupNFC``` tag enabled on a NSX setup.
 
