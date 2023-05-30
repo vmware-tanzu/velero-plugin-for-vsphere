@@ -35,7 +35,7 @@ If there is a free physical network adpter on each of the cluster nodes:
 
 ## Data Manager Virtual Machine install
 
-The Data Manager Virtual Machine ova can be downloaded from [here](https://vsphere-velero-datamgr.s3-us-west-1.amazonaws.com/datamgr-ob-17253392-photon-3-release-1.1.ova).
+The Data Manager Virtual Machine ova can be downloaded from [here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases).
 
 It is recommended to power on the Data manager VM after enabling the velero-vsphere service and installing Velero + vSphere plugin in the Supervisor cluster.
 
