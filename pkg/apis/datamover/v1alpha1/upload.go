@@ -44,17 +44,28 @@ type UploadSpec struct {
 }
 
 // UploadPhase represents the lifecycle phase of a Upload.
-// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed;Canceled;Canceling;
+// +kubebuilder:validation:Enum=New;InProgress;Completed;UploadError;CleanupFailed;Canceled;Canceling;UploadFailedAfterRetry;
 type UploadPhase string
 
+// New: not processed yet
+// InProgress: upload is in progress.
+// Completed: upload is completed.
+// UploadError: upload is failed and will be periodically retried. The status will change to "InProgress" at that point.
+// CleanupFailed: delete local snapshot failed after the upload succeed or upload failed after maximum retry, this case will retry the delete local snapshot.
+// Canceling:  upload is being cancelled. It would happen if `velero backup delete` is called while the upload of snapshot is in progress.
+// Canceled: upload is cancelled.
+// UploadFailedAfterRetry: terminal state. Upload failed after retry and local snapshot is deleted. User can set the "upload-cr-retry-max"
+// parameter in config map velero-vsphere-plugin-config to specify the maximum count that the upload CR will retry.
+// If user does not specify this in the config map, default retry count is set to 10.
 const (
-	UploadPhaseNew           UploadPhase = "New"
-	UploadPhaseInProgress    UploadPhase = "InProgress"
-	UploadPhaseCompleted     UploadPhase = "Completed"
-	UploadPhaseUploadError   UploadPhase = "UploadError"
-	UploadPhaseCleanupFailed UploadPhase = "CleanupFailed"
-	UploadPhaseCanceling     UploadPhase = "Canceling"
-	UploadPhaseCanceled      UploadPhase = "Canceled"
+	UploadPhaseNew                    UploadPhase = "New"
+	UploadPhaseInProgress             UploadPhase = "InProgress"
+	UploadPhaseCompleted              UploadPhase = "Completed"
+	UploadPhaseUploadError            UploadPhase = "UploadError"
+	UploadPhaseCleanupFailed          UploadPhase = "CleanupFailed"
+	UploadPhaseCanceling              UploadPhase = "Canceling"
+	UploadPhaseCanceled               UploadPhase = "Canceled"
+	UploadPhaseUploadFailedAfterRetry UploadPhase = "UploadFailedAfterRetry"
 )
 
 // UploadStatus is the current status of a Upload.

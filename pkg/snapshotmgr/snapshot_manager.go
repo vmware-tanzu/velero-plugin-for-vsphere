@@ -20,15 +20,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/vsphere"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"strings"
-	"time"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -127,7 +128,7 @@ func NewSnapshotManagerFromConfig(configInfo server.ConfigInfo, s3RepoParams map
 	isLocalMode := utils.GetBool(config[constants.VolumeSnapshotterLocalMode], false)
 	initRemoteStorage := clusterFlavor == constants.VSphere
 
-	addOnInits := map[string]server.InitFunc {
+	addOnInits := map[string]server.InitFunc{
 		"ivd": ivd.NewIVDProtectedEntityTypeManager,
 	}
 	// Initialize the DirectProtectedEntityManager
@@ -542,7 +543,7 @@ func (this *SnapshotManager) isTerminalState(uploadCR *v1api.Upload) bool {
 	if uploadCR == nil {
 		return true
 	}
-	return uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled
+	return uploadCR.Status.Phase == v1api.UploadPhaseCompleted || uploadCR.Status.Phase == v1api.UploadPhaseCleanupFailed || uploadCR.Status.Phase == v1api.UploadPhaseCanceled || uploadCR.Status.Phase == v1api.UploadPhaseUploadFailedAfterRetry
 }
 
 func (this *SnapshotManager) DeleteLocalSnapshot(peID astrolabe.ProtectedEntityID) error {

@@ -20,7 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/agiledragon/gomonkey"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -32,16 +38,14 @@ import (
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotmgr"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	core "k8s.io/client-go/testing"
 	"k8s.io/utils/clock"
-	"reflect"
-	"strconv"
-	"testing"
-	"time"
 )
 
 func defaultUpload() *builder.UploadBuilder {
@@ -463,20 +467,20 @@ func TestProcessUploadCleanupFailed(t *testing.T) {
 		expectedPhase v1.UploadPhase
 		expectedErr   bool
 		retry         int32
-	} {
+	}{
 		{
-			name: "If delete local snapshot successfully, change upload phase to UploadPhaseCompleted and return without error",
-			key: "velero/upload-1",
-			upload: defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
+			name:          "If delete local snapshot successfully, change upload phase to UploadPhaseCompleted and return without error",
+			key:           "velero/upload-1",
+			upload:        defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
 			expectedPhase: v1.UploadPhaseCompleted,
-			expectedErr: false,
+			expectedErr:   false,
 		},
 		{
-			name: "If fail to delete local snapshot, keep upload phase as UploadPhaseCleanupFailed and return error",
-			key: "velero/upload-1",
-			upload: defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
+			name:          "If fail to delete local snapshot, keep upload phase as UploadPhaseCleanupFailed and return error",
+			key:           "velero/upload-1",
+			upload:        defaultUpload().Phase(v1.UploadPhaseCleanupFailed).SnapshotID("ivd:1234:1234").Retry(0).Result(),
 			expectedPhase: v1.UploadPhaseCleanupFailed,
-			expectedErr: true,
+			expectedErr:   true,
 			retry:         constants.MIN_RETRY,
 		},
 	}
@@ -529,6 +533,122 @@ func TestProcessUploadCleanupFailed(t *testing.T) {
 				require.Nil(t, err)
 				require.Equal(t, test.expectedPhase, res.Status.Phase)
 			}
+		})
+	}
+}
+
+func TestUploadFailedAfterRetry(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		retry         int32
+		upload        *v1.Upload
+		expectedPhase v1.UploadPhase
+		expectedErr   error
+		expectedRetry int32
+	}{
+		{
+			name:          "Test retry for upload with uploaderror until upload-cr-retry-max reached",
+			key:           "velero/upload-1",
+			retry:         constants.MIN_RETRY,
+			upload:        defaultUpload().Phase(v1.UploadPhaseInProgress).SnapshotID("ivd:1234:1234").Retry(0).Result(),
+			expectedPhase: v1.UploadPhaseUploadFailedAfterRetry,
+			expectedErr:   errors.New("Failed to upload snapshot, ivd:1234:1234, to durable object storage. Failed at copying to remote repository"),
+			expectedRetry: 5,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				client          = fake.NewSimpleClientset(test.upload)
+				sharedInformers = informers.NewSharedInformerFactory(client, 0)
+				logger          = veleroplugintest.NewLogger()
+				kubeClient      = kubefake.NewSimpleClientset()
+			)
+
+			c := &uploadController{
+				genericController: newGenericController("upload-test", logger),
+				kubeClient:        kubeClient,
+				uploadClient:      client.DatamoverV1alpha1(),
+				uploadLister:      sharedInformers.Datamover().V1alpha1().Uploads().Lister(),
+				nodeName:          "upload-test",
+				clock:             &clock.RealClock{},
+				dataMover:         &dataMover.DataMover{},
+				snapMgr:           &snapshotmgr.SnapshotManager{},
+			}
+
+			// First time set Inprogress to UploadError
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches := gomonkey.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+			defer patches.Reset()
+
+			patches.ApplyFunc(utils.GetUploadCRRetryMaximum, func(_ *rest.Config, _ logrus.FieldLogger) int {
+				return 5
+			})
+
+			c.processUploadFunc = c.processUpload
+			err := c.processUploadItem(test.key)
+			require.Equal(t, err.Error(), test.expectedErr.Error())
+
+			// Second time set Inprogress to UploadError
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+
+			c.processUploadFunc = c.processUpload
+			err = c.processUploadItem(test.key)
+			require.Equal(t, err.Error(), test.expectedErr.Error())
+
+			// Third time set Inprogress to UploadError
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+
+			c.processUploadFunc = c.processUpload
+			err = c.processUploadItem(test.key)
+			require.Equal(t, err.Error(), test.expectedErr.Error())
+
+			// Fourth time set Inprogress to UploadError
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+
+			c.processUploadFunc = c.processUpload
+			err = c.processUploadItem(test.key)
+			require.Equal(t, err.Error(), test.expectedErr.Error())
+
+			// Fifth time set Inprogress to UploadError
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+
+			c.processUploadFunc = c.processUpload
+			err = c.processUploadItem(test.key)
+			require.Equal(t, err.Error(), test.expectedErr.Error())
+
+			// Sixth time set Inprogress to UploadFailedAfterRetry
+			require.NoError(t, sharedInformers.Datamover().V1alpha1().Uploads().Informer().GetStore().Add(test.upload))
+			patches.ApplyMethod(reflect.TypeOf(c.dataMover), "CopyToRepo", func(_ *dataMover.DataMover, _ astrolabe.ProtectedEntityID) (astrolabe.ProtectedEntityID, error) {
+				return astrolabe.ProtectedEntityID{}, errors.New("Failed at copying to remote repository")
+			})
+
+			patches.ApplyMethod(reflect.TypeOf(c.snapMgr), "DeleteLocalSnapshot", func(_ *snapshotmgr.SnapshotManager, _ astrolabe.ProtectedEntityID) error {
+				return nil
+			})
+
+			c.processUploadFunc = c.processUpload
+			err = c.processUploadItem(test.key)
+			require.Nil(t, err)
+			res, err := c.uploadClient.Uploads(test.upload.Namespace).Get(context.TODO(), test.upload.Name, metav1.GetOptions{})
+			require.Equal(t, test.expectedPhase, res.Status.Phase)
+			require.Equal(t, test.expectedRetry, res.Status.RetryCount)
 		})
 	}
 }
