@@ -18,13 +18,14 @@ package backupdriver
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/client-go/informers/core/v1"
-	"strings"
-	"time"
 
 	"k8s.io/client-go/rest"
 
@@ -957,6 +958,8 @@ func (ctrl *backupDriverController) syncUploadByKey(key string) error {
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploadFailed
 	case datamoverapi.UploadPhaseCleanupFailed:
 		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseCleanupFailed
+	case datamoverapi.UploadPhaseUploadFailedAfterRetry:
+		newSnapshotStatusPhase = backupdriverapi.SnapshotPhaseUploadFailedAfterRetry
 	default:
 		ctrl.logger.Debugf("syncUploadByKey: No change needed for upload phase %s", upload.Status.Phase)
 		return nil
