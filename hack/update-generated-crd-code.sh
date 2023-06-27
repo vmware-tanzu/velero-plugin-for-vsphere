@@ -23,8 +23,10 @@ if [[ -z "${GOPATH}" ]]; then
   GOPATH=~/go
 fi
 
+# Please make sure you install k8s.io/code-generator@v0.18.8, you may hit failure when running this script if you install k8s.io/code-generator with different version 
 if [[ ! -d "${GOPATH}/src/k8s.io/code-generator" ]]; then
   echo "k8s.io/code-generator missing from GOPATH"
+  echo "please retry after installing k8s.io/code-generator@v0.18.8"
   exit 1
 fi
 

@@ -21,27 +21,33 @@ type SnapshotSpec struct {
 // New - No work yet, next phase is InProgress
 // InProgress - snapshot being taken
 // Snapshotted - local snapshot complete, next phase is Protecting or SnapshotFailed
-// SnapshotFailed - end state, snapshot was not able to be taken
+// SnapshotFailed - terminal state, snapshot was not able to be taken
 // Uploading - snapshot is being moved to durable storage
-// Uploaded - end state, snapshot has been protected
-// UploadFailed - end state, unable to move to durable storage
+// Uploaded - terminal state, snapshot has been protected
+// UploadFailed - unable to move to durable storage
 // Canceling - when the SanpshotCancel flag is set, if the Snapshot has not already moved into a terminal state, the
 //             status will move to Canceling.  The snapshot ID will be removed from the status status if has been filled in
 //             and the snapshot ID will not longer be valid for a Clone operation
 // Canceled - the operation was canceled, the snapshot ID is not valid
+// CleanupAfterUploadFailed - terminal state, unable to delete local snapshot
+// UploadFailedAfterRetry - terminal state, local snapshot is deleted after upload CR retries reach the maximum retry count. User can set the "upload-cr-retry-max"
+// parameter in config map velero-vsphere-plugin-config to specify the maximum count the upload CR will retry before trying to delete
+// the local snapshot. If user does not specify this in the config map, default retry count is set to 10.
+
 type SnapshotPhase string
 
 const (
-	SnapshotPhaseNew            SnapshotPhase = "New"
-	SnapshotPhaseInProgress     SnapshotPhase = "InProgress"
-	SnapshotPhaseSnapshotted    SnapshotPhase = "Snapshotted"
-	SnapshotPhaseSnapshotFailed SnapshotPhase = "SnapshotFailed"
-	SnapshotPhaseUploading      SnapshotPhase = "Uploading"
-	SnapshotPhaseUploaded       SnapshotPhase = "Uploaded"
-	SnapshotPhaseUploadFailed   SnapshotPhase = "UploadFailed"
-	SnapshotPhaseCanceling      SnapshotPhase = "Canceling"
-	SnapshotPhaseCanceled       SnapshotPhase = "Canceled"
-	SnapshotPhaseCleanupFailed  SnapshotPhase = "CleanupAfterUploadFailed"
+	SnapshotPhaseNew                    SnapshotPhase = "New"
+	SnapshotPhaseInProgress             SnapshotPhase = "InProgress"
+	SnapshotPhaseSnapshotted            SnapshotPhase = "Snapshotted"
+	SnapshotPhaseSnapshotFailed         SnapshotPhase = "SnapshotFailed"
+	SnapshotPhaseUploading              SnapshotPhase = "Uploading"
+	SnapshotPhaseUploaded               SnapshotPhase = "Uploaded"
+	SnapshotPhaseUploadFailed           SnapshotPhase = "UploadFailed"
+	SnapshotPhaseCanceling              SnapshotPhase = "Canceling"
+	SnapshotPhaseCanceled               SnapshotPhase = "Canceled"
+	SnapshotPhaseCleanupFailed          SnapshotPhase = "CleanupAfterUploadFailed"
+	SnapshotPhaseUploadFailedAfterRetry SnapshotPhase = "UploadFailedAfterRetry"
 )
 
 // UploadOperationProgress represents the progress of a
@@ -149,7 +155,7 @@ type CloneFromSnapshotSpec struct {
   New - No work yet, next phase is InProgress
   InProgress - snapshot being taken
   Completed - new object has been created
-  Failed - end state, clone failed, no new object was created
+  Failed - terminal state, clone failed, no new object was created
   Canceling - when the Clone flag is set, if the Clone has not already moved into a terminal state, the
               status will move to Canceling.  The object that was being created will be removed
  Canceled - the Clone was canceled, no new object was created

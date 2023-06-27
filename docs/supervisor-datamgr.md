@@ -6,9 +6,8 @@ In a vSphere with Tanzu environment, the Data Manager should be installed as a V
 
 This document discusses the installation procedure for backup data manager for **Velero plugin for vSphere** with kubernetes.
 
-## Changes with release 1.1.0
+## Best Practice
 
-Support of vSphere with Tanzu (Supervisor cluster and TKGS cluster) is being added with the release 1.1.0 release.
 
 - As a best practice, Data Manager VMs should be installed on the vSphere compute cluster where the workload cluster is installed.
 - Each Data Manager VM can serve upload/download tasks from a single workload cluster and the TKGS clusters in it.
@@ -18,7 +17,7 @@ Support of vSphere with Tanzu (Supervisor cluster and TKGS cluster) is being add
 
 It is recommended that the Kubernetes backup/restore traffic be separated from the vSphere management network on a workload cluster. A backup network can be configured as an NSX-T network or traditional TDS network. We can add a VMkernel NIC on each ESXi host in the cluster and set the ```vSphereBackupNFC``` on that NIC. This enables backup network traffic to be sent through that NIC. If the ```vSphereBackupNFC``` is not enabled on the VMkernel NIC, the backup traffic will be sent on the management network.
 
-More details can be found in the [vSphere documentation](https://code.vmware.com/docs/12628/virtual-disk-development-kit-programming-guide/GUID-5D166ED1-7205-4110-8D72-0C51BB63CC3D.html).
+More details can be found in the [vSphere documentation](https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-networking/GUID-7BC73116-C4A6-411D-8A32-AD5B7A3D5493.html).
 
 Here are some ways to setup a Backup Network with ```vSphereBackupNFC``` tag enabled on a NSX setup.
 
@@ -36,7 +35,7 @@ If there is a free physical network adpter on each of the cluster nodes:
 
 ## Data Manager Virtual Machine install
 
-The Data Manager Virtual Machine ova can be downloaded from [here](https://vsphere-velero-datamgr.s3-us-west-1.amazonaws.com/datamgr-ob-17253392-photon-3-release-1.1.ova).
+The Data Manager Virtual Machine ova can be downloaded from [here](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/releases).
 
 It is recommended to power on the Data manager VM after enabling the velero-vsphere service and installing Velero + vSphere plugin in the Supervisor cluster.
 
@@ -48,7 +47,7 @@ It is recommended to power on the Data manager VM after enabling the velero-vsph
    - guestinfo.cnsdp.vcPassword
    - guestinfo.cnsdp.vcPort
    - guestinfo.cnsdp.veleroNamespace
-   - guestinfo.cnsdp.datamgrImage (if not configured, will use the image from dockerhub vsphereveleroplugin/data-manager-for-plugin:1.1.0)
+   - guestinfo.cnsdp.datamgrImage
    - guestinfo.cnsdp.updateKubectl (default false, to avoid kubectl from wcp master on every VM restart)
 3. Power On the Data Manager VM
 

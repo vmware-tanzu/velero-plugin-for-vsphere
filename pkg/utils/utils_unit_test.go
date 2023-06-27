@@ -18,6 +18,10 @@ package utils
 
 import (
 	"errors"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -28,9 +32,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	kubeclientfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/agiledragon/gomonkey"
 	"github.com/sirupsen/logrus"
@@ -118,6 +119,20 @@ var (
 			"cluster_flavor": "VANILLA",
 		},
 	}
+
+	pluginConfigVanillaWithUploadCRRetryMax = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      constants.VeleroVSpherePluginConfig,
+			Namespace: "velero",
+		},
+		Data: map[string]string{
+			"cluster_flavor":           "VANILLA",
+			"vsphere_secret_name":      "velero-vsphere-config-secret",
+			"vsphere_secret_namespace": "velero",
+			"upload-cr-retry-max":      "5",
+		},
+	}
+
 	pluginConfigGuest = &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      constants.VeleroVSpherePluginConfig,
@@ -1100,6 +1115,42 @@ func TestRetrieveVcConfigSecret(t *testing.T) {
 					t.Fatalf("Expected error in scenario, but did not recieve it.\n test: %s", test.name)
 				}
 			}
+		})
+	}
+}
+
+func TestGetUploadCRRetryMaximumFromConfig(t *testing.T) {
+	tests := []struct {
+		name                     string
+		runtimeObjs              []runtime.Object
+		expectedError            error
+		expectedUploadCRRetryMax int
+	}{
+		{
+			name: "upload-cr-retry-max is not specified in velero-vsphere-plugin-config",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanilla,
+			},
+			expectedUploadCRRetryMax: constants.DefaultUploadCRRetryMaximum,
+			expectedError:            nil,
+		},
+		{
+			name: "upload-cr-retry-max is specified in velero-vsphere-plugin-config",
+			runtimeObjs: []runtime.Object{
+				pluginConfigVanillaWithUploadCRRetryMax,
+			},
+			expectedUploadCRRetryMax: 5,
+			expectedError:            nil,
+		},
+	}
+
+	logger := veleroplugintest.NewLogger()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			kubeClient := kubeclientfake.NewSimpleClientset(test.runtimeObjs...)
+			actualUploadCRRetryMax := GetUploadCRRetryMaximumFromConfig(kubeClient, constants.DefaultVeleroNamespace,
+				constants.VeleroVSpherePluginConfig, logger)
+			assert.Equal(t, test.expectedUploadCRRetryMax, actualUploadCRRetryMax)
 		})
 	}
 }

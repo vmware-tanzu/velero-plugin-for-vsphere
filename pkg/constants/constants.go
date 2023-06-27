@@ -178,6 +178,14 @@ const (
 const (
 	RetryInterval = 5
 	RetryMaximum  = 5
+	// Default maximum retry count for upload CR.
+	// After upload CR retry reaches the maximum and still cannot upload the snapshot to durable storage. Upload CR will stop further retry and
+	// try to delete the local snapshot.
+	// If local snapshot is deleted successfully, the status of upload CR will change to "UploadFailedAfterRetry".
+	// If local snapshot cannot be deleted, the status of upload CR will change to "CleanupFailed".
+	// If the default maximum retry count does work for user, it can be overwritten by setting the "upload-cr-retry-max"
+	// parameter in config map velero-vsphere-plugin-config.
+	DefaultUploadCRRetryMaximum = 10
 )
 
 // Keys for supervisor cluster parameters
@@ -255,9 +263,9 @@ var ResourcesToBlock = map[string]bool{
 	// We comment the NetworkAttachmentDefinition resource out as it is not a vSphere specific resource
 	//"network-attachment-definitions.k8s.cni.cncf.io":     true, // real name of NetworkAttachmentDefinition
 	//"networkattachmentdefinitions.k8s.cni.cncf.io":       true, // parsed name of NetworkAttachmentDefinition
-	"networkinterfaces.netoperator.vmware.com":           true,
-	"networks.netoperator.vmware.com":                    true,
-	"nsxerrors.nsx.vmware.com":                           true,
+	"networkinterfaces.netoperator.vmware.com": true,
+	"networks.netoperator.vmware.com":          true,
+	"nsxerrors.nsx.vmware.com":                 true,
 	//"nsxlbmonitors.vmware.com":                              true, // DO NOT ADD IT BACK
 	//"nsxloadbalancermonitors.vmware.com":                    true, // DO NOT ADD IT BACK
 	"nsxlocks.nsx.vmware.com":                                 true,
@@ -399,7 +407,7 @@ const (
 const VsphereVolumeSnapshotLocationProvider = "velero.io/vsphere"
 
 const (
-	VSphereCSIDriverName = "csi.vsphere.vmware.com"
+	VSphereCSIDriverName                = "csi.vsphere.vmware.com"
 	VSphereCSIDriverMigrationAnnotation = "pv.kubernetes.io/migrated-to"
 )
 
@@ -418,12 +426,13 @@ const (
 	VSphereSecretNameKey      = "vsphere_secret_name"
 	DefaultSecretName         = "velero-vsphere-config-secret"
 	DefaultSecretNamespace    = "velero"
+	UploadCRRetryMaximumKey   = "upload-cr-retry-max"
 )
 
 const (
 	// AnnVolumeHealth is the key for HealthStatus annotation on volume claim
 	// for vSphere CSI Driver.
 	AnnVolumeHealth = "volumehealth.storage.kubernetes.io/health"
-        // key for expressing timestamp for volume health annotation
-        AnnVolumeHealthTS = "volumehealth.storage.kubernetes.io/health-timestamp"
+	// key for expressing timestamp for volume health annotation
+	AnnVolumeHealthTS = "volumehealth.storage.kubernetes.io/health-timestamp"
 )
