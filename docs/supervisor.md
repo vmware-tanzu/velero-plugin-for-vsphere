@@ -11,6 +11,8 @@
 
 ## Compatibility
 
+TODO: vSphere Operator 1.5.0
+
 | Velero Plugin for vSphere Version | vSphere Version     | Kubernetes Version                                                | vSphere CSI Driver Version | Velero Version | Velero vSphere Operator Version | Data Manager Version | vSphere Plugin Deprecated | vSphere Plugin EOL Date      |
 |-----------------------------------|---------------------|-------------------------------------------------------------------|----------------------------|----------------|---------------------------------|---------------|------------|---------------|
 | 1.5.1                             | 8.0U1                  | Bundled with vSphere (1.24)                                 | Bundled with vSphere       | 1.10.2          | 1.4.0                           | 1.2.0        | No         | N/A           |
