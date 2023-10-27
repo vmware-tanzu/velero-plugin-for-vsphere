@@ -14,6 +14,8 @@
 
 | Velero Plugin for vSphere Version | vSphere Version        | Kubernetes Version | vSphere CSI Driver Version        | Velero Version | vSphere Plugin Deprecated | vSphere Plugin EOL Date      |
 |-----------------------------------|------------------------|--------------------|-----------------------------------|----------------|------------|---------------|
+1.5.1                             | 8.0U2                    | 1.27          | 3.0.1                             | 1.11.1          | No         | N/A           |
+ 1.5.1                             | 8.0U1                    | 1.26-1.27          | 3.0.1                             | 1.10.2, 1.11.1          | No         | N/A           |
 | 1.4.2                             | 8.0                    | 1.24-1.25          | 2.7.0                             | 1.9.2          | No         | N/A           |
 | 1.4.2                             | 7.0U3h                 | 1.24-1.25          | 2.7.0                             | 1.9.2          | No         | N/A           |
 | 1.4.1                             | 8.0                    | 1.24-1.25          | 2.7.0                             | 1.9.2          | No         | N/A           |
@@ -280,6 +282,7 @@ Snapshot CRD has a number of phases for the `.status.phase` field:
 * Canceling: the upload of snapshot is being cancelled
 * Canceled: the upload of snapshot is cancelled
 * CleanupAfterUploadFailed: the Cleanup of local snapshot after the upload of snapshot was failed
+* UploadFailedAfterRetry: the snapshot is failed to be uploaded after retries, and local snapshot is deleted
 
 #### Uploads
 
@@ -330,6 +333,7 @@ Upload CRD has a number of phases for the `.status.phase` field:
 * CleanupFailed: delete local snapshot failed after the upload, this case will also be retried
 * Canceling:  upload is being cancelled. It would happen if `velero backup delete` is called while the upload of snapshot is in progress.
 * Canceled: upload is cancelled.
+* UploadFailedAfterRetry: Upload failed after retries and local snapshot is deleted.
 
 UploadError uploads will be periodically retried.  At that point their phase will return to InProgress.  After an upload has been
 successfully completed, its record will remain for a period of time and eventually be removed.

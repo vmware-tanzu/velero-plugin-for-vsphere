@@ -19,12 +19,13 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
+	"time"
+
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"math"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -292,17 +293,22 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 	}).Debug("Upload request updated by retrieving from kubernetes API server")
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCanceled {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is canceled. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of Upload CR in Kubernetes API server is canceled. Skipping it")
 		return nil
 	}
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCanceling {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is canceling. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of Upload CR in Kubernetes API server is canceling. Skipping it")
 		return nil
 	}
 
 	if req.Status.Phase == pluginv1api.UploadPhaseCompleted {
-		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of upload CR in kubernetes API server is completed. Skipping it")
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of Upload CR in Kubernetes API server is completed. Skipping it")
+		return nil
+	}
+
+	if req.Status.Phase == pluginv1api.UploadPhaseUploadFailedAfterRetry {
+		log.WithField("phase", req.Status.Phase).WithField("generation", req.Generation).Debug("The status of Upload CR in Kubernetes API server is failed after retry. Skipping it")
 		return nil
 	}
 
@@ -334,7 +340,7 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 			errMsg := fmt.Sprintf("Failed to clean up local snapshot, %s, error: %v. will retry.", peID.String(), errors.WithStack(err))
 			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
 			if err != nil {
-				errMsg = fmt.Sprintf("Failed to patch upload status with retry, errror: %v", errors.WithStack(err))
+				errMsg = fmt.Sprintf("Failed to patch Upload status with retry, errror: %v", errors.WithStack(err))
 				log.Error(errMsg)
 			}
 			return errors.New(errMsg)
@@ -372,12 +378,35 @@ func (c *uploadController) processUpload(req *pluginv1api.Upload) error {
 			return nil
 		} else {
 			errMsg := fmt.Sprintf("Failed to upload snapshot, %v, to durable object storage. %v", peID.String(), errors.WithStack(err))
-			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseUploadError, errMsg)
-			if err != nil {
-				errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+			uploadCRRetryMaximum := utils.GetUploadCRRetryMaximum(nil, c.logger)
+			log.Infof("UploadCRRetryMaximum is %d", uploadCRRetryMaximum)
+			if req.Status.RetryCount < int32(uploadCRRetryMaximum) {
+				_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseUploadError, errMsg)
+				if err != nil {
+					errMsg = fmt.Sprintf("%v. %v", errMsg, errors.WithStack(err))
+				}
+				log.Error(errMsg)
+				return errors.New(errMsg)
 			}
-			log.Error(errMsg)
-			return errors.New(errMsg)
+			log.Infof("Upload CR %s failed to upload snapshot after retrying %d times", req.Name, uploadCRRetryMaximum)
+			err = c.snapMgr.DeleteLocalSnapshot(peID)
+			if err != nil {
+				errMsg := fmt.Sprintf("Failed to clean up local snapshot, %s, error: %v. will retry.", peID.String(), errors.WithStack(err))
+				_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseCleanupFailed, errMsg)
+				if err != nil {
+					errMsg = fmt.Sprintf("Failed to patch Upload status with retry, errror: %v", errors.WithStack(err))
+					log.Error(errMsg)
+				}
+				return errors.New(errMsg)
+			}
+			msg := fmt.Sprintf("Successfully deleted local snapshot, %v", peID.String())
+			log.Info(msg)
+			// UploadPhaseUploadFailedAfterRetry is a terminal state, and upload CR will not retry
+			_, err = c.patchUploadByStatusWithRetry(req, pluginv1api.UploadPhaseUploadFailedAfterRetry, msg)
+			if err != nil {
+				log.Error(err)
+			}
+			return nil
 		}
 	}
 
@@ -487,6 +516,13 @@ func (c *uploadController) patchUploadByStatus(req *pluginv1api.Upload, newPhase
 			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
 			r.Status.Message = msg
 		})
+	case pluginv1api.UploadPhaseUploadFailedAfterRetry:
+		req, err = c.patchUpload(req, func(r *pluginv1api.Upload) {
+			r.Status.Phase = newPhase
+			r.Status.CompletionTimestamp = &metav1.Time{Time: c.clock.Now()}
+			r.Status.Message = msg
+		})
+
 	default:
 		err = errors.New("Unexpected upload phase")
 	}
