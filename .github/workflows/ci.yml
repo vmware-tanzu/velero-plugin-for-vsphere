@@ -30,11 +30,11 @@ jobs:
         run: |
           cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
           make ci
-      - name: Build the plugin and push images to docker hub
-        if: github.event_name == 'push' && github.repository == 'vmware-tanzu/velero-plugin-for-vsphere'
-        env:
-          GOPATH: ${GITHUB_WORKSPACE}
-        run: |
-          cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
-          echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-          make push
+      #- name: Build the plugin and push images to docker hub
+      #  if: github.event_name == 'push' && github.repository == 'vmware-tanzu/velero-plugin-for-vsphere'
+      #  env:
+      #    GOPATH: ${GITHUB_WORKSPACE}
+      #  run: |
+      #    cd src/github.com/vmware-tanzu/velero-plugin-for-vsphere
+      #    echo ${{ secrets.DOCKERHUB_PASSWORD }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+      #    make push
