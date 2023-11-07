@@ -14,6 +14,7 @@
 
 | Velero Plugin for vSphere Version | vSphere Version        | Kubernetes Version | vSphere CSI Driver Version        | Velero Version | vSphere Plugin Deprecated | vSphere Plugin EOL Date      |
 |-----------------------------------|------------------------|--------------------|-----------------------------------|----------------|------------|---------------|
+1.5.2                             | 8.0P02                    | 1.28          | 3.1.1                             | 1.12.1          | No         | N/A           |
 1.5.1                             | 8.0U2                    | 1.27          | 3.0.1                             | 1.11.1          | No         | N/A           |
  1.5.1                             | 8.0U1                    | 1.26-1.27          | 3.0.1                             | 1.10.2, 1.11.1          | No         | N/A           |
 | 1.4.2                             | 8.0                    | 1.24-1.25          | 2.7.0                             | 1.9.2          | No         | N/A           |
