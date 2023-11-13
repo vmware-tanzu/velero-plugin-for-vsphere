@@ -78,7 +78,7 @@ The workaround to this problem is to use VC FQDN instead of IPV6 format in `csi-
 [Global]
 cluster-id = "cluster0"
 
-[VirtualCenter "sc2-04-dhcpv6-v2623-0763.ipv6.eng.vmware.com"]
+[VirtualCenter "vCenter-FQDN"]
 insecure-flag = "true"
 user = "user@vsphere.local"
 password = "password"
