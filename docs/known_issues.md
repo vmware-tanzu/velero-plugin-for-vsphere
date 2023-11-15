@@ -64,3 +64,24 @@ Users might require ways to provide registry credentials when deploying velero a
 ## Volume Expansion Not Supported when there are Snapshots
 
 If upload fails during a backup, the local snapshot will not be deleted. Velero vSphere Plugin will keep retrying the upload. If the user wants to expand volume, it will fail because volume expansion is not supported when there are snapshots on the volume.
+
+## Backup and Restore with vSphere with IPV6
+
+Users may hit the following error `too many colons in address` if they specify VC IP in IPV6 format in `csi-vsphere.conf` file and create `velero-vsphere-config-secret` from this file when deploying Velero Plugin for vSphere. 
+
+```
+time="2023-11-06T10:53:21Z" level=error msg="Failed at copying to remote repository" Local PEID="ivd:fdc85e45-7c61-453f-9487-b7e47d020cd9:a6183167-d52d-4a83-932f-77104fac93e3" error="dial tcp: address 2620:124:6020:c304:0:a:0:763:443: too many colons in address" logSource="/go/src/github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/dataMover/data_mover.go:120"
+```
+The workaround to this problem is to use VC FQDN instead of IPV6 format in `csi-vsphere.conf` file. See the following example.
+
+```
+[Global]
+cluster-id = "cluster0"
+
+[VirtualCenter "vCenter-FQDN"]
+insecure-flag = "true"
+user = "user@vsphere.local"
+password = "password"
+port = "443"
+datacenters = "dc0"
+```

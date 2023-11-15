@@ -16,6 +16,8 @@ Below is the networking diagram of velero-plugin-for-vsphere in vSphere with Tan
 
 Certain resources with the **vSphere with Tanzu** Supervisor Cluster need to be created by the Supervisor Cluster and cannot be restored. The **Velero Plugin for vSphere** blocks backup and restore of these resources and will generate errors if an attempt is made to backup or restore these resources and the backup or restore will be marked as "Partially Failed".
 
+Similarly, certain resources with the **Tanzu Kubernetes Grid** multicloud (TKGm) need to be created by the TKGm cluster and cannot be restored. The **Velero Plugin for vSphere** blocks backup and restore of these resources and will generate errors if an attempt is made to backup or restore these resources and the backup or restore will be marked as "Partially Failed".
+
 A configmap named `velero-vsphere-plugin-blocked-resources-list` will be created in the namespace where you install velero during **Velero Plugin for vSphere** installation. Exclude the resources in the configmap from your backups to avoid these errors. After the plugin is deployed, users can edit the configmap to remove resources from being blocked, or add more resources to be blocked. Users should not delete the configmap.
 
 **Note**: The configmap `velero-vsphere-plugin-blocked-resources-list` will be reset to the default list only when user try to reboot velero pod.
@@ -32,6 +34,7 @@ The default list of blocked resources in configmap is:
  	certificaterequests.cert-manager.io
  	certificates.cert-manager.io
  	challenges.acme.cert-manager.io
+	clusterclasses.cluster.x-k8s.io
  	clusterissuers.cert-manager.io
  	clusternetworkinfos.nsx.vmware.com
  	clusterresourcesetbindings.addons.cluster.x-k8s.io
