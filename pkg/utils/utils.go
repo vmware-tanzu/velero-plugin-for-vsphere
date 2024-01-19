@@ -18,10 +18,12 @@ package utils
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -338,6 +340,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 	params["s3ForcePathStyle"] = backupStorageLocation.Spec.Config["s3ForcePathStyle"]
 	params["s3Url"] = backupStorageLocation.Spec.Config["s3Url"]
 	params["profile"] = backupStorageLocation.Spec.Config["profile"]
+	params["insecureSkipTLSVerify"] = backupStorageLocation.Spec.Config["insecureSkipTLSVerify"]
 
 	if backupStorageLocation.Spec.ObjectStorage.CACert != nil {
 		params["caCert"] = string(backupStorageLocation.Spec.ObjectStorage.CACert)
@@ -400,6 +403,28 @@ func GetS3PETMFromParamsMap(params map[string]interface{}, logger logrus.FieldLo
 		} else {
 			sess.Config.S3ForcePathStyle = aws.Bool(false)
 			logger.Infof("Got %s for s3ForcePathStyle, setting s3ForcePathStyle to false", pathStyle)
+		}
+	}
+
+	insecureSkipTLSVerify, ok := GetStringFromParamsMap(params, "insecureSkipTLSVerify", logger)
+	if ok {
+		if GetBool(insecureSkipTLSVerify, false) {
+			defaultTransport := http.DefaultTransport.(*http.Transport)
+			sess.Config.HTTPClient = &http.Client{
+				// Copied from net/http
+				Transport: &http.Transport{
+					Proxy:                 defaultTransport.Proxy,
+					DialContext:           defaultTransport.DialContext,
+					MaxIdleConns:          defaultTransport.MaxIdleConns,
+					IdleConnTimeout:       defaultTransport.IdleConnTimeout,
+					TLSHandshakeTimeout:   defaultTransport.TLSHandshakeTimeout,
+					ExpectContinueTimeout: defaultTransport.ExpectContinueTimeout,
+					// Set insecureSkipVerify true
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true,
+					},
+				},
+			}
 		}
 	}
 
