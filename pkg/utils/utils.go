@@ -28,9 +28,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-version"
+	vcConfig "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/common/config"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/ivd"
+	"gopkg.in/gcfg.v1"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"k8s.io/apimachinery/pkg/fields"
@@ -137,22 +139,38 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 		return errors.New(errMsg)
 	}
 
-	var sEnc string
-	var lines []string
+	ParseConfig(secret, params, logger)
+
+	return nil
+}
+
+func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger logrus.FieldLogger) {
+	// Setup config
+	var conf vcConfig.Config
+	// Read config from secret
 	for _, value := range secret.Data {
-		sEnc = string(value)
-		lines = strings.Split(sEnc, "\n")
-		logger.Debugf("Successfully retrieved vCenter configuration from secret %s", secret.Name)
+		confStr := string(value) // Convert the secret data to a string
+		err := gcfg.FatalOnly(gcfg.ReadStringInto(&conf, confStr))
+		if err != nil {
+			logger.WithError(err).Error("Failed to parse vSphere secret data")
+		}
+		logger.Debugf("Successfully parsed vCenter configuration from secret %s", secret.Name)
 		break
 	}
 
-	ParseLines(lines, params, logger)
+	// Use config data from struct to populate params struct passed by RetrieveVcConfigSecret callers
+	params["cluster-id"] = conf.Global.ClusterID
 
-	// If port is missing, add an entry in the params to use the standard https port
-	if _, ok := params["port"]; !ok {
-		params["port"] = constants.DefaultVCenterPort
+	for ip, vcConfig := range conf.VirtualCenter {
+		params["VirtualCenter"] = ip
+		params["user"] = vcConfig.User
+		params["password"] = vcConfig.Password
+		if vcConfig.VCenterPort == "" {
+			vcConfig.VCenterPort = constants.DefaultVCenterPort
+		} else {
+			params["port"] = vcConfig.VCenterPort
+		}
 	}
-	return nil
 }
 
 func ParseLines(lines []string, params map[string]interface{}, logger logrus.FieldLogger) {
@@ -165,13 +183,15 @@ func ParseLines(lines []string, params map[string]interface{}, logger logrus.Fie
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
 			// Skip the quotes in the value if present
-			unquotedValue, err := strconv.Unquote(string(value))
-			if err != nil {
-				logger.WithError(err).Debugf("Failed to unquote value %v for key %v. Just store the original value string", value, key)
-				params[key] = string(value)
-				continue
+			var unquotedValue string
+			// Check if value is double-quoted
+			if strings.Contains(value, `"`) {
+				// Remove double-quotes
+				unquotedValue = strings.Trim(value, `"`)
+				params[key] = unquotedValue
+			} else {
+				params[key] = value
 			}
-			params[key] = unquotedValue
 		}
 	}
 }
@@ -1022,7 +1042,7 @@ func waitForPvSecret(ctx context.Context, clientSet *kubernetes.Clientset, names
 }
 
 /*
- Adds the Velero label to exclude this K8S resource from the backup
+Adds the Velero label to exclude this K8S resource from the backup
 */
 func AddVeleroExcludeLabelToObjectMeta(objectMeta *metav1.ObjectMeta) {
 	objectMeta.Labels = AppendVeleroExcludeLabels(objectMeta.Labels)

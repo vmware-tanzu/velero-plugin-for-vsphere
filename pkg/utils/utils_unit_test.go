@@ -274,7 +274,7 @@ cluster-distribution = "CSI-Vanilla"
 
 [VirtualCenter "10.182.1.133"]
 user = "Administrator@vsphere.local"
-password = "Pass"
+password = "6^54#,RDvwgJ\\nEdg$2"
 datacenters = "VSAN-DC"
 port = "443"
 	`
@@ -370,6 +370,55 @@ func TestParseLines(t *testing.T) {
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
 
+	// Tests cases with a fully populated configuration
+	vcCredentialsWithSingleEscChar := `[Global]
+	insecure-flag = "true"
+	cluster-id = "cluster1"
+	cluster-distribution = "CSI-Vanilla"
+	
+	[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+	user = "Administrator@vsphere.local"
+	password = "6^54#,RDvwgJ\Edg$2"
+	datacenters = "VSAN-DC"
+	port = "443"
+		`
+
+	vcCredentialsWithTwoEscChar := `[Global]
+	insecure-flag = "true"
+	cluster-id = "cluster1"
+	cluster-distribution = "CSI-Vanilla"
+	
+	[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+	user = "Administrator@vsphere.local"
+	password = "6^54#,RDvwgJ\\Edg$2"
+	datacenters = "VSAN-DC"
+	port = "443"
+		`
+
+	vcCredentialsWithNewLineChar := `[Global]
+	insecure-flag = "true"
+	cluster-id = "cluster1"
+	cluster-distribution = "CSI-Vanilla"
+	
+	[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+	user = "Administrator@vsphere.local"
+	password = "6^54#,RDvwgJ\nEdg$2"
+	datacenters = "VSAN-DC"
+	port = "443"
+		`
+
+	vcCredentialsWithNoQuotes := `[Global]
+	insecure-flag = "true"
+	cluster-id = "cluster1"
+	cluster-distribution = "CSI-Vanilla"
+	
+	[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+	user = "Administrator@vsphere.local"
+	password = 6^54#,RDvwgJ\Edg$2
+	datacenters = "VSAN-DC"
+	port = "443"
+		`
+
 	tests := []struct {
 		name     string
 		sEnc     string
@@ -378,21 +427,46 @@ func TestParseLines(t *testing.T) {
 	}{
 		{
 			name:     "Password with special character \\ in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;\"",
+			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\;\"",
 			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
 			password: "GpI4G`OK'?in40Fo/0\\;",
 		},
 		{
 			name:     "Password with multiple = in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;=h=\"",
+			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\;=h=\"",
 			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
 			password: "GpI4G`OK'?in40Fo/0\\;=h=",
 		},
 		{
-			name:     "Password with special character \\t in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"G4\\t4t\"",
+			name: `Password with special character \t in it`,
+			sEnc: `[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+						password = "G4\t4t"`,
 			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
-			password: "G4\t4t",
+			password: `G4\t4t`,
+		},
+		{
+			name:     `Password with special character \ in it`,
+			sEnc:     vcCredentialsWithSingleEscChar,
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: `6^54#,RDvwgJ\Edg$2`,
+		},
+		{
+			name:     `Password with two \\ in it`,
+			sEnc:     vcCredentialsWithTwoEscChar,
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: `6^54#,RDvwgJ\\Edg$2`,
+		},
+		{
+			name:     `Password with \n in it`,
+			sEnc:     vcCredentialsWithNewLineChar,
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: `6^54#,RDvwgJ\nEdg$2`,
+		},
+		{
+			name:     `Password with no quotes and one \`,
+			sEnc:     vcCredentialsWithNoQuotes,
+			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
+			password: `6^54#,RDvwgJ\Edg$2`,
 		},
 	}
 	for _, test := range tests {
@@ -980,12 +1054,34 @@ func TestRetrieveVcConfigSecret(t *testing.T) {
 	formatter.FullTimestamp = true
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
+	confData := `[Global]
+	cluster-id = "cluster1"
+	
+	[VirtualCenter "10.182.1.133"]
+	user = "user@vsphere.local"
+	password = "password"
+	port = "443"`
+	mockSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "velero-vsphere-config-secret"},
+		Data:       map[string][]byte{"csi-vsphere.conf": []byte(confData)},
+	}
 	tests := []struct {
 		name        string
 		runtimeObjs []runtime.Object
 		config      *rest.Config
 		expectError bool
 	}{
+		{
+			name: "Test secret retrieval",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi201VanillaDeployment,
+				csi201VSphereCredentialSecret,
+				mockSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
 		{
 			name: "Decouple CSI driver feature enabled, plugin config absent, supervisor csi 2.3, csi secret present",
 			runtimeObjs: []runtime.Object{
