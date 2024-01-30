@@ -8,7 +8,7 @@ To keep consistency with velero, Velero plugin for vsphere also supports using v
 * Guest cluster: supported since v1.1.1
 * Supervisor cluster: not supported
 
-To install with a storage provider secured by a self-signed certificate, the --cacert option needs to be added to provide a path to a certificate bundle to trust.
+To install with a storage provider secured by a self-signed certificate, the --cacert option needs to be added to provide a path to a certificate bundle to trust. This certificate is used to verify TLS connection to the object store when backing up and restoring. The object store is specified with ` --backup-location-config` in the install command.
 
 Here is an example install command:
 ```text

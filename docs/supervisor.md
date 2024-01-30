@@ -48,7 +48,7 @@ for the detail.
 
 ### Install with self-signed certificate
 
-**Note**: Currently self-signed certificate is not supported on supervisor cluster, please refer to [velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate](self-signed-certificate.md).
+**Note**: Currently using self-signed certificate to connect to the object store is not supported on supervisor cluster. please refer to [velero-plugin-for-vsphere with a storage provider secured by a self-signed certificate](self-signed-certificate.md).
 
 ## Uninstall
 
