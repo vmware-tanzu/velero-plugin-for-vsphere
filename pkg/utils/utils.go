@@ -158,7 +158,7 @@ func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger log
 		break
 	}
 
-	// Use config data from struct to populate params struct passed by RetrieveVcConfigSecret callers
+	// Use config data from struct to populate params map passed by RetrieveVcConfigSecret callers
 	params["cluster-id"] = conf.Global.ClusterID
 
 	for ip, vcConfig := range conf.VirtualCenter {
@@ -167,9 +167,8 @@ func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger log
 		params["password"] = vcConfig.Password
 		if vcConfig.VCenterPort == "" {
 			vcConfig.VCenterPort = constants.DefaultVCenterPort
-		} else {
-			params["port"] = vcConfig.VCenterPort
 		}
+		params["port"] = vcConfig.VCenterPort
 	}
 }
 
