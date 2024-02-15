@@ -147,7 +147,7 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger logrus.FieldLogger) {
 	// Setup config
 	var conf vcConfig.Config
-	// Read config from secret
+	// Read secret data
 	for _, value := range secret.Data {
 		confStr := string(value) // Convert the secret data to a string
 		err := gcfg.FatalOnly(gcfg.ReadStringInto(&conf, confStr))
@@ -169,29 +169,6 @@ func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger log
 			vcConfig.VCenterPort = constants.DefaultVCenterPort
 		}
 		params["port"] = vcConfig.VCenterPort
-	}
-}
-
-func ParseLines(lines []string, params map[string]interface{}, logger logrus.FieldLogger) {
-	for _, line := range lines {
-		if strings.Contains(line, "VirtualCenter") {
-			parts := strings.Split(line, "\"")
-			params["VirtualCenter"] = parts[1]
-		} else if strings.Contains(line, "=") {
-			parts := strings.SplitN(line, "=", 2)
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			// Skip the quotes in the value if present
-			var unquotedValue string
-			// Check if value is double-quoted
-			if strings.Contains(value, `"`) {
-				// Remove double-quotes
-				unquotedValue = strings.Trim(value, `"`)
-				params[key] = unquotedValue
-			} else {
-				params[key] = value
-			}
-		}
 	}
 }
 
