@@ -6,7 +6,6 @@ type Config struct {
 		ClusterID           string `gcfg:"cluster-id"`
 		ClusterDistribution string `gcfg:"cluster-distribution"`
 		CAFile              string `gcfg:"ca-file"`
-		Thumbprint          string `gcfg:"thumbprint"`
 	}
 	// Virtual Center configurations
 	VirtualCenter map[string]*VirtualCenterConfig
