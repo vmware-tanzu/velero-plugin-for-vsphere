@@ -139,12 +139,16 @@ func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, 
 		return errors.New(errMsg)
 	}
 
-	ParseConfig(secret, params, logger)
+	err = ParseConfig(secret, params, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse vSphere secret data")
+		return err
+	}
 
 	return nil
 }
 
-func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger logrus.FieldLogger) {
+func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger logrus.FieldLogger) error {
 	// Setup config
 	var conf vcConfig.Config
 	// Read secret data
@@ -153,6 +157,7 @@ func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger log
 		err := gcfg.FatalOnly(gcfg.ReadStringInto(&conf, confStr))
 		if err != nil {
 			logger.WithError(err).Error("Failed to parse vSphere secret data")
+			return err
 		}
 		logger.Debugf("Successfully parsed vCenter configuration from secret %s", secret.Name)
 		break
@@ -170,6 +175,8 @@ func ParseConfig(secret *k8sv1.Secret, params map[string]interface{}, logger log
 		}
 		params["port"] = vcConfig.VCenterPort
 	}
+
+	return nil
 }
 
 func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, config *rest.Config,
