@@ -3,22 +3,23 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"k8s.io/client-go/kubernetes"
-	"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/backuprepository"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	pluginItem "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin/util"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/snapshotUtils"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -173,12 +174,14 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
-	bSkipPVC, err := pluginItem.SkipPVCCreation(ctx, restConfig, &pvc, p.Log)
+	bSkipPVC, err := pluginItem.SkipPVCCreation(ctx, restConfig, &pvc, targetNamespace, p.Log)
 	if err != nil {
 		return nil, errors.WithStack(err)
-	} else if bSkipPVC {
+	}
+	if bSkipPVC {
 		// Skip PVCRestoreItemAction for PVC creation
 		// as it already exists
+		// and Restore is not remapping namespace
 		return &velero.RestoreItemActionExecuteOutput{
 			UpdatedItem: item,
 		}, nil
