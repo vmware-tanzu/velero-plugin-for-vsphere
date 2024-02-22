@@ -174,10 +174,11 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		return nil, errors.WithStack(err)
 	}
 
-	bSkipPVC, err := pluginItem.SkipPVCCreation(ctx, restConfig, &pvc, p.Log)
+	bSkipPVC, err := pluginItem.SkipPVCCreation(ctx, restConfig, &pvc, targetNamespace, p.Log)
 	if err != nil {
 		return nil, errors.WithStack(err)
-	} else if bSkipPVC && input.Restore.Spec.NamespaceMapping == nil {
+	}
+	if bSkipPVC {
 		// Skip PVCRestoreItemAction for PVC creation
 		// as it already exists
 		// and Restore is not remapping namespace
