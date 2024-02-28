@@ -364,6 +364,8 @@ Below is an example command of Velero restore.
 velero restore create --from-backup <your-backup-name>
 ```
 
+Note that a StorageClass with the WaitForFirstConsumer Volume Binding Mode is not supported at restore time. Only a StorageClass with the Immediate Volume Binding Mode is supported at restore time. You'll have to change the Volume Binding Mode from WaitForFirstConsumer to Immediate for restore to work.
+
 For the volume restores with changing storage class, please refer to [StorageClass Mapping](storageclass-mapping.md)
 
 For more restore options, please refer to [Velero Document](https://velero.io/docs/v1.5/).
