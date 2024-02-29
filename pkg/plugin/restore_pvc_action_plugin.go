@@ -204,6 +204,12 @@ func (p *NewPVCRestoreItemAction) Execute(input *velero.RestoreItemActionExecute
 		}
 	}
 
+	// Check the StorageClass to validate that volumeBindingMode is not WaitForFirstConsumer
+	if err = pluginItem.ValidateRestoreStorageClass(restConfig, &itemSnapshot, p.Log); err != nil {
+		p.Log.Errorf("Failed to validate restore StorageClass VolumeBindingMode")
+		return nil, errors.WithStack(err)
+	}
+
 	snapshotID := itemSnapshot.Status.SnapshotID
 	snapshotMetadata := itemSnapshot.Status.Metadata
 	apiGroup := itemSnapshot.Spec.APIGroup
