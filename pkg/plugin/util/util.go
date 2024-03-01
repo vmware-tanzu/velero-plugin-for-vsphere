@@ -16,6 +16,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"github.com/vmware-tanzu/velero/pkg/podvolume"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -225,6 +226,49 @@ func RetrieveStorageClassMapping(config *rest.Config, veleroNs string, logger lo
 	}
 
 	return configMaps.Items[0].Data, nil
+}
+
+func ValidateRestoreStorageClass(config *rest.Config, itemSnapshot *backupdriverv1.Snapshot, logger logrus.FieldLogger) error {
+	if itemSnapshot == nil {
+		return errors.New("itemSnapshot is nil, unable to retrieve the StorageClass for validation")
+	}
+
+	var err error
+	snapshotMetadata := itemSnapshot.Status.Metadata
+
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err = pvc.Unmarshal(snapshotMetadata); err != nil {
+		logger.WithError(err).Error("Failed to unmarshal snapshotMetadata when validating StorageClass")
+		return err
+	}
+
+	if pvc.Spec.StorageClassName == nil || *pvc.Spec.StorageClassName == "" {
+		errMsg := fmt.Sprintf("PVC %s/%s has no storage class, unable to validate StorageClass",
+			pvc.Namespace, pvc.Name)
+		logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+
+	restoreStorageClassName := *pvc.Spec.StorageClassName
+	// validate that new storage class exists
+	clientset, err := GetKubeClient(config, logger)
+	if err != nil {
+		logger.Error("Failed to get core v1 client from given config")
+		return err
+	}
+	restoreStorageClass, err := clientset.StorageV1().StorageClasses().Get(context.TODO(), restoreStorageClassName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "error getting storage class %s for validation",
+			restoreStorageClassName)
+	}
+	if restoreStorageClass.VolumeBindingMode != nil && *restoreStorageClass.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
+		errMsg := fmt.Sprintf("The PVC to be restored is associated with StorageClass with " +
+			"WaitForFirstConsumer VolumeBindingMode, this is currently not supported. " +
+			"Only StorageClass with Immediate VolumeBindingMode is supported.")
+		logger.Error(errMsg)
+		return errors.New(errMsg)
+	}
+	return nil
 }
 
 func UpdateSnapshotWithNewStorageClass(config *rest.Config, itemSnapshot *backupdriverv1.Snapshot, storageClassMapping map[string]string, logger logrus.FieldLogger) (backupdriverv1.Snapshot, error) {
