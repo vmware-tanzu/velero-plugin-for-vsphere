@@ -274,7 +274,7 @@ cluster-distribution = "CSI-Vanilla"
 
 [VirtualCenter "10.182.1.133"]
 user = "Administrator@vsphere.local"
-password = "Pass"
+password = "6^54#,RDvwgJ\\nEdg$2"
 datacenters = "VSAN-DC"
 port = "443"
 	`
@@ -361,7 +361,7 @@ func TestGetBool(t *testing.T) {
 	}
 }
 
-func TestParseLines(t *testing.T) {
+func TestParseConfig(t *testing.T) {
 	// Setup Logger
 	logger := logrus.New()
 	formatter := new(logrus.TextFormatter)
@@ -372,34 +372,32 @@ func TestParseLines(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		sEnc     string
 		vc       string
+		user     string
 		password string
 	}{
 		{
-			name:     "Password with special character \\ in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;\"",
+			name:     `Password with special character \ in it`,
 			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
-			password: "GpI4G`OK'?in40Fo/0\\;",
+			user:     "Administrator@vsphere.local",
+			password: `6^54#,RDvwgJ\Edg$2`,
 		},
-		{
-			name:     "Password with multiple = in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"GpI4G`OK'?in40Fo/0\\\\;=h=\"",
-			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
-			password: "GpI4G`OK'?in40Fo/0\\;=h=",
-		},
-		{
-			name:     "Password with special character \\t in it",
-			sEnc:     "[VirtualCenter \"sc-rdops-vm06-dhcp-184-231.eng.vmware.com\"]\npassword = \"G4\\t4t\"",
-			vc:       "sc-rdops-vm06-dhcp-184-231.eng.vmware.com",
-			password: "G4\t4t",
-		},
+	}
+	confData := `[Global]
+	cluster-id = "cluster1"
+	
+	[VirtualCenter "sc-rdops-vm06-dhcp-184-231.eng.vmware.com"]
+	user = "Administrator@vsphere.local"
+	password = "6^54#,RDvwgJ\\Edg$2"
+	port = "443"`
+	mockSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "velero-vsphere-config-secret"},
+		Data:       map[string][]byte{"csi-vsphere.conf": []byte(confData)},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			lines := strings.Split(test.sEnc, "\n")
 			params := make(map[string]interface{})
-			ParseLines(lines, params, logger)
+			ParseConfig(mockSecret, params, logger)
 			assert.Equal(t, test.vc, params["VirtualCenter"])
 			assert.Equal(t, test.password, params["password"])
 		})
@@ -980,12 +978,34 @@ func TestRetrieveVcConfigSecret(t *testing.T) {
 	formatter.FullTimestamp = true
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
+	confData := `[Global]
+	cluster-id = "cluster1"
+	
+	[VirtualCenter "10.182.1.133"]
+	user = "user@vsphere.local"
+	password = "password"
+	port = "443"`
+	mockSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "velero-vsphere-config-secret"},
+		Data:       map[string][]byte{"csi-vsphere.conf": []byte(confData)},
+	}
 	tests := []struct {
 		name        string
 		runtimeObjs []runtime.Object
 		config      *rest.Config
 		expectError bool
 	}{
+		{
+			name: "Test secret retrieval",
+			runtimeObjs: []runtime.Object{
+				decoupleVSphereCSIDriverFeatureDisabled,
+				csi201VanillaDeployment,
+				csi201VSphereCredentialSecret,
+				mockSecret,
+			},
+			config:      &rest.Config{},
+			expectError: false,
+		},
 		{
 			name: "Decouple CSI driver feature enabled, plugin config absent, supervisor csi 2.3, csi secret present",
 			runtimeObjs: []runtime.Object{
