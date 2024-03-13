@@ -35,6 +35,7 @@ Velero handles Kubernetes metadata during backup and retore. Velero relies on it
 * vSphere Plugin - deployed with Velero; called by Velero to backup and restore a PVC
 * Backupdriver - handles the backup and restore of PVCs; relies on the Data Mover to upload or download data
 * Data Mover - handles upload of snapshot data to object store and download of snapshot data from object store
+  * Note: The Data Mover is only functionally tested and it is not meant to work at scale and does not promise any performance expectations. It is not meant to backup business critical applications in production.
 
 ![Velero Plugin for vSphere Architecture](docs/vsphere-plugin-architecture.png)
 
