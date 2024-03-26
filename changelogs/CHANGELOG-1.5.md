@@ -1,4 +1,31 @@
 # Changelog since v1.4.0
+
+
+## v1.5.3
+
+Date: 2024-3-26
+
+### Changes
+
+- Prevents Restore when the target Restore StorageClass has WaitForFirstConsumer volumeBindingMode ([#568](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/568), [@deepakkinni](https://github.com/deepakkinni))
+- This change will allow users to restore PVC's in the target namespace when the --namespace-mapping flag is used when creating a restore with Velero. ([#565](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/565), [@varunsrinivasan2](https://github.com/varunsrinivasan2))
+- With this change, when a Go special character is in the password, they will have to escape the character just as they would for vSphere CSI plugin. ([#564](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/564), [@varunsrinivasan2](https://github.com/varunsrinivasan2))
+
+## Dependencies
+
+### Added
+- gopkg.in/gcfg.v1: v1.2.3
+- gopkg.in/warnings.v0: v0.1.2
+
+### Changed
+- golang.org/x/crypto: v0.14.0 → v0.17.0
+- golang.org/x/sys: v0.13.0 → v0.15.0
+- golang.org/x/term: v0.13.0 → v0.15.0
+- golang.org/x/text: v0.13.0 → v0.14.0
+
+### Removed
+_Nothing has changed._
+
 ## v1.5.2
 
 Date: 2023-11-2
