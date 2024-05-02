@@ -78,6 +78,19 @@ port = "443"
 % kubectl -n <velero-namespace> create secret generic velero-vsphere-config-secret --from-file=csi-vsphere.conf
 ```
 
+**NOTE:** If the configuration values contain [Golang escape characters](https://yourbasic.org/golang/multiline-string/), please ensure it is properly escaped. See example below.
+
+If your VC password is `pwd\123`, the configuration file's password key-value should be `password = "pwd\\123"`.
+
+Examples:
+
+- VC password: `pwd\123`
+  - Config file: `password = "pwd\\123"`
+- VC password: `pwd\nWithNewline`
+  - Config file: `password = "password\\nWithNewLine""`
+- VC password: `Admin!23\'"`
+  - Config file: `password = "Admin!23\\'\""`
+
 ### Create Velero vSphere Plugin Config
 
 The config map provides information about the cluster flavor and VC Credential Secret created in the previous step during
@@ -156,6 +169,7 @@ port = "443"
 
 % kubectl -n <velero-namespace> create secret generic velero-vsphere-config-secret --from-file=csi-vsphere.conf
 ```
+
 
 ### Create Velero vSphere Plugin Configuration
 
