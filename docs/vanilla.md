@@ -82,6 +82,15 @@ port = "443"
 
 If your VC password is `pwd\123`, the configuration file's password key-value should be `password = "pwd\\123"`.
 
+Examples:
+
+- VC password: `pwd\123`
+  - Config file: `password = "pwd\\123"`
+- VC password: `pwd\nWithNewline`
+  - Config file: `password = "password\\nWithNewLine""`
+- VC password: `Admin!23\'"`
+  - Config file: `password = "Admin!23\\'\""`
+
 ### Create Velero vSphere Plugin Config
 
 The config map provides information about the cluster flavor and VC Credential Secret created in the previous step during
