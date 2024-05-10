@@ -270,6 +270,13 @@ var ResourcesToBlock = map[string]bool{
 	//"nsxloadbalancermonitors.vmware.com":                    true, // DO NOT ADD IT BACK
 	"nsxlocks.nsx.vmware.com":                                 true,
 	"nsxnetworkinterfaces.nsx.vmware.com":                     true,
+	"vpcnetworkconfigurations.nsx.vmware.com":                 true,
+	"networkinfoes.nsx.vmware.com":                            true,
+	"subnets.nsx.vmware.com":                                  true,
+	"subnetsets.nsx.vmware.com":                               true,
+	"subnetports.nsx.vmware.com":                              true,
+	"staticroutes.nsx.vmware.com":                             true,
+	"securitypolicies.nsx.vmware.com":                         true,
 	"nsxnetworkconfigurations.nsx.vmware.com":                 true,
 	"orders.acme.cert-manager.io":                             true,
 	"persistenceinstanceinfoes.psp.wcp.vmware.com":            true,
@@ -359,6 +366,8 @@ var PodAnnotationsToSkip = map[string]bool{
 	"vmware-system-image-references":    true,
 	"vmware-system-vm-moid":             true,
 	"vmware-system-vm-uuid":             true,
+	"nsx.vmware.com/attachment":         true,
+	"nsx.vmware.com/mac":                true,
 }
 
 // UUID of the VM on Supervisor Cluster
