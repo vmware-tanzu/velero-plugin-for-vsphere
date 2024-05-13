@@ -359,6 +359,7 @@ var PodAnnotationsToSkip = map[string]bool{
 	"vmware-system-image-references":    true,
 	"vmware-system-vm-moid":             true,
 	"vmware-system-vm-uuid":             true,
+	"vmware-system-network":             true,
 }
 
 // UUID of the VM on Supervisor Cluster
