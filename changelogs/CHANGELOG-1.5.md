@@ -1,5 +1,30 @@
-# Changelog since v1.4.0
+# Changelog since v1.5.3
 
+## v1.5.4
+
+Date: 2024-6-21
+
+### Changes
+
+- Cherry-pick ([#582](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/582), [@ihgann](https://github.com/ihgann): For Supervisor's using NSX Operator with VPC Networking, Velero backups will omit all NSX Operator v1alpha1 VPC APIs. vSphere Pods, Services, and any other resource's networking-related properties will need to be re-created by NSX Operator upon restore. ([#583](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/583), [@xing-yang](https://github.com/xing-yang))
+- Cherry-pick ([#578](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/578), [@varunsrinivasan2](https://github.com/varunsrinivasan2)): Fixed a problem in backup in the VDS setup on Supervisor. ([#583](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/pull/583), [@xing-yang](https://github.com/xing-yang))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- golang.org/x/crypto: v0.17.0 → v0.21.0
+- golang.org/x/net: v0.17.0 → v0.23.0
+- golang.org/x/sys: v0.15.0 → v0.18.0
+- golang.org/x/term: v0.15.0 → v0.18.0
+- google.golang.org/protobuf: v1.30.0 → v1.33.0
+
+### Removed
+_Nothing has changed._
+
+# Changelog since v1.5.2
 
 ## v1.5.3
 
@@ -25,6 +50,8 @@ Date: 2024-3-26
 
 ### Removed
 _Nothing has changed._
+
+# Changelog since v1.5.1
 
 ## v1.5.2
 
@@ -212,6 +239,7 @@ Date: 2023-11-2
 - google.golang.org/grpc/cmd/protoc-gen-go-grpc: v1.1.0
 - gopkg.in/cheggaaa/pb.v1: v1.0.25
 
+# Changelog since v1.5.0
 
 ## v1.5.1
 
@@ -241,6 +269,8 @@ _Nothing has changed._
 - github.com/xordataexchange/crypt: [b2862e3](https://github.com/xordataexchange/crypt/tree/b2862e3)
 - go.etcd.io/etcd: 17cef6e
 - gopkg.in/cheggaaa/pb.v1: v1.0.25
+
+# Changelog since v1.4.0
 
 ## v1.5.0
 
