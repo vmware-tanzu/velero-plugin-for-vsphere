@@ -84,6 +84,15 @@ The default list of blocked resources in configmap is:
  	nsxlocks.nsx.vmware.com
  	nsxnetworkconfigurations.nsx.vmware.com
  	nsxnetworkinterfaces.nsx.vmware.com
+ 	vpcnetworkconfigurations.nsx.vmware.com
+ 	networkinfos.nsx.vmware.com
+ 	subnets.nsx.vmware.com
+ 	subnetsets.nsx.vmware.com
+ 	subnetports.nsx.vmware.com
+ 	staticroutes.nsx.vmware.com
+ 	ippools.nsx.vmware.com
+ 	securitypolicies.nsx.vmware.com
+ 	nsxserviceaccounts.nsx.vmware.com
  	orders.acme.cert-manager.io
  	persistenceinstanceinfoes.psp.wcp.vmware.com
  	persistenceserviceconfigurations.psp.wcp.vmware.com
@@ -140,6 +149,9 @@ The following resources are handled during the restore on the Supervisor Cluster
     * vmware-system-image-references
     * vmware-system-vm-moid
     * vmware-system-vm-uuid
+    * vmware-system-network
+    * nsx.vmware.com/attachment
+    * nsx.vmware.com/mac
 
 ## vSphere Plugin resources
 

@@ -38,6 +38,9 @@ PLUGIN_IMAGE ?= $(REGISTRY)/$(PLUGIN_BIN)
 DATAMGR_IMAGE ?= $(REGISTRY)/$(DATAMGR_BIN)
 BACKUPDRIVER_IMAGE ?= $(REGISTRY)/$(BACKUPDRIVER_BIN)
 
+# The default container runtime is docker, but others are supported (e.g. podman, nerdctl).
+DOCKER ?= docker
+
 # Which architecture to build - see $(ALL_ARCH) for options.
 # if the 'local' rule is being run, detect the ARCH from 'go env'
 # if it wasn't specified by the caller.
@@ -119,8 +122,9 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs copy-astrolabe
 TTY := $(shell tty -s && echo "-t")
 
 shell: build-dirs
-	@echo "running docker: $@"
-	docker run \
+	@echo "running $(DOCKER): $@"
+	$(DOCKER) run \
+		--platform $(GOOS)/$(GOARCH) \
 		-e GOFLAGS \
 		-i $(TTY) \
 		--rm \
@@ -131,7 +135,7 @@ shell: build-dirs
 		-v $$(pwd)/.go/std:/go/std:delegated \
 		-v $$(pwd):/go/src/$(PKG):delegated \
 		-v "$$(pwd)/_output/bin:/output:delegated" \
-		-v $$(pwd)/.go/std/$(GOOS)_$(GOARCH):/usr/local/go/pkg/$(GOOS)_$(GOARCH)_static:delegated \
+		-v $$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)/$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
 		-e CGO_ENABLED=1 \
 		-e GOPATH=/go \
@@ -168,7 +172,7 @@ copy-install-script:
 
 build-container: copy-vix-libs container-name
 	cp $(DOCKERFILE) _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE)
-	docker build -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
+	$(DOCKER) build --platform $(GOOS)/$(GOARCH) -t $(IMAGE):$(VERSION) -f _output/bin/$(GOOS)/$(GOARCH)/$(DOCKERFILE) _output
 
 plugin-container: all copy-install-script
 	$(MAKE) build-container IMAGE=$(PLUGIN_IMAGE) DOCKERFILE=$(PLUGIN_DOCKERFILE) VERSION=$(VERSION)
@@ -186,13 +190,13 @@ update:
 	./hack/update-generated-crd-code.sh
 
 push-plugin: plugin-container
-	docker push $(PLUGIN_IMAGE):$(VERSION)
+	$(DOCKER) push $(PLUGIN_IMAGE):$(VERSION)
 
 push-datamgr: datamgr-container
-	docker push $(DATAMGR_IMAGE):$(VERSION)
+	$(DOCKER) push $(DATAMGR_IMAGE):$(VERSION)
 
 push-backup-driver: backup-driver-container
-	docker push $(BACKUPDRIVER_IMAGE):$(VERSION)
+	$(DOCKER) push $(BACKUPDRIVER_IMAGE):$(VERSION)
 
 push: push-datamgr push-plugin push-backup-driver
 
@@ -200,15 +204,15 @@ QUALIFIED_TAG ?=
 RELEASE_TAG ?= latest
 release:
 ifneq (,$(QUALIFIED_TAG))
-	docker pull $(DATAMGR_IMAGE):$(QUALIFIED_TAG)
-	docker pull $(PLUGIN_IMAGE):$(QUALIFIED_TAG)
-	docker pull $(BACKUPDRIVER_IMAGE):$(QUALIFIED_TAG)
-	docker tag $(BACKUPDRIVER_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
-	docker tag $(DATAMGR_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
-	docker tag $(PLUGIN_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
-	docker push $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
-	docker push $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
-	docker push $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
+	$(DOCKER) pull $(DATAMGR_IMAGE):$(QUALIFIED_TAG)
+	$(DOCKER) pull $(PLUGIN_IMAGE):$(QUALIFIED_TAG)
+	$(DOCKER) pull $(BACKUPDRIVER_IMAGE):$(QUALIFIED_TAG)
+	$(DOCKER) tag $(BACKUPDRIVER_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
+	$(DOCKER) tag $(DATAMGR_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
+	$(DOCKER) tag $(PLUGIN_IMAGE):$(QUALIFIED_TAG) $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
+	$(DOCKER) push $(RELEASE_REGISTRY)/$(BACKUPDRIVER_BIN):$(RELEASE_TAG)
+	$(DOCKER) push $(RELEASE_REGISTRY)/$(DATAMGR_BIN):$(RELEASE_TAG)
+	$(DOCKER) push $(RELEASE_REGISTRY)/$(PLUGIN_BIN):$(RELEASE_TAG)
 endif
 
 verify:
@@ -236,4 +240,4 @@ clean:
 	@echo "cleaning"
 	rm -rf .container-* _output/.dockerfile-*
 	rm -rf .go _output
-	docker rmi $(BUILDER_IMAGE)
+	$(DOCKER) rmi $(BUILDER_IMAGE)
