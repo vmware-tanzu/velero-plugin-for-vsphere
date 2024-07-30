@@ -87,9 +87,9 @@ Examples:
 - VC password: `pwd\123`
   - Config file: `password = "pwd\\123"`
 - VC password: `pwd\nWithNewline`
-  - Config file: `password = "password\\nWithNewLine""`
+  - Config file: `password = "pwd\\nWithNewLine"`
 - VC password: `Admin!23\'"`
-  - Config file: `password = "Admin!23\\'\""`
+  - Config file: `password = "Admin!23\\\'\""`
 
 ### Create Velero vSphere Plugin Config
 
