@@ -206,6 +206,7 @@ const (
 // words get an "s" attached.
 var ResourcesToBlock = map[string]bool{
 	// Kubernetes with vSphere Supervisor Cluster resources
+	"addressbindings.crd.nsx.vmware.com":                 true,
 	"agentinstalls.installers.tmc.cloud.vmware.com":      true,
 	"availabilityzones.topology.tanzu.vmware.com":        true,
 	"aviloadbalancerconfigs.netoperator.vmware.com":      true,
@@ -239,9 +240,11 @@ var ResourcesToBlock = map[string]bool{
 	//"images.imagecontroller.vmware.com":                     true, // DO NOT ADD IT BACK
 	"installoptions.appplatform.wcp.vmware.com":          true,
 	"installrequirements.appplatform.wcp.vmware.com":     true,
+	"ipaddressallocations.crd.nsx.vmware.com":            true,
 	"ipamblocks.crd.projectcalico.org":                   true,
 	"ipamconfigs.crd.projectcalico.org":                  true,
 	"ipamhandles.crd.projectcalico.org":                  true,
+	"ipblocksinfos.crd.nsx.vmware.com":                   true,
 	"ippools.crd.projectcalico.org":                      true,
 	"ippools.netoperator.vmware.com":                     true,
 	"ippools.nsx.vmware.com":                             true,
@@ -263,6 +266,7 @@ var ResourcesToBlock = map[string]bool{
 	// We comment the NetworkAttachmentDefinition resource out as it is not a vSphere specific resource
 	//"network-attachment-definitions.k8s.cni.cncf.io":     true, // real name of NetworkAttachmentDefinition
 	//"networkattachmentdefinitions.k8s.cni.cncf.io":       true, // parsed name of NetworkAttachmentDefinition
+	"networkinfos.crd.nsx.vmware.com":          true,
 	"networkinterfaces.netoperator.vmware.com": true,
 	"networks.netoperator.vmware.com":          true,
 	"nsxerrors.nsx.vmware.com":                 true,
@@ -270,13 +274,6 @@ var ResourcesToBlock = map[string]bool{
 	//"nsxloadbalancermonitors.vmware.com":                    true, // DO NOT ADD IT BACK
 	"nsxlocks.nsx.vmware.com":                                 true,
 	"nsxnetworkinterfaces.nsx.vmware.com":                     true,
-	"vpcnetworkconfigurations.nsx.vmware.com":                 true,
-	"networkinfos.nsx.vmware.com":                             true,
-	"subnets.nsx.vmware.com":                                  true,
-	"subnetsets.nsx.vmware.com":                               true,
-	"subnetports.nsx.vmware.com":                              true,
-	"staticroutes.nsx.vmware.com":                             true,
-	"securitypolicies.nsx.vmware.com":                         true,
 	"nsxnetworkconfigurations.nsx.vmware.com":                 true,
 	"nsxserviceaccounts.nsx.vmware.com":                       true,
 	"orders.acme.cert-manager.io":                             true,
@@ -290,11 +287,17 @@ var ResourcesToBlock = map[string]bool{
 	"resourcecheckreports.psp.wcp.vmware.com":                 true,
 	"resourcechecks.psp.wcp.vmware.com":                       true,
 	"routesets.nsx.vmware.com":                                true,
+	"securitypolicies.crd.nsx.vmware.com":                     true,
+	"securitypolicies.nsx.vmware.com":                         true,
 	"statefuldrainnodes.psp.wcp.vmware.com":                   true,
 	"statefulreadynodes.psp.wcp.vmware.com":                   true,
+	"staticroutes.crd.nsx.vmware.com":                         true,
 	"storagepolicies.appplatform.wcp.vmware.com":              true,
 	"storagepolicies.psp.wcp.vmware.com":                      true,
 	"storagepools.cns.vmware.com":                             true,
+	"subnetports.crd.nsx.vmware.com":                          true,
+	"subnets.crd.nsx.vmware.com":                              true,
+	"subnetsets.crd.nsx.vmware.com":                           true,
 	"supervisorservices.appplatform.wcp.vmware.com":           true,
 	"tanzukubernetesaddons.run.tanzu.vmware.com":              true,
 	"tanzukubernetesclusters.run.tanzu.vmware.com":            true,
@@ -312,6 +315,7 @@ var ResourcesToBlock = map[string]bool{
 	"virtualnetworkinterfaces.vmware.com":                     true,
 	"virtualnetworks.vmware.com":                              true,
 	"vmxnet3networkinterfaces.netoperator.vmware.com":         true,
+	"vpcnetworkconfigurations.crd.nsx.vmware.com":             true,
 	"vspheredistributednetworks.netoperator.vmware.com":       true,
 	"wcpclusters.infrastructure.cluster.vmware.com":           true,
 	"wcpnamespaces.appplatform.wcp.vmware.com":                true,
