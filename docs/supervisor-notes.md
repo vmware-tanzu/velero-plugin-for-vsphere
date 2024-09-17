@@ -26,6 +26,7 @@ The default list of blocked resources in configmap is:
 
 ### vSphere with Tanzu Supervisor Cluster resources
 
+ 	addressbindings.crd.nsx.vmware.com
  	agentinstalls.installers.tmc.cloud.vmware.com
  	availabilityzones.topology.tanzu.vmware.com
  	aviloadbalancerconfigs.netoperator.vmware.com
@@ -57,9 +58,11 @@ The default list of blocked resources in configmap is:
  	imagedisks.imagecontroller.vmware.com
  	installoptions.appplatform.wcp.vmware.com
  	installrequirements.appplatform.wcp.vmware.com
+ 	ipaddressallocations.crd.nsx.vmware.com
  	ipamblocks.crd.projectcalico.org
  	ipamconfigs.crd.projectcalico.org
  	ipamhandles.crd.projectcalico.org
+ 	ipblocksinfos.crd.nsx.vmware.com
  	ippools.crd.projectcalico.org
  	ippools.netoperator.vmware.com
  	ippools.nsx.vmware.com
@@ -78,20 +81,13 @@ The default list of blocked resources in configmap is:
  	members.registryagent.vmware.com
  	namespacenetworkinfos.nsx.vmware.com
  	ncpconfigs.nsx.vmware.com
+ 	networkinfos.crd.nsx.vmware.com
  	networkinterfaces.netoperator.vmware.com
  	networks.netoperator.vmware.com
  	nsxerrors.nsx.vmware.com
  	nsxlocks.nsx.vmware.com
  	nsxnetworkconfigurations.nsx.vmware.com
  	nsxnetworkinterfaces.nsx.vmware.com
- 	vpcnetworkconfigurations.nsx.vmware.com
- 	networkinfos.nsx.vmware.com
- 	subnets.nsx.vmware.com
- 	subnetsets.nsx.vmware.com
- 	subnetports.nsx.vmware.com
- 	staticroutes.nsx.vmware.com
- 	ippools.nsx.vmware.com
- 	securitypolicies.nsx.vmware.com
  	nsxserviceaccounts.nsx.vmware.com
  	orders.acme.cert-manager.io
  	persistenceinstanceinfoes.psp.wcp.vmware.com
@@ -104,11 +100,17 @@ The default list of blocked resources in configmap is:
  	resourcecheckreports.psp.wcp.vmware.com
  	resourcechecks.psp.wcp.vmware.com
  	routesets.nsx.vmware.com
+ 	securitypolicies.crd.nsx.vmware.com
+ 	securitypolicies.nsx.vmware.com
  	statefuldrainnodes.psp.wcp.vmware.com
  	statefulreadynodes.psp.wcp.vmware.com
+ 	staticroutes.crd.nsx.vmware.com
  	storagepolicies.appplatform.wcp.vmware.com
  	storagepolicies.psp.wcp.vmware.com
  	storagepools.cns.vmware.com
+ 	subnets.crd.nsx.vmware.com
+ 	subnetports.crd.nsx.vmware.com
+ 	subnetsets.crd.nsx.vmware.com
  	supervisorservices.appplatform.wcp.vmware.com
  	tanzukubernetesaddons.run.tanzu.vmware.com
  	tanzukubernetesclusters.run.tanzu.vmware.com
@@ -126,6 +128,7 @@ The default list of blocked resources in configmap is:
  	virtualnetworkinterfaces.vmware.com
  	virtualnetworks.vmware.com
  	vmxnet3networkinterfaces.netoperator.vmware.com
+ 	vpcnetworkconfigurations.crd.nsx.vmware.com
  	vspheredistributednetworks.netoperator.vmware.com
  	wcpclusters.infrastructure.cluster.vmware.com
  	wcpmachines.infrastructure.cluster.vmware.com
