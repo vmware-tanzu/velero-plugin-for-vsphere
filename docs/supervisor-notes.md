@@ -135,6 +135,10 @@ The default list of blocked resources in configmap is:
  	wcpmachinetemplates.infrastructure.cluster.vmware.com
  	wcpnamespaces.appplatform.wcp.vmware.com
  	webconsolerequests.vmoperator.vmware.com
+ 	storagequotaperiodicsyncs.cns.vmware.com
+ 	storagepolicyusages.cns.vmware.com
+ 	storagepolicyquotas.cns.vmware.com
+ 	storagequotas.cns.vmware.com
 
 For example, the backup of a Supervisor ```namespace``` with **Tanzu Kubernetes Grid Service** will fail since it contains some of restricted resources listed above.
 
