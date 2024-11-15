@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-FROM photon:4.0
+FROM photon:5.0
 RUN tdnf -y upgrade && tdnf clean all
 ADD /bin/linux/amd64/data-* /datamgr
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
