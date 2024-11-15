@@ -331,6 +331,12 @@ var ResourcesToBlock = map[string]bool{
 	"downloads.datamover.cnsdp.vmware.com":                 true,
 	"snapshots.backupdriver.cnsdp.vmware.com":              true,
 	"uploads.datamover.cnsdp.vmware.com":                   true,
+
+	// StorageQuota resources
+	"storagequotaperiodicsyncs.cns.vmware.com": true,
+	"storagepolicyusages.cns.vmware.com":       true,
+	"storagepolicyquotas.cns.vmware.com":       true,
+	"storagequotas.cns.vmware.com":             true,
 }
 
 var ResourcesToBlockOnRestore = map[string]bool{
