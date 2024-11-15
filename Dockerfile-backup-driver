@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM photon:4.0
+FROM photon:5.0
 RUN tdnf -y upgrade && tdnf clean all
 COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /vddkLibs/
 ADD /bin/linux/amd64/backup-driver* /backup-driver
