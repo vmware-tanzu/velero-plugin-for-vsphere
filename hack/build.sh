@@ -47,8 +47,8 @@ if [ -z "${GIT_SHA}" ]; then
     exit 1
 fi
 
+
 export CGO_ENABLED=1
-export GOEXPERIMENT=boringcrypto
 
 if [[ -z "${GIT_DIRTY}" ]]; then
   GIT_TREE_STATE=clean
@@ -64,14 +64,12 @@ LDFLAGS="${LDFLAGS} -X ${PKG}/pkg/buildinfo.GitTreeState=${GIT_TREE_STATE}"
 if [[ -z "${OUTPUT_DIR:-}" ]]; then
   OUTPUT_DIR=.
 fi
-
 OUTPUT=${OUTPUT_DIR}/${BIN}
 if [[ "${GOOS}" = "windows" ]]; then
   OUTPUT="${OUTPUT}.exe"
 fi
 
-GO111MODULES=on \
-    go build -buildmode=pie \
+GO111MODULES=on go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
     -ldflags "${LDFLAGS}" \
