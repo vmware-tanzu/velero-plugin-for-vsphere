@@ -14,7 +14,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/vmware-tanzu/astrolabe v0.6.0
 	github.com/vmware-tanzu/velero v1.10.2
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
