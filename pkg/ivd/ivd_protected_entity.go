@@ -20,6 +20,9 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
@@ -29,15 +32,13 @@ import (
 	"github.com/vmware/govmomi/vim25/xml"
 	"github.com/vmware/virtual-disks/pkg/disklib"
 	"github.com/vmware/virtual-disks/pkg/virtual_disks"
-	"io"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"strings"
 
 	"context"
+	"time"
+
 	"github.com/vmware/govmomi/vslm"
 	vslmtypes "github.com/vmware/govmomi/vslm/types"
-	"time"
 )
 
 type IVDProtectedEntity struct {
@@ -187,7 +188,7 @@ func (this IVDProtectedEntity) GetMetadataReader(ctx context.Context) (io.ReadCl
 		return nil, err
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(infoBuf)), nil
+	return io.NopCloser(bytes.NewReader(infoBuf)), nil
 }
 
 func (this IVDProtectedEntity) getMetadataBuf(ctx context.Context) ([]byte, error) {
@@ -229,7 +230,7 @@ func (this IVDProtectedEntity) getMetadata(ctx context.Context) (metadata, error
 }
 
 func readMetadataFromReader(ctx context.Context, metadataReader io.Reader) (metadata, error) {
-	mdBuf, err := ioutil.ReadAll(metadataReader) // TODO - limit this so it can't run us out of memory here
+	mdBuf, err := io.ReadAll(metadataReader) // TODO - limit this so it can't run us out of memory here
 	if err != nil && err != io.EOF {
 		return metadata{}, errors.Wrap(err, "ReadAll failed")
 	}
@@ -282,7 +283,7 @@ func (this IVDProtectedEntity) GetInfo(ctx context.Context) (astrolabe.Protected
 	retVal := astrolabe.NewProtectedEntityInfo(
 		this.id,
 		vso.Config.Name,
-		vso.Config.CapacityInMB * 1024 * 1024,
+		vso.Config.CapacityInMB*1024*1024,
 		this.data,
 		this.metadata,
 		this.combined,
@@ -365,10 +366,10 @@ func (this IVDProtectedEntity) Snapshot(ctx context.Context, params map[string]m
 					return false, nil
 				}
 			}
-			this.logger.WithError(err).Warnf("Failed at retrieving the snapshot details post the" +
+			this.logger.WithError(err).Warnf("Failed at retrieving the snapshot details post the"+
 				" completion of CreateSnapshot on %s, proceeding to use Snapshot %s anyways", this.id.String(), ivdSnapshotID.Id)
 		} else {
-			this.logger.Infof("The retrieval of the newly created snapshot, %s on IVD %s, " +
+			this.logger.Infof("The retrieval of the newly created snapshot, %s on IVD %s, "+
 				"is completed successfully, Retry-Count: %d, RetrieveSnapshotErr: %d",
 				ivdSnapshotID.Id, this.id.String(), retryCount, retrieveSnapDetailsErr)
 		}

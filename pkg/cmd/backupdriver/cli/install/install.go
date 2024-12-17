@@ -19,7 +19,10 @@ package install
 import (
 	"context"
 	"fmt"
+
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
+
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -31,9 +34,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
-	"io/ioutil"
 	"k8s.io/client-go/kubernetes"
-	"os"
 
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -186,7 +187,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	return nil
 }
 
-//Complete completes options for a command.
+// Complete completes options for a command.
 func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	fileName := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
@@ -201,7 +202,7 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 		return errors.WithStack(err)
 	}
 
-	content, err := ioutil.ReadFile(fileName)
+	content, err := os.ReadFile(fileName)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -259,4 +260,3 @@ func (o *InstallOptions) CheckFeatureFlagsForBackupDriver(kubeClient kubernetes.
 
 	return nil
 }
-
