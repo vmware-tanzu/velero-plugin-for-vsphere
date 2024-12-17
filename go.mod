@@ -17,7 +17,7 @@ require (
 	github.com/vmware-tanzu/astrolabe v0.6.0
 	github.com/vmware-tanzu/velero v1.10.2
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
-	github.com/vmware/virtual-disks v0.0.4
+	github.com/vmware/virtual-disks v0.0.5
 	gopkg.in/gcfg.v1 v1.2.3
 	k8s.io/api v0.32.0
 	k8s.io/apiextensions-apiserver v0.31.0

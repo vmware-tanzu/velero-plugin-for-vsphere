@@ -760,6 +760,8 @@ github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f h1:6LIYlihC1/LDU
 github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f/go.mod h1:Y+Wq4lst78L85Ge/F8+ORXIWiKYqaro1vhAulACy9Lc=
 github.com/vmware/virtual-disks v0.0.4 h1:0I8d9XhcccTcQP/duxY6eQ1PMFNLhT4uN+v2cqYAOCQ=
 github.com/vmware/virtual-disks v0.0.4/go.mod h1:GrUXFHPgc8MovXpbn3YduOIbRfzpKNNTagwjoY2bfAI=
+github.com/vmware/virtual-disks v0.0.5 h1:s57a4MvLdKJg5vJQ4WpMdb7/iBrTjYNCI5oMv8KEkU4=
+github.com/vmware/virtual-disks v0.0.5/go.mod h1:MNHh/AFuFY/nySNG5fTCG5C08hjyddBQIAUgjSPGR6Q=
 github.com/vmware/vmw-guestinfo v0.0.0-20170707015358-25eff159a728/go.mod h1:x9oS4Wk2s2u4tS29nEaDLdzvuHdB19CvSGJjPgkZJNk=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
