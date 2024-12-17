@@ -2,8 +2,6 @@ module github.com/vmware-tanzu/velero-plugin-for-vsphere
 
 go 1.23.0
 
-toolchain go1.23.2
-
 require (
 	github.com/agiledragon/gomonkey v2.0.1+incompatible
 	github.com/aws/aws-sdk-go v1.44.207
@@ -15,6 +13,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
+	github.com/tj/assert v0.0.3
 	github.com/vmware-tanzu/astrolabe v0.6.0
 	github.com/vmware-tanzu/velero v1.10.2
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
@@ -30,7 +29,6 @@ require (
 
 require (
 	cloud.google.com/go v0.110.0 // indirect
-	cloud.google.com/go/compute v1.19.1 // indirect
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
 	cloud.google.com/go/storage v1.28.1 // indirect
@@ -79,7 +77,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -89,7 +86,6 @@ require (
 	github.com/hashicorp/go-plugin v1.4.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
-	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jessevdk/go-flags v1.4.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
@@ -127,7 +123,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rs/xid v1.3.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/urfave/cli/v2 v2.2.0 // indirect
