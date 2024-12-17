@@ -120,7 +120,7 @@ _output/bin/$(GOOS)/$(GOARCH)/$(BIN): build-dirs copy-astrolabe
 		./hack/build.sh'"
 
 TTY := $(shell tty -s && echo "-t")
-
+# test
 shell: build-dirs
 	@echo "running $(DOCKER): $@"
 	$(DOCKER) run \
