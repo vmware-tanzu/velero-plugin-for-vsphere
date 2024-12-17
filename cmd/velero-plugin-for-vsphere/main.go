@@ -25,6 +25,9 @@ import (
 	plugins_pkg "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin"
 	"github.com/vmware-tanzu/velero/pkg/features"
 	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
+
+	// enable fips only mode
+	_ "crypto/tls/fipsonly"
 )
 
 func main() {

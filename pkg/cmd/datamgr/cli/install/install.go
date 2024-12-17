@@ -19,6 +19,9 @@ package install
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -30,11 +33,8 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/flag"
 	"github.com/vmware-tanzu/velero/pkg/cmd/util/output"
 	"github.com/vmware-tanzu/velero/pkg/features"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"path/filepath"
 
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -92,7 +92,7 @@ func (o *InstallOptions) AsDatamgrOptions() (*install.PodOptions, error) {
 		if err != nil {
 			return nil, err
 		}
-		secretData, err = ioutil.ReadFile(realPath)
+		secretData, err = os.ReadFile(realPath)
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +216,7 @@ func (o *InstallOptions) Run(c *cobra.Command, f client.Factory) error {
 	return nil
 }
 
-//Complete completes options for a command.
+// Complete completes options for a command.
 func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 	fileName := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
@@ -231,7 +231,7 @@ func (o *InstallOptions) Complete(args []string, f client.Factory) error {
 		return errors.WithStack(err)
 	}
 
-	content, err := ioutil.ReadFile(fileName)
+	content, err := os.ReadFile(fileName)
 	if err != nil {
 		return errors.WithStack(err)
 	}
