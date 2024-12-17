@@ -22,7 +22,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"io/ioutil"
+	
 
 	apiextinstall "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/install"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
