@@ -17,9 +17,6 @@ limitations under the License.
 package cmd
 
 const (
-	// the port where prometheus metrics are exposed
-	DefaultMetricsAddress = ":8085"
-
 	// server's client default qps and burst
 	DefaultClientQPS   float32 = 100.0
 	DefaultClientBurst int     = 100
