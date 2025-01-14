@@ -42,10 +42,6 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      annotations:
-        prometheus.io/path: /metrics
-        prometheus.io/port: "8085"
-        prometheus.io/scrape: "true"
       creationTimestamp: null
       labels:
         component: velero
@@ -72,10 +68,6 @@ spec:
         image: gcr.io/heptio-images/velero:v1.1.0
         imagePullPolicy: IfNotPresent
         name: velero
-        ports:
-        - containerPort: 8085
-          name: metrics
-          protocol: TCP
         resources: {}
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
