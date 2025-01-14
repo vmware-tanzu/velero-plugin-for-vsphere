@@ -1,6 +1,8 @@
 package util
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -8,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
-	"testing"
 )
 
 func Test_ItemToCRDName(t *testing.T) {
@@ -57,7 +58,7 @@ func TestGetPVForPVC(t *testing.T) {
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{},
 			},
 			StorageClassName: &csiStorageClass,
@@ -108,7 +109,7 @@ func TestGetPVForPVC(t *testing.T) {
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{},
 			},
 			StorageClassName: &csiStorageClass,
@@ -123,7 +124,7 @@ func TestGetPVForPVC(t *testing.T) {
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			Resources: corev1.ResourceRequirements{
+			Resources: corev1.VolumeResourceRequirements{
 				Requests: corev1.ResourceList{},
 			},
 			StorageClassName: &csiStorageClass,
@@ -710,10 +711,10 @@ func TestIsResourceBlocked(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name               string
-		crdName            string
-		resourceToBlock    map[string]string
-		expectedResult     bool
+		name            string
+		crdName         string
+		resourceToBlock map[string]string
+		expectedResult  bool
 	}{
 		{
 			name:            "crd is blocked",

@@ -22,6 +22,9 @@ import (
 
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/backupdriver"
+
+	// enable fips only mode
+	_ "crypto/tls/fipsonly"
 )
 
 func main() {

@@ -20,10 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"io"
-	"io/ioutil"
 	"time"
+
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 
 	"github.com/vmware-tanzu/astrolabe/pkg/astrolabe"
 	backupdriverapi "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
@@ -141,7 +141,7 @@ func (ctrl *backupDriverController) createSnapshot(snapshot *backupdriverapi.Sna
 		return err
 	}
 
-	mdBuf, err := ioutil.ReadAll(metadataReader) // TODO - limit this so it can't run us out of memory here
+	mdBuf, err := io.ReadAll(metadataReader) // TODO - limit this so it can't run us out of memory here
 	if err != nil && err != io.EOF {
 		errMsg := fmt.Sprintf("createSnapshot PostSnapshot: Error happened when reading metadata: %v", err)
 		ctrl.logger.Error(errMsg)
@@ -206,7 +206,7 @@ func (ctrl *backupDriverController) deleteSnapshot(deleteSnapshot *backupdrivera
 	// Backups created in Guest Cluster when local-mode is set do not exercise the Backup Repository claims workflow, as
 	// a result, the Backup Repository is unset. If the Backup Repository is observed unset when deleting the backup
 	// then there is no need to retrieve the corresponding supervisor Backup Repository as it is implied local-mode.
-	if ctrl.svcKubeConfig != nil && brName!= "" {
+	if ctrl.svcKubeConfig != nil && brName != "" {
 		// For guest cluster, get the supervisor backup repository name
 		br, err := ctrl.backupdriverClient.BackupRepositories().Get(ctx, brName, metav1.GetOptions{})
 		if err != nil {
@@ -289,7 +289,7 @@ func (ctrl *backupDriverController) cloneFromSnapshot(cloneFromSnapshot *backupd
 		}
 		return err
 	}
-	if pvc.Spec.StorageClassName != nil && (*pvc.Spec.StorageClassName) != ""{
+	if pvc.Spec.StorageClassName != nil && (*pvc.Spec.StorageClassName) != "" {
 		ctrl.logger.Infof("StorageClassName is %s for PVC %s/%s", *pvc.Spec.StorageClassName, pvc.Namespace, pvc.Name)
 	} else {
 		errMsg := fmt.Sprintf("cloneFromSnapshot PreCloneFromSnapshot: Failed for PVC %s/%s because StorageClassName is not set", pvc.Namespace, pvc.Name)
