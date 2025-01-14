@@ -54,7 +54,6 @@ import (
 )
 
 type serverConfig struct {
-	metricsAddress     string
 	clientQPS          float32
 	clientBurst        int
 	profilerAddress    string
@@ -71,7 +70,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 	var (
 		logLevelFlag = logging.LogLevelFlag(logrus.InfoLevel)
 		config       = serverConfig{
-			metricsAddress:     cmd.DefaultMetricsAddress,
 			clientQPS:          cmd.DefaultClientQPS,
 			clientBurst:        cmd.DefaultClientBurst,
 			profilerAddress:    cmd.DefaultProfilerAddress,
@@ -122,7 +120,6 @@ func NewCommand(f client.Factory) *cobra.Command {
 	// Common flags
 	command.Flags().Var(logLevelFlag, "log-level", fmt.Sprintf("the level at which to log. Valid values are %s.", strings.Join(logLevelFlag.AllowedValues(), ", ")))
 	command.Flags().Var(config.formatFlag, "log-format", fmt.Sprintf("the format for log output. Valid values are %s.", strings.Join(config.formatFlag.AllowedValues(), ", ")))
-	command.Flags().StringVar(&config.metricsAddress, "metrics-address", config.metricsAddress, "the address to expose prometheus metrics")
 	command.Flags().Float32Var(&config.clientQPS, "client-qps", config.clientQPS, "maximum number of requests per second by the server to the Kubernetes API once the burst limit has been reached")
 	command.Flags().IntVar(&config.clientBurst, "client-burst", config.clientBurst, "maximum number of requests by the server to the Kubernetes API in a short period of time")
 	command.Flags().StringVar(&config.profilerAddress, "profiler-address", config.profilerAddress, "the address to expose the pprof profiler")
@@ -287,7 +284,6 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 
 	s := &server{
 		namespace:             f.Namespace(),
-		metricsAddress:        config.metricsAddress,
 		kubeClient:            kubeClient,
 		pluginClient:          pluginClient,
 		pluginInformerFactory: pluginInformers.NewSharedInformerFactoryWithOptions(pluginClient, constants.ResyncPeriod, pluginInformers.WithNamespace(f.Namespace())),
