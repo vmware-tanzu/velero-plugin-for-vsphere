@@ -58,7 +58,7 @@ for the detail.
 
 In a vSphere with Tanzu Supervisor cluster, users should use `Velero vSphere Operator` CLI to uninstall [Uninstalling Velero on Supervisor cluster](velero-vsphere-operator-user-manual.md#uninstalling-velero-on-supervisor-cluster).
 
-**Note**: Disabling the `Velero vSphere Operator` Supervisor Service will also uninstall Velero as well as the ```velero-plugin-for-vsphere``` in the Supervisor cluster. However, as a best practice, it is recommended to uninstall velero and velero-plugin-for-vsphere using `Velero vSphere Operator CLI`.
+**Note**: Users are expected to uninstall velero and velero-plugin-for-vsphere using `Velero vSphere Operator CLI`.
 
 ## Backup
 

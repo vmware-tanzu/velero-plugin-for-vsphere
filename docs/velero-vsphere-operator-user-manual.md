@@ -102,4 +102,3 @@ Below are some examples about `velero-vsphere install` for different object stor
     ```
 
 2. Delete the supervisor namespace created for Velero instance via vSphere UI.
-3. Disable `Velero vSphere Operator` supervisor service via vSphere UI.
