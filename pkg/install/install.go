@@ -67,17 +67,17 @@ var CRDsList = []string{
 
 // DefaultImage is the default image to use for the Velero deployment and restic daemonset containers.
 var (
-	DefaultDatamgrImage          = imageRegistry() + "/" + constants.DataManagerForPlugin + ":" + imageVersion()
-	DefaultDatamgrPodCPURequest  = "0"
-	DefaultDatamgrPodMemRequest  = "0"
-	DefaultDatamgrPodCPULimit    = "0"
-	DefaultDatamgrPodMemLimit    = "0"
+	DefaultDatamgrImage         = imageRegistry() + "/" + constants.DataManagerForPlugin + ":" + imageVersion()
+	DefaultDatamgrPodCPURequest = "0"
+	DefaultDatamgrPodMemRequest = "0"
+	DefaultDatamgrPodCPULimit   = "0"
+	DefaultDatamgrPodMemLimit   = "0"
 
-	DefaultBackupDriverImage          = imageRegistry() + "/" + constants.BackupDriverForPlugin + ":" + imageVersion()
-	DefaultBackupDriverPodCPURequest  = "0"
-	DefaultBackupDriverPodMemRequest  = "0"
-	DefaultBackupDriverPodCPULimit    = "0"
-	DefaultBackupDriverPodMemLimit    = "0"
+	DefaultBackupDriverImage         = imageRegistry() + "/" + constants.BackupDriverForPlugin + ":" + imageVersion()
+	DefaultBackupDriverPodCPURequest = "0"
+	DefaultBackupDriverPodMemRequest = "0"
+	DefaultBackupDriverPodCPULimit   = "0"
+	DefaultBackupDriverPodMemLimit   = "0"
 )
 
 type PodOptions struct {
@@ -92,7 +92,7 @@ type PodOptions struct {
 	SecretAdd      bool
 	MasterAffinity bool
 	HostNetwork    bool
-	Features	   []string
+	Features       []string
 }
 
 // Use "latest" if the build process didn't supply a version
@@ -121,15 +121,6 @@ func objectMeta(namespace, name string) metav1.ObjectMeta {
 		Name:      name,
 		Namespace: namespace,
 		Labels:    labels(),
-	}
-}
-
-func containerPorts() []corev1.ContainerPort {
-	return []corev1.ContainerPort{
-		{
-			Name:          "metrics",
-			ContainerPort: 8085,
-		},
 	}
 }
 

@@ -96,7 +96,6 @@ func Deployment(namespace string, opts ...podTemplateOption) *appsv1.Deployment 
 						{
 							Name:            "backup-driver",
 							Image:           c.image,
-							Ports:           containerPorts(),
 							ImagePullPolicy: pullPolicy,
 							Command: []string{
 								"/backup-driver",
