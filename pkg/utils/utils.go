@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -214,7 +213,7 @@ func RetrieveParamsFromBSL(repositoryParams map[string]string, bslName string, c
 	}
 
 	for _, value := range secret.Data {
-		tmpfile, err := ioutil.TempFile("", "temp-aws-cred")
+		tmpfile, err := os.CreateTemp("", "temp-aws-cred")
 		if err != nil {
 			return errors.Wrap(err, "Failed to create temp file to extract aws credentials")
 		}
