@@ -3,7 +3,7 @@ module github.com/vmware-tanzu/velero-plugin-for-vsphere
 go 1.23
 
 require (
-	github.com/agiledragon/gomonkey v2.0.1+incompatible
+	github.com/agiledragon/gomonkey v2.0.2+incompatible
 	github.com/aws/aws-sdk-go v1.44.207
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/google/uuid v1.3.0
@@ -12,7 +12,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.10.0
 	github.com/vmware-tanzu/astrolabe v0.6.0
 	github.com/vmware-tanzu/velero v1.10.2
 	github.com/vmware/govmomi v0.22.2-0.20200329013745-f2eef8fc745f
