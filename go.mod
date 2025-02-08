@@ -1,6 +1,6 @@
 module github.com/vmware-tanzu/velero-plugin-for-vsphere
 
-go 1.18
+go 1.23
 
 require (
 	github.com/agiledragon/gomonkey v2.0.1+incompatible

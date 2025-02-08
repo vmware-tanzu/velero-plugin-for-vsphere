@@ -61,7 +61,7 @@ platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
 
-BUILDER_IMAGE := golang:1.18
+BUILDER_IMAGE := golang:1.23
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
