@@ -60,8 +60,8 @@ GIT_DIRTY = $(shell git status --porcelain 2> /dev/null)
 platform_temp = $(subst -, ,$(ARCH))
 GOOS = $(word 1, $(platform_temp))
 GOARCH = $(word 2, $(platform_temp))
-
-BUILDER_IMAGE := golang:1.23
+SOURCE_PHOTON_IMAGE ?= golang:1.23
+BUILDER_IMAGE := $(SOURCE_PHOTON_IMAGE)
 PLUGIN_DOCKERFILE ?= Dockerfile-plugin
 DATAMGR_DOCKERFILE ?= Dockerfile-datamgr
 BACKUPDRIVER_DOCKERFILE ?= Dockerfile-backup-driver
@@ -137,7 +137,7 @@ shell: build-dirs
 		-v "$$(pwd)/_output/bin:/output:delegated" \
 		-v $$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)/$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-e CGO_ENABLED=1 \
+		-e CGO_ENABLED=1 -e GOEXPERIMENT=boringcrypto \
 		-e GOPATH=/go \
 		-w /go/src/$(PKG) \
 		$(BUILDER_IMAGE) \
