@@ -21,8 +21,8 @@ package crds
 import (
 	"bytes"
 	"compress/gzip"
-	"io/ioutil"
-
+	"io"
+ 
 	apiextinstall "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/install"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -49,7 +49,7 @@ func crds() []*apiextv1.CustomResourceDefinition {
 		if err != nil {
 			panic(err)
 		}
-		bytes, err := ioutil.ReadAll(gzr)
+		bytes, err := io.ReadAll(gzr)
 		if err != nil {
 			panic(err)
 		}

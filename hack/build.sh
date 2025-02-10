@@ -48,7 +48,7 @@ if [ -z "${GIT_SHA}" ]; then
 fi
 
 
-export CGO_ENABLED=1
+export GOEXPERIMENT=boringcrypto
 
 if [[ -z "${GIT_DIRTY}" ]]; then
   GIT_TREE_STATE=clean
