@@ -14,7 +14,7 @@
 | Velero Plugin for vSphere Version | vSphere Version  | Kubernetes Version                                     | vSphere CSI Driver Version | Velero Version | Velero vSphere Operator Version | Data Manager Version | Velero Plugin for AWS | vSphere Plugin Deprecated | vSphere Plugin EOL Date      |
 |-----------------------------------|------------------|--------------------------------------------------------|----------------------------|----------------|---------------------------------|---------------|-----------------------|------------|---------------|
 | 1.6.0                             | 9.0              | Bundled with vSphere (1.29-1.32)                       | Bundled with vSphere       | 1.13.2          | 1.8.1                           | 1.2.0        | 1.6.1/1.6.2           | No         | N/A    |
-| 1.5.4                             | 8.0U3/8.0U3a     | Bundled with vSphere (1.27-1.29)                       | Bundled with vSphere       | 1.13.1          | 1.6.1                           | 1.2.0        | 1.6.0                 | No         | N/A    |
+| 1.5.4                             | 8.0U3/8.0U3a     | Bundled with vSphere (1.27-1.29)                       | Bundled with vSphere       | 1.13.1          | 1.8.1/1.6.1                     | 1.2.0        | 1.6.0                 | No         | N/A    |
 | 1.5.4                             | 8.0U2d           | Bundled with vSphere (1.25-1.27)                       | Bundled with vSphere       | 1.13.1          | 1.6.1                           | 1.2.0        |                       | No         | N/A           |
 | 1.5.3                             | 8.0U3            | Bundled with vSphere (1.26-1.28)                       | Bundled with vSphere       | 1.13.1          | 1.6.1                           | 1.2.0        | 1.6.0                 | No         | N/A    |
 | 1.5.3                             | 8.0U2b           | Bundled with vSphere (1.25-1.27)                       | Bundled with vSphere       | 1.13.1          | 1.6.0                           | 1.2.0        |                       | No         | N/A           |
@@ -68,7 +68,7 @@ The backup workflow in a vSphere with Tanzu Supervisor cluster is the same as th
 
 ## Restore
 
-In a vSphere with Tanzu Supervisor cluster, users need to take extra steps via either vSphere UI or VMware [DCLI](https://code.vmware.com/web/tool/3.0.0/vmware-datacenter-cli) before restoring a workload.
+In a vSphere with Tanzu Supervisor cluster, users need to take extra steps either via vSphere UI or VMware [DCLI](https://code.vmware.com/web/tool/3.0.0/vmware-datacenter-cli) before restoring a workload.
 
 1. Create a namespace in Supervisor cluster.
 2. Configure the Storage policy in the namespace.
