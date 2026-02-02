@@ -17,53 +17,58 @@
 package main
 
 import (
-	"os"
-	"strings"
-
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/pflag"
-	plugins_pkg "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin"
-	"github.com/vmware-tanzu/velero/pkg/features"
-	veleroplugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
-
 	// enable fips only mode
 	_ "crypto/tls/fipsonly"
+
+	"github.com/sirupsen/logrus"
+	velero_plugin "github.com/vmware-tanzu/velero/pkg/plugin/framework"
+	plugin_common "github.com/vmware-tanzu/velero/pkg/plugin/framework/common"
+	"k8s.io/client-go/restmapper"
+
+	plugins_pkg "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/plugin"
+	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 )
 
 func main() {
-	enableFeatureFlagForVSpherePlugins()
-	veleroPluginServer := veleroplugin.NewServer()
+	logger := logrus.StandardLogger()
+
+	if err := utils.CreateBlockListConfigMap(logger); err != nil {
+		logrus.Fatalf("Failed to create block list config map: %v", err)
+	}
+
+	mapper, err := utils.GetCachedMapper()
+	if err != nil {
+		logrus.Fatalf("Failed to create cached mapper: %v", err)
+	}
+
+	veleroPluginServer := velero_plugin.NewServer()
 	veleroPluginServer = veleroPluginServer.
-		RegisterBackupItemAction("velero.io/vsphere-pvc-backupper", newPVCBackupItemAction).
-		RegisterRestoreItemAction("velero.io/vsphere-pvc-restorer", newPVCRestoreItemAction).
-		RegisterDeleteItemAction("velero.io/vsphere-pvc-deleter", newPVCDeleteItemAction).
-		RegisterVolumeSnapshotter("velero.io/vsphere", newVolumeSnapshotterPlugin)
+		RegisterBackupItemAction(
+			"velero.io/vsphere-backupper",
+			newBackupItemAction(mapper),
+		).
+		RegisterRestoreItemAction(
+			"velero.io/vsphere-restorer",
+			newRestoreItemAction(mapper),
+		)
+
 	veleroPluginServer.Serve()
 }
 
-func newVolumeSnapshotterPlugin(logger logrus.FieldLogger) (interface{}, error) {
-	return &plugins_pkg.NewVolumeSnapshotter{FieldLogger: logger}, nil
+func newBackupItemAction(mapper *restmapper.DeferredDiscoveryRESTMapper) plugin_common.HandlerInitializer {
+	return func(logger logrus.FieldLogger) (any, error) {
+		return &plugins_pkg.NewBackupItemAction{
+			Log:    logger,
+			Mapper: mapper,
+		}, nil
+	}
 }
 
-func newPVCBackupItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &plugins_pkg.NewPVCBackupItemAction{Log: logger}, nil
-}
-
-func newPVCRestoreItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &plugins_pkg.NewPVCRestoreItemAction{Log: logger}, nil
-}
-
-func newPVCDeleteItemAction(logger logrus.FieldLogger) (interface{}, error) {
-	return &plugins_pkg.NewPVCDeleteItemAction{Log: logger}, nil
-}
-
-func enableFeatureFlagForVSpherePlugins() {
-	var featureString string
-	flags := pflag.CommandLine
-	flags.StringVar(&featureString, "features", featureString, "list of feature flags for this plugin")
-	flags.ParseErrorsWhitelist.UnknownFlags = true
-	flags.Parse(os.Args[1:])
-
-	featureFlags := strings.Split(featureString, ",")
-	features.Enable(featureFlags...)
+func newRestoreItemAction(mapper *restmapper.DeferredDiscoveryRESTMapper) plugin_common.HandlerInitializer {
+	return func(logger logrus.FieldLogger) (any, error) {
+		return &plugins_pkg.NewRestoreItemAction{
+			Log:    logger,
+			Mapper: mapper,
+		}, nil
+	}
 }

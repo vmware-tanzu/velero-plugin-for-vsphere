@@ -18,13 +18,6 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [ ! -d "${GOPATH}/src/${VDDK_LIBS}" ]
-then
-    echo "Error: ${GOPATH}/src/${VDDK_LIBS} cannot find vddk libs in path, please reference to: https://github.com/vmware-tanzu/astrolabe/tree/master/vendor/github.com/vmware/gvddk#dependency"
-fi
-
-export LD_LIBRARY_PATH=${GOPATH}/src/${VDDK_LIBS}
-
 if [ -z "${TARGETS}" ]; then
     echo "TARGETS must be set"
     exit 1

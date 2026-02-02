@@ -63,8 +63,6 @@ spec:
           value: /credentials/cloud
         - name: AZURE_CREDENTIALS_FILE
           value: /credentials/cloud
-        - name: LD_LIBRARY_PATH
-          value: /plugins
         image: gcr.io/heptio-images/velero:v1.1.0
         imagePullPolicy: IfNotPresent
         name: velero

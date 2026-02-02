@@ -16,10 +16,6 @@
 FROM photon:5.0
 RUN tdnf -y upgrade && tdnf clean all
 ADD /bin/linux/amd64/velero-* /plugins/
-ADD /bin/linux/amd64/data-* /
-ADD /bin/linux/amd64/backup-driver* /
 COPY /bin/linux/amd64/install.sh /scripts/
-COPY /bin/linux/amd64/lib/vmware-vix-disklib/lib64/* /plugins/
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/plugins
 RUN ["chmod", "+x", "/scripts/install.sh"]
 ENTRYPOINT ["/bin/sh","/scripts/install.sh"]
