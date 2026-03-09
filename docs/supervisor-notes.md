@@ -90,6 +90,8 @@ The default list of blocked resources in configmap is:
  	nsxnetworkinterfaces.nsx.vmware.com
  	nsxserviceaccounts.nsx.vmware.com
  	orders.acme.cert-manager.io
+    packages.data.packaging.carvel.dev
+    packagemetadatas.data.packaging.carvel.dev
  	persistenceinstanceinfoes.psp.wcp.vmware.com
  	persistenceserviceconfigurations.psp.wcp.vmware.com
  	projects.registryagent.vmware.com

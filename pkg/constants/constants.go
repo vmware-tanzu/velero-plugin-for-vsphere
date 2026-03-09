@@ -277,6 +277,8 @@ var ResourcesToBlock = map[string]bool{
 	"nsxnetworkconfigurations.nsx.vmware.com":                 true,
 	"nsxserviceaccounts.nsx.vmware.com":                       true,
 	"orders.acme.cert-manager.io":                             true,
+	"packages.data.packaging.carvel.dev":                      true,
+	"packagemetadatas.data.packaging.carvel.dev":              true,
 	"persistenceinstanceinfoes.psp.wcp.vmware.com":            true,
 	"persistenceserviceconfigurations.psp.wcp.vmware.com":     true,
 	"projects.registryagent.vmware.com":                       true,
