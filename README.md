@@ -2,6 +2,9 @@
 
 ![Velero Plugin For vSphere CICD Pipeline](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/workflows/Velero%20Plugin%20For%20vSphere%20CICD%20Pipeline/badge.svg)
 
+The main branch of this repo contains code for the upcoming Velero vSphere Plugin 2.0. This is a breaking change. Velero vSphere Plugin 1.6.x and earlier, including the Backup Driver and the Data Mover, are not supported by Velero vSphere Plugin 2.0. If you need information regarding an earlier release, please refer to [release-1.16 document](https://github.com/vmware-tanzu/velero-plugin-for-vsphere/tree/release-1.6?tab=readme-ov-file#velero-plugin-for-vsphere).
+
+
 ## Overview
 
 This repository contains the Velero Plugin for vSphere.  This plugin provides plugins for velero based on [go-plugin](https://github.com/hashicorp/go-plugin).
