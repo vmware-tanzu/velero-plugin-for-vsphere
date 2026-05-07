@@ -782,9 +782,9 @@ func (this *SnapshotManager) CreateVolumeFromSnapshotWithMetadata(peID astrolabe
 			this.Infof("CreateVolumeFromSnapshotWithMetadata: PE returned by CreateFromMetadata: %s", pe.GetID().String())
 			return pe.GetID(), err
 		} else {
-			errMsg := "BackupRepository unset during restore, local mode set during restore is unsupported."
-			this.Errorf(errMsg)
-			return astrolabe.ProtectedEntityID{}, errors.Errorf(errMsg)
+		errMsg := "BackupRepository unset during restore, local mode set during restore is unsupported."
+		this.Errorf(errMsg)
+		return astrolabe.ProtectedEntityID{}, errors.New(errMsg)
 		}
 	}
 

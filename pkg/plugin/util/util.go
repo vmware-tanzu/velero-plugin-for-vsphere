@@ -14,7 +14,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
-	"github.com/vmware-tanzu/velero/pkg/podvolume"
+	pdvolumeutil "github.com/vmware-tanzu/velero/pkg/util/podvolume"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -425,7 +425,7 @@ func IsPVCBackedUpByFsBackup(pvcNamespace, pvcName string, podClient corev1clien
 	}
 
 	for _, p := range pods {
-		fsBackedVols := podvolume.GetVolumesByPod(&p, defaultVolumesToFsBackup)
+		fsBackedVols, _ := pdvolumeutil.GetVolumesByPod(&p, defaultVolumesToFsBackup, false, nil)
 		if len(fsBackedVols) > 0 {
 			volName, err := GetPodVolumeNameForPVC(p, pvcName)
 			if err != nil {

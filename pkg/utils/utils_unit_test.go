@@ -18,6 +18,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -42,6 +43,7 @@ import (
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	informers "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/informers/externalversions"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
+	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -1171,6 +1173,46 @@ func TestGetUploadCRRetryMaximumFromConfig(t *testing.T) {
 			actualUploadCRRetryMax := GetUploadCRRetryMaximumFromConfig(kubeClient, constants.DefaultVeleroNamespace,
 				constants.VeleroVSpherePluginConfig, logger)
 			assert.Equal(t, test.expectedUploadCRRetryMax, actualUploadCRRetryMax)
+		})
+	}
+}
+
+// TestNewVeleroK8sClient_SchemeKnowsVeleroTypes guards against re-introducing
+// the runtime-only bug where controller-runtime's client.New is constructed
+// with the default scheme (core k8s types only), causing Get/List of Velero v1
+// types to fail at runtime with "no kind is registered for the type ... in scheme".
+//
+// The compiler cannot catch that bug because client.Options{}'s Scheme field is
+// optional. This unit test instead asks the constructed client's scheme to map
+// each Velero v1 type the plugin uses to a GVK; if velero_api.AddToScheme was
+// not called, the lookup fails and this test fails.
+//
+// This test does not contact any API server (the rest.Config is bogus); it only
+// exercises the in-memory runtime.Scheme registry inside the returned client.
+func TestNewVeleroK8sClient_SchemeKnowsVeleroTypes(t *testing.T) {
+	c, err := NewVeleroK8sClient(&rest.Config{Host: "https://127.0.0.1:1"})
+	require.NoError(t, err, "NewVeleroK8sClient should construct without error using an unreachable rest.Config")
+
+	// scheme.ObjectKinds accepts runtime.Object so list types (which lack
+	// ObjectMeta methods and therefore do not satisfy client.Object) are valid.
+	cases := []runtime.Object{
+		&velero_api.Backup{},
+		&velero_api.BackupList{},
+		&velero_api.BackupStorageLocation{},
+		&velero_api.BackupStorageLocationList{},
+		&velero_api.Restore{},
+		&velero_api.RestoreList{},
+		&velero_api.VolumeSnapshotLocation{},
+	}
+	for _, obj := range cases {
+		obj := obj
+		t.Run(fmt.Sprintf("%T", obj), func(t *testing.T) {
+			gvks, _, err := c.Scheme().ObjectKinds(obj)
+			assert.NoErrorf(t, err,
+				"scheme returned by NewVeleroK8sClient must know %T; "+
+					"if this fails, velero_api.AddToScheme(scheme) was likely removed from NewVeleroK8sClient", obj)
+			assert.NotEmptyf(t, gvks,
+				"scheme returned by NewVeleroK8sClient must have at least one GVK for %T", obj)
 		})
 	}
 }
