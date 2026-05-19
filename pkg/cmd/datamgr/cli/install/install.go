@@ -98,7 +98,7 @@ func (o *InstallOptions) AsDatamgrOptions() (*install.PodOptions, error) {
 		}
 	}
 
-	podResources, err := kubeutil.ParseResourceRequirements(o.PodCPURequest, o.PodMemRequest, o.PodCPULimit, o.PodMemLimit)
+	podResources, err := kubeutil.ParseCPUAndMemoryResources(o.PodCPURequest, o.PodMemRequest, o.PodCPULimit, o.PodMemLimit)
 	if err != nil {
 		return nil, err
 	}

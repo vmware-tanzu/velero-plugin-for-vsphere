@@ -27,10 +27,10 @@ import (
 	"github.com/sirupsen/logrus"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
 	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestRetrieveParamsFromBSL(t *testing.T) {
