@@ -49,14 +49,29 @@ import (
 	plugin_clientset "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned"
 	datamover_client "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/datamover/v1alpha1"
 	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	velero_clientset "github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8sv1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 )
+
+// NewVeleroK8sClient creates a controller-runtime client with the Velero v1
+// API types registered (in addition to core Kubernetes types). The default
+// scheme used by client.New only knows core types, so without this helper
+// any Get/List of Velero CRDs (e.g. BackupStorageLocation, Backup) fails
+// with "no kind is registered for the type ... in scheme".
+func NewVeleroK8sClient(config *rest.Config) (client.Client, error) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(velero_api.AddToScheme(scheme))
+	return client.New(config, client.Options{Scheme: scheme})
+}
 
 func RetrieveVcConfigSecret(params map[string]interface{}, config *rest.Config, logger logrus.FieldLogger) error {
 	var err error // Declare here to avoid shadowing on using in cluster config only
@@ -255,7 +270,7 @@ func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.
 		}
 	}
 
-	veleroClient, err := velero_clientset.NewForConfig(config)
+	k8sClient, err := NewVeleroK8sClient(config)
 	if err != nil {
 		return bslName, err
 	}
@@ -266,7 +281,11 @@ func RetrieveBSLFromBackup(ctx context.Context, backupName string, config *rest.
 		return bslName, err
 	}
 
-	backup, err := veleroClient.VeleroV1().Backups(veleroNs).Get(ctx, backupName, metav1.GetOptions{})
+	backup := &velero_api.Backup{}
+	err = k8sClient.Get(ctx, client.ObjectKey{
+		Namespace: veleroNs,
+		Name:      backupName,
+	}, backup)
 	if err != nil {
 		logger.Errorf("RetrieveBSLFromBackup: Backup %s not found", backupName)
 		return bslName, err
@@ -291,7 +310,7 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 		}
 	}
 
-	veleroClient, err := velero_clientset.NewForConfig(config)
+	k8sClient, err := NewVeleroK8sClient(config)
 	if err != nil {
 		return err
 	}
@@ -303,13 +322,17 @@ func RetrieveVSLFromVeleroBSLs(params map[string]interface{}, bslName string, co
 	}
 
 	var backupStorageLocation *velero_api.BackupStorageLocation
-	backupStorageLocation, err = veleroClient.VeleroV1().BackupStorageLocations(veleroNs).
-		Get(context.TODO(), bslName, metav1.GetOptions{})
+	backupStorageLocation = &velero_api.BackupStorageLocation{}
+	err = k8sClient.Get(context.TODO(), client.ObjectKey{
+		Namespace: veleroNs,
+		Name:      bslName,
+	}, backupStorageLocation)
 
 	if err != nil {
 		logger.WithError(err).Infof("RetrieveVSLFromVeleroBSLs: Failed to get Velero %s backup storage location,"+
 			" attempting to find available BSL", bslName)
-		backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
+		backupStorageLocationList := &velero_api.BackupStorageLocationList{}
+		err = k8sClient.List(context.TODO(), backupStorageLocationList, client.InNamespace(veleroNs))
 		if err != nil || len(backupStorageLocationList.Items) <= 0 {
 			logger.WithError(err).Errorf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 			return err

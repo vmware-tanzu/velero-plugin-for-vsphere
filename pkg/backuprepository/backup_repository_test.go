@@ -6,7 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/constants"
 	veleroplugintest "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/test"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	backupdriverv1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/apis/backupdriver/v1alpha1"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
+	veleroplugin_utils "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/utils"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -116,9 +118,9 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 	logger.SetFormatter(formatter)
 	logger.SetLevel(logrus.DebugLevel)
 
-	veleroClient, err := versioned.NewForConfig(config)
+	k8sClient, err := veleroplugin_utils.NewVeleroK8sClient(config)
 	if err != nil {
-		t.Fatalf("Failed to retrieve veleroClient")
+		t.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
 
 	backupdriverClient, err := backupdriverTypedV1.NewForConfig(config)
@@ -126,9 +128,10 @@ func TestBackupRepositoryCreationFromBSL(t *testing.T) {
 		t.Fatalf("Failed to retrieve backupdriverClient from config: %v", config)
 	}
 
-	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
+	backupStorageLocationList := &velero_api.BackupStorageLocationList{}
+	err = k8sClient.List(context.TODO(), backupStorageLocationList, client.InNamespace(veleroNs))
 	if err != nil || len(backupStorageLocationList.Items) <= 0 {
-		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
+		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location: %v", err)
 	}
 	repositoryParameters := make(map[string]string)
 	repositoryParameters["region"] = region

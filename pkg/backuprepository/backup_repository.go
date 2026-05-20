@@ -306,13 +306,11 @@ func GetBackupRepositoryFromBackupRepositoryName(backupRepositoryName string) (*
 	}
 	pluginClient, err := versioned.NewForConfig(config)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get k8s clientset from the given config: %v ", config)
-		return nil, errors.Wrapf(err, errMsg)
+		return nil, errors.Wrapf(err, "Failed to get k8s clientset from the given config: %v", config)
 	}
 	backupRepositoryCR, err := pluginClient.BackupdriverV1alpha1().BackupRepositories().Get(context.TODO(), backupRepositoryName, metav1.GetOptions{})
 	if err != nil {
-		errMsg := fmt.Sprintf("Error while retrieving the backup repository CR %v", backupRepositoryName)
-		return nil, errors.Wrapf(err, errMsg)
+		return nil, errors.Wrapf(err, "Error while retrieving the backup repository CR %v", backupRepositoryName)
 	}
 	return backupRepositoryCR, nil
 }

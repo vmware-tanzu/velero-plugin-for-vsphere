@@ -26,10 +26,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 	backupdriverTypedV1 "github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/generated/clientset/versioned/typed/backupdriver/v1alpha1"
-	"github.com/vmware-tanzu/velero/pkg/generated/clientset/versioned"
+	velero_api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestRetrieveParamsFromBSL(t *testing.T) {
@@ -54,9 +55,9 @@ func TestRetrieveParamsFromBSL(t *testing.T) {
 	// using velero ns for testing.
 	veleroNs := "velero"
 
-	veleroClient, err := versioned.NewForConfig(config)
+	k8sClient, err := NewVeleroK8sClient(config)
 	if err != nil {
-		t.Fatalf("Failed to retrieve veleroClient")
+		t.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
 
 	_, err = backupdriverTypedV1.NewForConfig(config)
@@ -64,7 +65,8 @@ func TestRetrieveParamsFromBSL(t *testing.T) {
 		t.Fatalf("Failed to retrieve backupdriverClient from config: %v", config)
 	}
 
-	backupStorageLocationList, err := veleroClient.VeleroV1().BackupStorageLocations(veleroNs).List(context.TODO(), metav1.ListOptions{})
+	backupStorageLocationList := &velero_api.BackupStorageLocationList{}
+	err = k8sClient.List(context.TODO(), backupStorageLocationList, client.InNamespace(veleroNs))
 	if err != nil || len(backupStorageLocationList.Items) <= 0 {
 		t.Fatalf("RetrieveVSLFromVeleroBSLs: Failed to list Velero default backup storage location")
 	}

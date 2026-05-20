@@ -76,7 +76,7 @@ func NewInstallOptions() *InstallOptions {
 
 // AsPodOptions translates the values provided at the command line into values used to instantiate Kubernetes resources
 func (o *InstallOptions) AsBackupDriverOptions() (*pkgInstall.PodOptions, error) {
-	podResources, err := kubeutil.ParseResourceRequirements(o.PodCPURequest, o.PodMemRequest, o.PodCPULimit, o.PodMemLimit)
+	podResources, err := kubeutil.ParseCPUAndMemoryResources(o.PodCPURequest, o.PodMemRequest, o.PodCPULimit, o.PodMemLimit)
 	if err != nil {
 		return nil, err
 	}
