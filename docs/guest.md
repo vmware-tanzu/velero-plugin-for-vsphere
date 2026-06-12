@@ -16,8 +16,8 @@ This document discusses the velero vSphere plugin installation process in a **Ta
 
 | Velero Plugin for vSphere Version | vSphere Version    | Kubernetes Version | vSphere CSI Driver Version | Velero Version | vSphere Plugin Deprecated | vSphere Plugin EOL Date      |
 |-----------------------------------|--------------------|--------------------|----------------------------|----------------|------------|---------------|
-| 1.6.0                             | 9.1.0.0            | 1.32-1.34          | Bundled with TKGS          | 1.15.2         | No         | N/A        |
-| 1.6.0                             | 9.0.2              | 1.32-1.34          | Bundled with TKGS          | 1.15.2         | No         | N/A        |
+| 1.6.0                             | 9.1.0.0            | 1.33               | Bundled with TKGS          | 1.15.2         | No         | N/A        |
+| 1.6.0                             | 9.0.2              | 1.33               | Bundled with TKGS          | 1.15.2         | No         | N/A        |
 | 1.6.0                             | 8.0u3g             | 1.29-1.32          | Bundled with TKGS          | 1.13.2         | No         | N/A        |
 | 1.6.0                             | 8.0 P08/P09        | 1.29-1.32          | Bundled with TKGS          | 1.13.2         | No         | N/A        |
 | 1.6.0                             | 8.0U3d             | 1.26-1.28          | Bundled with TKGS          | 1.13.2         | No         | N/A        |
