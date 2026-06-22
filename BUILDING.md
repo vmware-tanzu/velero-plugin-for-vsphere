@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Download VDDK 7.0.2 libraries from [here](https://code.vmware.com/web/sdk/7.0/vddk) to
+- Download VDDK libraries from [here](https://developer.broadcom.com/sdks/vmware-virtual-disk-development-kit-vddk/latest) to
 `<local path to velero-plugin-for-vsphere project>/.libs` and untar it.
 
 ## Building the plugin
