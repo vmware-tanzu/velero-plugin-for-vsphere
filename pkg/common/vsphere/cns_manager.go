@@ -73,7 +73,7 @@ func (this *CnsManager) QueryVolume(ctx context.Context, queryFilter cnstypes.Cn
 	var err error
 	for invokeCount <= DefaultAuthErrorRetryCount {
 		invokeCount++
-		queryResult, err = cachedCnsClient.QueryVolume(ctx, queryFilter)
+		queryResult, err = cachedCnsClient.QueryVolume(ctx, &queryFilter)
 		if err != nil {
 			cachedCnsClient, err = this.processError(invokeCount, err)
 			if err != nil {

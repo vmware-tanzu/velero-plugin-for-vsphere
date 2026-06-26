@@ -25,7 +25,7 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/backupdriver/cli/server"
 
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/vmware-tanzu/velero/pkg/client"
 )
