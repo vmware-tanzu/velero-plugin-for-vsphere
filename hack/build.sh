@@ -72,5 +72,6 @@ fi
 GO111MODULES=on go build \
     -o ${OUTPUT} \
     -installsuffix "static" \
+    -buildvcs=false \
     -ldflags "${LDFLAGS}" \
     ${PKG}/cmd/${BIN}
