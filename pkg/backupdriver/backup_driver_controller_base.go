@@ -419,10 +419,14 @@ func (ctrl *backupDriverController) enqueueSecret(obj interface{}) {
 		obj = unknown.Obj
 	}
 	if secretItem, ok := obj.(*corev1.Secret); ok {
+		if secretItem == nil {
+			ctrl.logger.Error("enqueueSecret: received a nil Secret, skipping")
+			return
+		}
 		ctrl.logger.Debugf("enqueueSecret on update: %s", secretItem.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(secretItem)
 		if err != nil {
-			ctrl.logger.Errorf("failed to get key from object: %v, %v", err, secretItem)
+			ctrl.logger.Errorf("failed to get key from secret %s/%s: %v", secretItem.Namespace, secretItem.Name, err)
 			return
 		}
 		ctrl.logger.Debugf("enqueueSecret: enqueued %q for sync", objName)

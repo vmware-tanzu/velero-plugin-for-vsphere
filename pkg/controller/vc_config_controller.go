@@ -54,10 +54,14 @@ func (v *vcConfigController) enqueueVcConfigSecret(obj interface{}) {
 		obj = unknown.Obj
 	}
 	if secretItem, ok := obj.(*corev1.Secret); ok {
-		v.logger.Debugf("enqueueSecret on update: %s", secretItem.Name)
+		if secretItem == nil {
+			v.logger.Error("enqueueVcConfigSecret: received a nil Secret, skipping")
+			return
+		}
+		v.logger.Debugf("enqueueVcConfigSecret on update: %s", secretItem.Name)
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(secretItem)
 		if err != nil {
-			v.logger.Errorf("failed to get key from object: %v, %v", err, secretItem)
+			v.logger.Errorf("failed to get key from secret %s/%s: %v", secretItem.Namespace, secretItem.Name, err)
 			return
 		}
 		v.logger.Debugf("enqueueVcConfigSecret: enqueued %q for sync", objName)
