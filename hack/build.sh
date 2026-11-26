@@ -48,7 +48,12 @@ if [ -z "${GIT_SHA}" ]; then
 fi
 
 
-export GOEXPERIMENT=boringcrypto
+# FIPS: use the Go Cryptographic Module snapshot (GOFIPS140) instead of boringcrypto.
+# GOEXPERIMENT=noboringcrypto turns off only boringcrypto, which a boring toolchain would
+# otherwise default to and which cannot coexist with GOFIPS140 or GODEBUG=fips140=on (the
+# binary panics at start-up). GOEXPERIMENT=none would turn off every default experiment.
+export GOEXPERIMENT=noboringcrypto
+export GOFIPS140=v1.26.0
 
 if [[ -z "${GIT_DIRTY}" ]]; then
   GIT_TREE_STATE=clean

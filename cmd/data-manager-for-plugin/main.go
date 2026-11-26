@@ -24,9 +24,6 @@ import (
 	"github.com/vmware-tanzu/velero-plugin-for-vsphere/pkg/cmd/datamgr"
 
 	"k8s.io/klog/v2"
-
-	// enable fips only mode
-	_ "crypto/tls/fipsonly"
 )
 
 func main() {

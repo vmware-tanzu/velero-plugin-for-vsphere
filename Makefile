@@ -137,7 +137,7 @@ shell: build-dirs
 		-v "$$(pwd)/_output/bin:/output:delegated" \
 		-v $$(pwd)/.go/std/$(GOOS)/$(GOARCH):/usr/local/go/pkg/$(GOOS)/$(GOARCH)_static:delegated \
 		-v "$$(pwd)/.go/go-build:/.cache/go-build:delegated" \
-		-e CGO_ENABLED=1 -e GOEXPERIMENT=boringcrypto \
+		-e CGO_ENABLED=1 -e GOEXPERIMENT=noboringcrypto -e GOFIPS140=v1.26.0 \
 		-e GOPATH=/go \
 		-w /go/src/$(PKG) \
 		$(BUILDER_IMAGE) \
